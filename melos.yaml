@@ -1,0 +1,31 @@
+name: omnibook
+
+packages:
+  - apps/**
+  - packages/**
+
+command:
+  bootstrap:
+    runPubGetInParallel: true
+
+scripts:
+  bootstrap:
+    run: melos bootstrap
+
+  pubget:
+    run: melos exec -c 6 -- flutter pub get
+
+  clean:
+    run: melos exec -c 6 -- flutter clean
+
+  analyze:
+    run: melos exec -c 6 -- flutter analyze
+
+  format:
+    run: melos exec -c 6 -- dart format .
+
+  test:
+    run: melos exec -c 6 -- flutter test
+
+  gen:
+    run: melos exec -c 6 -- dart run build_runner build --delete-conflicting-outputs

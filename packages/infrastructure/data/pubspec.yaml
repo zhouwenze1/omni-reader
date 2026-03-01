@@ -1,0 +1,36 @@
+name: data
+description: Repository implementations (drift/db, fs, cache, downloader)
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  core:
+    path: ../../foundation/core
+  domain:
+    path: ../../foundation/domain
+
+  # DB
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.26
+  path: ^1.9.0
+  path_provider: ^2.1.4
+
+  # Files/zip
+  archive: ^3.6.1
+  mime: ^1.0.6
+
+  # Networking (optional but useful)
+  dio: ^5.7.0
+  flutter_cache_manager: ^3.4.1
+
+  # Utils
+  collection: ^1.18.0
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.2
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.11

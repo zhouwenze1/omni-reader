@@ -1,0 +1,15 @@
+name: services_search
+description: Feasibility package for EPUB full-book search with on-demand indexing.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  epub_pro: ^5.6.0
+
+dev_dependencies:
+  archive: ^4.0.7
+  lints: ^5.0.0
+  test: ^1.25.8

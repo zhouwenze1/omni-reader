@@ -1,0 +1,20 @@
+name: engine_api
+description: Reader engine abstraction (Engine/Session/Events/Registry)
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  core:
+    path: ../../foundation/core
+  domain:
+    path: ../../foundation/domain
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0

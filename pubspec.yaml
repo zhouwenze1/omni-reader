@@ -1,0 +1,7 @@
+name: omnibook_workspace
+description: OmniBook monorepo workspace (mobile + desktop + shared packages)
+publish_to: "none"
+version: 0.0.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
