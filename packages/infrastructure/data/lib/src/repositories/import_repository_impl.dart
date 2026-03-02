@@ -7,6 +7,7 @@ import 'package:foundation_domain/domain.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/storage_paths.dart';
+import '../services/cover_extraction_service.dart';
 
 class ImportRepositoryImpl implements ImportRepository {
   ImportRepositoryImpl({
@@ -19,6 +20,7 @@ class ImportRepositoryImpl implements ImportRepository {
     required LpfToAudiobookConverter audiobookConverter,
     required EpubImportService epubImportService,
     required BookStorageService bookStorageService,
+    required CoverExtractionService coverExtractionService,
   })  : _storagePaths = storagePaths,
         _fileService = fileService,
         _fingerprintService = fingerprintService,
@@ -27,7 +29,8 @@ class ImportRepositoryImpl implements ImportRepository {
         _pdfPackager = pdfPackager,
         _audiobookConverter = audiobookConverter,
         _epubImportService = epubImportService,
-        _bookStorageService = bookStorageService;
+        _bookStorageService = bookStorageService,
+        _coverExtractionService = coverExtractionService;
 
   final StoragePaths _storagePaths;
   final FileService _fileService;
@@ -38,6 +41,7 @@ class ImportRepositoryImpl implements ImportRepository {
   final LpfToAudiobookConverter _audiobookConverter;
   final EpubImportService _epubImportService;
   final BookStorageService _bookStorageService;
+  final CoverExtractionService _coverExtractionService;
 
   @override
   Future<ImportResult> importBookFromFile(
@@ -131,6 +135,15 @@ class ImportRepositoryImpl implements ImportRepository {
       await _fileService.copyFile(filePath, originalTarget);
 
       final now = DateTime.now();
+      String? coverRelPath;
+      if (format == 'epub' && epubPackage != null) {
+        coverRelPath = await _coverExtractionService.extractEpubCoverToLibraryTemp(
+          bookUid: bookUid,
+          opfPath: epubPackage.opfPath,
+          tempBookDir: tmpDir,
+        );
+      }
+
       final book = Book(
         uid: bookUid,
         format: format,
@@ -142,7 +155,7 @@ class ImportRepositoryImpl implements ImportRepository {
             ? _bookStorageService.bookDirPath(bookUid)
             : finalBookDir,
         originalRelPath: originalRelPath,
-        coverRelPath: null,
+        coverRelPath: coverRelPath,
         tags: const [],
         categoryId: null,
         status: BookStatus.ready,
@@ -209,6 +222,7 @@ class ImportRepositoryImpl implements ImportRepository {
           format: format,
           title: book.title,
           authors: book.authors,
+          categoryId: book.categoryId,
           coverRelPath: book.coverRelPath,
           importedAt: book.importedAt,
           updatedAt: book.updatedAt,

@@ -36,9 +36,8 @@ class CollectionDao {
       [name, now, now],
     );
 
-    final idRow = await _db
-        .customSelect('SELECT last_insert_rowid() AS id')
-        .getSingle();
+    final idRow =
+        await _db.customSelect('SELECT last_insert_rowid() AS id').getSingle();
     final id = (idRow.data['id'] as num).toInt();
 
     return Collection(
@@ -77,13 +76,18 @@ class CollectionDao {
     );
   }
 
+  Future<void> removeBookFromAllCollections(String bookUid) {
+    return _db.customStatement(
+      'DELETE FROM collection_items WHERE bookUid = ?',
+      [bookUid],
+    );
+  }
+
   Future<List<CollectionItem>> listCollectionItems(int collectionId) async {
-    final rows = await _db
-        .customSelect(
-          'SELECT * FROM collection_items WHERE collectionId = ? ORDER BY addedAt DESC',
-          variables: [Variable.withInt(collectionId)],
-        )
-        .get();
+    final rows = await _db.customSelect(
+      'SELECT * FROM collection_items WHERE collectionId = ? ORDER BY addedAt DESC',
+      variables: [Variable.withInt(collectionId)],
+    ).get();
 
     return rows
         .map(
@@ -95,6 +99,17 @@ class CollectionDao {
             ),
           ),
         )
+        .toList();
+  }
+
+  Future<List<int>> listCollectionIdsForBook(String bookUid) async {
+    final rows = await _db.customSelect(
+      'SELECT collectionId FROM collection_items WHERE bookUid = ?',
+      variables: [Variable.withString(bookUid)],
+    ).get();
+
+    return rows
+        .map((row) => (row.data['collectionId'] as num).toInt())
         .toList();
   }
 }

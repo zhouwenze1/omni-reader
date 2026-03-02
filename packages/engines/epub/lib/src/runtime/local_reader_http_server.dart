@@ -359,15 +359,7 @@ class LocalReaderHttpServer {
     }
     await target.create(recursive: true);
 
-    final manifestText = await rootBundle.loadString('AssetManifest.json');
-    final manifestJson = jsonDecode(manifestText);
-    final keys = <String>[];
-
-    if (manifestJson is Map<String, dynamic>) {
-      keys.addAll(manifestJson.keys);
-    } else if (manifestJson is Map) {
-      keys.addAll(manifestJson.keys.map((key) => '$key'));
-    }
+    final keys = await _loadAssetManifestKeys();
 
     const prefix = 'packages/engine_epub/assets/renderer/';
     final rendererAssetKeys =
@@ -402,6 +394,33 @@ class LocalReaderHttpServer {
       );
     }
     return target;
+  }
+
+  Future<List<String>> _loadAssetManifestKeys() async {
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final keys = manifest.listAssets().toList()..sort();
+      if (keys.isNotEmpty) {
+        return keys;
+      }
+    } catch (_) {}
+
+    try {
+      final manifestText = await rootBundle.loadString('AssetManifest.json');
+      final manifestJson = jsonDecode(manifestText);
+      final keys = <String>[];
+      if (manifestJson is Map<String, dynamic>) {
+        keys.addAll(manifestJson.keys);
+      } else if (manifestJson is Map) {
+        keys.addAll(manifestJson.keys.map((key) => '$key'));
+      }
+      keys.sort();
+      return keys;
+    } catch (_) {}
+
+    throw StateError(
+      'Unable to read asset manifest from AssetManifest API or AssetManifest.json',
+    );
   }
 }
 

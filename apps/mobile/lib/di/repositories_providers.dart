@@ -18,3 +18,7 @@ final importRepositoryProvider = Provider<ImportRepository>((ref) {
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return ref.watch(dataModuleProvider).settingsRepository;
 });
+
+final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
+  return ref.watch(dataModuleProvider).collectionRepository;
+});

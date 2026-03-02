@@ -38,6 +38,11 @@ class CollectionRepositoryImpl implements CollectionRepository {
   }
 
   @override
+  Future<void> removeBookFromAllCollections(String bookUid) {
+    return _dao.removeBookFromAllCollections(bookUid);
+  }
+
+  @override
   Future<List<CollectionItem>> listCollectionItems(int collectionId) {
     return _dao.listCollectionItems(collectionId);
   }

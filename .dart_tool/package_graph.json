@@ -56,7 +56,8 @@
         "flutter_riverpod",
         "foundation_domain",
         "go_router",
-        "infrastructure_data"
+        "infrastructure_data",
+        "window_manager"
       ],
       "devDependencies": [
         "flutter_test"
@@ -99,7 +100,8 @@
         "hive",
         "path",
         "path_provider",
-        "sqlite3_flutter_libs"
+        "sqlite3_flutter_libs",
+        "xml"
       ],
       "devDependencies": []
     },
@@ -323,6 +325,15 @@
         "stream_channel",
         "test_api",
         "vector_math"
+      ]
+    },
+    {
+      "name": "window_manager",
+      "version": "0.5.1",
+      "dependencies": [
+        "flutter",
+        "path",
+        "screen_retriever"
       ]
     },
     {
@@ -761,6 +772,17 @@
       ]
     },
     {
+      "name": "screen_retriever",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "screen_retriever_linux",
+        "screen_retriever_macos",
+        "screen_retriever_platform_interface",
+        "screen_retriever_windows"
+      ]
+    },
+    {
       "name": "cross_file",
       "version": "0.3.5+2",
       "dependencies": [
@@ -960,6 +982,39 @@
       "dependencies": [
         "source_span",
         "string_scanner"
+      ]
+    },
+    {
+      "name": "screen_retriever_windows",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "screen_retriever_platform_interface"
+      ]
+    },
+    {
+      "name": "screen_retriever_platform_interface",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "json_annotation",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "screen_retriever_macos",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "screen_retriever_platform_interface"
+      ]
+    },
+    {
+      "name": "screen_retriever_linux",
+      "version": "0.2.0",
+      "dependencies": [
+        "flutter",
+        "screen_retriever_platform_interface"
       ]
     },
     {

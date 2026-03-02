@@ -5,6 +5,7 @@ class LibraryIndexEntry {
     required this.format,
     required this.title,
     required this.authors,
+    this.categoryId,
     this.coverRelPath,
     required this.importedAt,
     required this.updatedAt,
@@ -17,6 +18,7 @@ class LibraryIndexEntry {
   final String format;
   final String title;
   final List<String> authors;
+  final String? categoryId;
   final String? coverRelPath;
   final DateTime importedAt;
   final DateTime updatedAt;
@@ -32,6 +34,7 @@ class LibraryIndexEntry {
       authors: (json['authors'] as List<dynamic>? ?? const [])
           .map((it) => '$it')
           .toList(),
+      categoryId: json['categoryId'] as String?,
       coverRelPath: json['coverRelPath'] as String?,
       importedAt: DateTime.fromMillisecondsSinceEpoch(
         (json['importedAt'] as num).toInt(),
@@ -55,6 +58,7 @@ class LibraryIndexEntry {
       'format': format,
       'title': title,
       'authors': authors,
+      'categoryId': categoryId,
       'coverRelPath': coverRelPath,
       'importedAt': importedAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,

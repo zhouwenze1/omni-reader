@@ -1,55 +1,169 @@
-import 'package:file_picker/file_picker.dart';
+﻿import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:go_router/go_router.dart';
+import 'package:infrastructure_data/data.dart';
 
 import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../routes/route_paths.dart';
+import '../controller/library_controller.dart';
+import '../controller/library_state.dart';
+import '../widgets/book_grid_item.dart';
+import '../widgets/book_list_item.dart';
+import '../widgets/shelf_toolbar.dart';
 
 class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final libraryAsync = ref.watch(libraryIndexProvider);
+    final state = ref.watch(mobileLibraryControllerProvider);
+    final controller = ref.read(mobileLibraryControllerProvider.notifier);
+    final dataModule = ref.watch(dataModuleProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Library'),
+        title: const Text('书架'),
         actions: [
           IconButton(
-            onPressed: () => _importBook(context, ref),
-            icon: const Icon(Icons.file_upload_outlined),
-            tooltip: 'Import',
+            onPressed: () => context.push(RoutePaths.settingsHome),
+            icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
-      body: libraryAsync.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return const Center(child: Text('No books yet. Tap import.'));
-          }
-          return ListView.builder(
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final progress =
-                  ((item.cachedProgress ?? 0) * 100).toStringAsFixed(1);
-              return ListTile(
-                title: Text(item.title),
-                subtitle: Text('${item.format} · $progress%'),
-                onTap: () => context.push(RoutePaths.reader(item.bookUid)),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            Center(child: Text('Failed to load library: $error')),
-      ),
+      body: switch (state.status) {
+        LibraryPageStatus.loading => const Center(child: CircularProgressIndicator()),
+        LibraryPageStatus.error => Center(child: Text(state.errorMessage ?? '加载失败')),
+        LibraryPageStatus.empty => const Center(child: Text('暂无书籍，先导入一本书。')),
+        LibraryPageStatus.normal => Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                ShelfToolbar(
+                  sortMode: state.sortMode,
+                  viewMode: state.viewMode,
+                  onSortChanged: (m) => controller.setSortMode(m),
+                  onViewModeChanged: (m) => controller.setViewMode(m),
+                  onImport: () => _importBook(context, ref),
+                ),
+                const SizedBox(height: 8),
+                _filterRow(state, controller),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: state.viewMode == LibraryViewMode.grid
+                      ? GridView.builder(
+                          itemCount: state.items.length,
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                            childAspectRatio: 0.64,
+                          ),
+                          itemBuilder: (context, index) {
+                            final entry = state.items[index];
+                            return BookGridItem(
+                              entry: entry,
+                              coverPath: _coverPath(dataModule, entry),
+                              onTap: () => context.push(RoutePaths.reader(entry.bookUid)),
+                            );
+                          },
+                        )
+                      : ListView.separated(
+                          itemCount: state.items.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final entry = state.items[index];
+                            return BookListItem(
+                              entry: entry,
+                              coverPath: _coverPath(dataModule, entry),
+                              onTap: () => context.push(RoutePaths.reader(entry.bookUid)),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+      },
     );
+  }
+
+  Widget _filterRow(MobileLibraryState state, MobileLibraryController controller) {
+    final selectedFormat = state.filters.formats.isEmpty ? 'ALL' : state.filters.formats.first;
+    final selectedCategory =
+        state.filters.categoryIds.isEmpty ? 'ALL' : state.filters.categoryIds.first;
+
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButton<String>(
+            value: selectedFormat,
+            isExpanded: true,
+            onChanged: (value) {
+              if (value == null || value == 'ALL') {
+                controller.setFormats(<String>{});
+              } else {
+                controller.setFormats(<String>{value});
+              }
+            },
+            items: [
+              const DropdownMenuItem(value: 'ALL', child: Text('全部格式')),
+              ...state.availableFormats.map((format) {
+                return DropdownMenuItem(value: format, child: Text(format.toUpperCase()));
+              }),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButton<LibraryProgressBucket>(
+            value: state.filters.progress,
+            isExpanded: true,
+            onChanged: (value) {
+              if (value != null) {
+                controller.setProgressBucket(value);
+              }
+            },
+            items: const [
+              DropdownMenuItem(value: LibraryProgressBucket.all, child: Text('全部进度')),
+              DropdownMenuItem(value: LibraryProgressBucket.notStarted, child: Text('未开始')),
+              DropdownMenuItem(value: LibraryProgressBucket.inProgress, child: Text('阅读中')),
+              DropdownMenuItem(value: LibraryProgressBucket.completed, child: Text('已完成')),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButton<String>(
+            value: selectedCategory,
+            isExpanded: true,
+            onChanged: (value) {
+              if (value == null || value == 'ALL') {
+                controller.setCategories(<String>{});
+              } else {
+                controller.setCategories(<String>{value});
+              }
+            },
+            items: [
+              const DropdownMenuItem(value: 'ALL', child: Text('全部分类')),
+              ...state.availableCategories.map((id) {
+                return DropdownMenuItem(value: id, child: Text(id));
+              }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String? _coverPath(DataModule dataModule, LibraryIndexEntry entry) {
+    final rel = entry.coverRelPath;
+    if (rel == null || rel.isEmpty) {
+      return null;
+    }
+    return '${dataModule.storagePaths.libraryRoot.path}/${entry.bookUid}/$rel';
   }
 
   Future<void> _importBook(BuildContext context, WidgetRef ref) async {
@@ -81,7 +195,7 @@ class LibraryPage extends ConsumerWidget {
           debugMode: appSettings.debugImport,
         );
 
-    ref.invalidate(libraryIndexProvider);
+    await ref.read(mobileLibraryControllerProvider.notifier).refresh();
 
     if (!context.mounted) {
       return;
@@ -93,7 +207,6 @@ class LibraryPage extends ConsumerWidget {
             ? 'Imported: ${result.bookUid}'
             : 'Import failed: ${result.task.errorMessage}';
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

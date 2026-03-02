@@ -37,14 +37,15 @@ class LibraryIndexDao {
     await _db.customStatement(
       '''
       INSERT INTO library_index (
-        bookUid, fingerprint, format, title, authorsJson, coverRelPath,
+        bookUid, fingerprint, format, title, authorsJson, categoryId, coverRelPath,
         importedAt, updatedAt, lastOpenedAt, cachedProgress
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(bookUid) DO UPDATE SET
         fingerprint=excluded.fingerprint,
         format=excluded.format,
         title=excluded.title,
         authorsJson=excluded.authorsJson,
+        categoryId=excluded.categoryId,
         coverRelPath=excluded.coverRelPath,
         importedAt=excluded.importedAt,
         updatedAt=excluded.updatedAt,
@@ -57,6 +58,7 @@ class LibraryIndexDao {
         entry.format,
         entry.title,
         authorsJson,
+        entry.categoryId,
         entry.coverRelPath,
         entry.importedAt.millisecondsSinceEpoch,
         entry.updatedAt.millisecondsSinceEpoch,
@@ -73,6 +75,13 @@ class LibraryIndexDao {
     );
   }
 
+  Future<void> deleteByBookUid(String bookUid) {
+    return _db.customStatement(
+      'DELETE FROM library_index WHERE bookUid = ?',
+      [bookUid],
+    );
+  }
+
   LibraryIndexEntry _mapEntry(QueryRow row) {
     final authors =
         (jsonDecode(row.data['authorsJson'] as String) as List<dynamic>)
@@ -85,6 +94,7 @@ class LibraryIndexDao {
       format: row.data['format'] as String,
       title: row.data['title'] as String,
       authors: authors,
+      categoryId: row.data['categoryId'] as String?,
       coverRelPath: row.data['coverRelPath'] as String?,
       importedAt: DateTime.fromMillisecondsSinceEpoch(
         (row.data['importedAt'] as num).toInt(),

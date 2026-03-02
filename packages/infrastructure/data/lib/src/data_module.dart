@@ -17,6 +17,7 @@ import 'services/file_service_impl.dart';
 import 'services/fingerprint_service_impl.dart';
 import 'services/import_conversion_stubs.dart';
 import 'services/storage_paths.dart';
+import 'services/cover_extraction_service.dart';
 
 class DataModule {
   DataModule._({
@@ -92,6 +93,10 @@ class DataModule {
     final epubImportService = EpubImportService(
       storageService: bookStorageService,
     );
+    final coverExtractionService = CoverExtractionService(
+      storagePaths: storagePaths,
+      fileService: fileService,
+    );
 
     final importRepository = ImportRepositoryImpl(
       storagePaths: storagePaths,
@@ -103,6 +108,7 @@ class DataModule {
       audiobookConverter: StubLpfToAudiobookConverter(),
       epubImportService: epubImportService,
       bookStorageService: bookStorageService,
+      coverExtractionService: coverExtractionService,
     );
 
     return DataModule._(

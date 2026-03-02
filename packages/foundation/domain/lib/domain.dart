@@ -5,6 +5,7 @@ export 'models/book.dart';
 export 'models/collection.dart';
 export 'models/import_models.dart';
 export 'models/library_index_entry.dart';
+export 'models/library_query.dart';
 export 'models/locator.dart';
 export 'models/reading_progress.dart';
 export 'models/settings_models.dart';

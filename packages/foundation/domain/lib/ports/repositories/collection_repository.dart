@@ -13,5 +13,7 @@ abstract class CollectionRepository {
 
   Future<void> removeBookFromCollection(int collectionId, String bookUid);
 
+  Future<void> removeBookFromAllCollections(String bookUid);
+
   Future<List<CollectionItem>> listCollectionItems(int collectionId);
 }

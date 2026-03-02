@@ -10,7 +10,20 @@ class AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) async {
+          await _migrate();
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          await _migrate();
+        },
+        beforeOpen: (details) async {
+          await customStatement('PRAGMA foreign_keys = ON;');
+        },
+      );
 
   static Future<AppDatabase> open(String dbPath) async {
     final file = File(dbPath);
@@ -19,9 +32,7 @@ class AppDatabase extends GeneratedDatabase {
       parent.createSync(recursive: true);
     }
 
-    final db = AppDatabase._(NativeDatabase(file));
-    await db._migrate();
-    return db;
+    return AppDatabase._(NativeDatabase(file));
   }
 
   Future<void> _migrate() async {
@@ -34,6 +45,7 @@ class AppDatabase extends GeneratedDatabase {
         format TEXT NOT NULL,
         title TEXT NOT NULL,
         authorsJson TEXT NOT NULL,
+        categoryId TEXT NULL,
         coverRelPath TEXT NULL,
         importedAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL,
@@ -41,6 +53,12 @@ class AppDatabase extends GeneratedDatabase {
         cachedProgress REAL NULL
       );
     ''');
+
+    if (!await _hasColumn('library_index', 'categoryId')) {
+      await customStatement(
+        'ALTER TABLE library_index ADD COLUMN categoryId TEXT NULL;',
+      );
+    }
 
     await customStatement('''
       CREATE TABLE IF NOT EXISTS collections (
@@ -60,6 +78,17 @@ class AppDatabase extends GeneratedDatabase {
         FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
       );
     ''');
+  }
+
+  Future<bool> _hasColumn(String table, String column) async {
+    final rows = await customSelect('PRAGMA table_info($table);').get();
+    for (final row in rows) {
+      final name = row.data['name']?.toString();
+      if (name == column) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> close() => executor.close();

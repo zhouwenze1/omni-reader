@@ -25,5 +25,6 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   sqlite3_flutter_libs: ^0.5.30
+  xml: ^6.5.0
 
 
