@@ -1,7 +1,47 @@
-name: omnibook_workspace
-description: OmniBook monorepo workspace (mobile + desktop + shared packages)
-publish_to: "none"
-version: 0.0.0
+name: full_reader_workspace
+description: Flutter monorepo workspace for a full-featured reader
+publish_to: none
+version: 0.1.0
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
+
+workspace:
+  - apps/mobile
+  - apps/desktop
+  - packages/foundation/core
+  - packages/foundation/domain
+  - packages/foundation/application
+  - packages/infrastructure/data
+  - packages/engines/engine_api
+  - packages/engines/epub
+  - packages/engines/pdf
+  - packages/engines/audio
+  - packages/engines/ldf
+
+melos:
+  packages:
+    - apps/mobile
+    - apps/desktop
+    - packages/foundation/core
+    - packages/foundation/domain
+    - packages/foundation/application
+    - packages/infrastructure/data
+    - packages/engines/engine_api
+    - packages/engines/epub
+    - packages/engines/pdf
+    - packages/engines/audio
+    - packages/engines/ldf
+  scripts:
+    bootstrap: melos bootstrap
+    pubget: melos exec -- flutter pub get
+    format: melos exec -- dart format lib test
+
+dev_dependencies:
+  melos: ^7.4.0
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name_windows: winsqlite3

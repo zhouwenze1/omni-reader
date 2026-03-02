@@ -1,0 +1,28 @@
+{
+  "roots": [
+    "foundation_application"
+  ],
+  "packages": [
+    {
+      "name": "foundation_application",
+      "version": "0.1.0",
+      "dependencies": [
+        "foundation_domain"
+      ],
+      "devDependencies": []
+    },
+    {
+      "name": "foundation_domain",
+      "version": "0.1.0",
+      "dependencies": [
+        "foundation_core"
+      ]
+    },
+    {
+      "name": "foundation_core",
+      "version": "0.1.0",
+      "dependencies": []
+    }
+  ],
+  "configVersion": 1
+}

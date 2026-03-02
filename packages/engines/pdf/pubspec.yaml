@@ -1,0 +1,19 @@
+﻿name: engine_pdf
+description: Stub PDF reader engine
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  engine_api:
+    path: ../engine_api
+  foundation_domain:
+    path: ../../foundation/domain
+
+

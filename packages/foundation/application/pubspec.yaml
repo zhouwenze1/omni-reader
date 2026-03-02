@@ -1,17 +1,14 @@
-name: application
-description: Use cases and orchestration (no Flutter/plugin deps)
-publish_to: "none"
-version: 0.1.0
+﻿name: foundation_application
+description: Application services/usecases for reader
+publish_to: none
+
+resolution: workspace
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
-  core:
-    path: ../core
-  domain:
+  foundation_domain:
     path: ../domain
 
-dev_dependencies:
-  lints: ^4.0.0
-  test: ^1.25.2
+

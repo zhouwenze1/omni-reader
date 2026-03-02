@@ -1,31 +1,19 @@
-name: omnibook
+name: full_reader
 
 packages:
-  - apps/**
-  - packages/**
-
-command:
-  bootstrap:
-    runPubGetInParallel: true
+  - apps/mobile
+  - apps/desktop
+  - packages/foundation/core
+  - packages/foundation/domain
+  - packages/foundation/application
+  - packages/infrastructure/data
+  - packages/engines/engine_api
+  - packages/engines/epub
+  - packages/engines/pdf
+  - packages/engines/audio
+  - packages/engines/ldf
 
 scripts:
-  bootstrap:
-    run: melos bootstrap
-
-  pubget:
-    run: melos exec -c 6 -- flutter pub get
-
-  clean:
-    run: melos exec -c 6 -- flutter clean
-
-  analyze:
-    run: melos exec -c 6 -- flutter analyze
-
-  format:
-    run: melos exec -c 6 -- dart format .
-
-  test:
-    run: melos exec -c 6 -- flutter test
-
-  gen:
-    run: melos exec -c 6 -- dart run build_runner build --delete-conflicting-outputs
+  bootstrap: melos bootstrap
+  pubget: melos exec -- flutter pub get
+  format: melos exec -- dart format lib test

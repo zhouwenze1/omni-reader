@@ -1,106 +1,43 @@
 class TocItem {
   const TocItem({
     required this.id,
+    required this.bookUid,
     required this.title,
-    required this.href,
+    this.href,
+    required this.order,
+    required this.level,
     this.parentId,
-    this.level = 0,
-    this.order = 0,
-    this.anchorUid,
-    this.children = const <TocItem>[],
   });
 
   final String id;
+  final String bookUid;
   final String title;
-  final String href;
-  final String? parentId;
-  final int level;
+  final String? href;
   final int order;
-  final String? anchorUid;
-  final List<TocItem> children;
+  final int level;
+  final String? parentId;
 
-  bool get hasChildren => children.isNotEmpty;
-
-  TocItem copyWith({
-    String? id,
-    String? title,
-    String? href,
-    String? parentId,
-    int? level,
-    int? order,
-    String? anchorUid,
-    List<TocItem>? children,
-  }) {
+  factory TocItem.fromJson(Map<String, dynamic> json) {
     return TocItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      href: href ?? this.href,
-      parentId: parentId ?? this.parentId,
-      level: level ?? this.level,
-      order: order ?? this.order,
-      anchorUid: anchorUid ?? this.anchorUid,
-      children: children ?? this.children,
+      id: json['id'] as String,
+      bookUid: json['bookUid'] as String,
+      title: json['title'] as String,
+      href: json['href'] as String?,
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      level: (json['level'] as num?)?.toInt() ?? 0,
+      parentId: json['parentId'] as String?,
     );
   }
 
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
+  Map<String, dynamic> toJson() {
+    return {
       'id': id,
+      'bookUid': bookUid,
       'title': title,
       'href': href,
-      'parentId': parentId,
-      'level': level,
       'order': order,
-      'anchorUid': anchorUid,
-      'children': children.map((item) => item.toJson()).toList(),
+      'level': level,
+      'parentId': parentId,
     };
   }
-
-  factory TocItem.fromJson(Map<String, Object?> json) {
-    return TocItem(
-      id: _asString(json['id']) ?? '',
-      title: _asString(json['title']) ?? '',
-      href: _asString(json['href']) ?? '',
-      parentId: _asString(json['parentId']),
-      level: _asInt(json['level']) ?? 0,
-      order: _asInt(json['order']) ?? 0,
-      anchorUid: _asString(json['anchorUid']),
-      children: _asList(
-        json['children'],
-      ).map((item) => TocItem.fromJson(item)).toList(),
-    );
-  }
-}
-
-String? _asString(Object? value) {
-  final text = value?.toString();
-  if (text == null || text.isEmpty) {
-    return null;
-  }
-  return text;
-}
-
-int? _asInt(Object? value) {
-  if (value is int) {
-    return value;
-  }
-  if (value is num) {
-    return value.toInt();
-  }
-  return int.tryParse(value?.toString() ?? '');
-}
-
-List<Map<String, Object?>> _asList(Object? value) {
-  if (value is List<Map<String, Object?>>) {
-    return value;
-  }
-  if (value is List) {
-    return value
-        .whereType<Map>()
-        .map(
-          (entry) => entry.map((key, item) => MapEntry(key.toString(), item)),
-        )
-        .toList();
-  }
-  return const <Map<String, Object?>>[];
 }

@@ -1,182 +1,82 @@
-import 'bookmark.dart';
-import 'highlight.dart';
 import 'locator.dart';
-import 'note.dart';
 
 enum AnnotationType { bookmark, highlight, note }
 
-extension AnnotationTypeX on AnnotationType {
-  String get value {
-    switch (this) {
-      case AnnotationType.bookmark:
-        return 'bookmark';
-      case AnnotationType.highlight:
-        return 'highlight';
-      case AnnotationType.note:
-        return 'note';
-    }
-  }
-}
-
-AnnotationType annotationTypeFromValue(Object? value) {
-  switch (value?.toString().toLowerCase()) {
-    case 'highlight':
-      return AnnotationType.highlight;
-    case 'note':
-      return AnnotationType.note;
-    default:
-      return AnnotationType.bookmark;
-  }
+AnnotationType annotationTypeFromString(String value) {
+  return AnnotationType.values.firstWhere(
+    (it) => it.name == value,
+    orElse: () => AnnotationType.note,
+  );
 }
 
 class Annotation {
   const Annotation({
     required this.id,
-    required this.bookId,
+    required this.bookUid,
     required this.type,
     required this.locator,
-    required this.createdAt,
-    this.updatedAt,
-    this.excerpt,
-    this.content,
+    this.text,
+    this.note,
     this.color,
+    required this.createdAt,
+    required this.updatedAt,
+    this.extras,
   });
 
   final String id;
-  final String bookId;
+  final String bookUid;
   final AnnotationType type;
   final Locator locator;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
-  final String? excerpt;
-  final String? content;
+  final String? text;
+  final String? note;
   final String? color;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final Map<String, dynamic>? extras;
 
-  factory Annotation.fromBookmark(Bookmark bookmark) {
+  factory Annotation.fromJson(Map<String, dynamic> json) {
     return Annotation(
-      id: bookmark.id,
-      bookId: bookmark.bookId,
-      type: AnnotationType.bookmark,
-      locator: bookmark.locator,
-      createdAt: bookmark.createdAt,
-      updatedAt: bookmark.updatedAt,
-      excerpt: bookmark.title,
-      content: bookmark.note,
+      id: json['id'] as String,
+      bookUid: json['bookUid'] as String,
+      type: annotationTypeFromString((json['type'] as String?) ?? 'note'),
+      locator: Locator.fromJson(
+        (json['locator'] as Map).map((k, v) => MapEntry('$k', v)),
+      ),
+      text: json['text'] as String?,
+      note: json['note'] as String?,
+      color: json['color'] as String?,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        (json['createdAt'] as num).toInt(),
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (json['updatedAt'] as num).toInt(),
+      ),
+      extras: _asMap(json['extras']),
     );
   }
 
-  factory Annotation.fromHighlight(Highlight highlight) {
-    return Annotation(
-      id: highlight.id,
-      bookId: highlight.bookId,
-      type: AnnotationType.highlight,
-      locator: highlight.locator,
-      createdAt: highlight.createdAt,
-      updatedAt: highlight.updatedAt,
-      excerpt: highlight.text,
-      content: highlight.note,
-      color: highlight.color,
-    );
-  }
-
-  factory Annotation.fromNote(Note note) {
-    return Annotation(
-      id: note.id,
-      bookId: note.bookId,
-      type: AnnotationType.note,
-      locator: note.locator,
-      createdAt: note.createdAt,
-      updatedAt: note.updatedAt,
-      excerpt: note.quote,
-      content: note.content,
-    );
-  }
-
-  Annotation copyWith({
-    String? id,
-    String? bookId,
-    AnnotationType? type,
-    Locator? locator,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-    String? excerpt,
-    String? content,
-    String? color,
-  }) {
-    return Annotation(
-      id: id ?? this.id,
-      bookId: bookId ?? this.bookId,
-      type: type ?? this.type,
-      locator: locator ?? this.locator,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      excerpt: excerpt ?? this.excerpt,
-      content: content ?? this.content,
-      color: color ?? this.color,
-    );
-  }
-
-  Map<String, Object?> toJson() {
-    return <String, Object?>{
+  Map<String, dynamic> toJson() {
+    return {
       'id': id,
-      'bookId': bookId,
-      'type': type.value,
+      'bookUid': bookUid,
+      'type': type.name,
       'locator': locator.toJson(),
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-      'excerpt': excerpt,
-      'content': content,
+      'text': text,
+      'note': note,
       'color': color,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'extras': extras,
     };
   }
 
-  factory Annotation.fromJson(Map<String, Object?> json) {
-    return Annotation(
-      id: _asString(json['id']) ?? '',
-      bookId: _asString(json['bookId']) ?? '',
-      type: annotationTypeFromValue(json['type']),
-      locator: Locator.fromJson(
-        _asMap(json['locator']) ?? const <String, Object?>{},
-      ),
-      createdAt: _asDateTime(json['createdAt']) ?? DateTime.now(),
-      updatedAt: _asDateTime(json['updatedAt']),
-      excerpt: _asString(json['excerpt']),
-      content: _asString(json['content']),
-      color: _asString(json['color']),
-    );
-  }
-}
-
-String? _asString(Object? value) {
-  final text = value?.toString();
-  if (text == null || text.isEmpty) {
+  static Map<String, dynamic>? _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return value.map((key, val) => MapEntry('$key', val));
+    }
     return null;
   }
-  return text;
-}
-
-DateTime? _asDateTime(Object? value) {
-  if (value is DateTime) {
-    return value;
-  }
-  if (value is int) {
-    return DateTime.fromMillisecondsSinceEpoch(value);
-  }
-  if (value is num) {
-    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-  }
-  if (value is String) {
-    return DateTime.tryParse(value);
-  }
-  return null;
-}
-
-Map<String, Object?>? _asMap(Object? value) {
-  if (value is Map<String, Object?>) {
-    return value;
-  }
-  if (value is Map) {
-    return value.map((key, item) => MapEntry(key.toString(), item));
-  }
-  return null;
 }

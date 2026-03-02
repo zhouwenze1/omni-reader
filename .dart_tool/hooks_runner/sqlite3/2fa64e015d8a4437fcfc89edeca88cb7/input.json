@@ -1,0 +1,40 @@
+{
+  "assets": {},
+  "config": {
+    "build_asset_types": [
+      "code_assets/code"
+    ],
+    "extensions": {
+      "code_assets": {
+        "c_compiler": {
+          "ar": "D:\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\lib.exe",
+          "cc": "D:\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe",
+          "ld": "D:\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\link.exe",
+          "windows": {
+            "developer_command_prompt": {
+              "arguments": [],
+              "script": "D:\\Microsoft Visual Studio\\18\\Community\\VC\\Auxiliary\\Build\\vcvars64.bat"
+            }
+          }
+        },
+        "link_mode_preference": "dynamic",
+        "target_architecture": "x64",
+        "target_os": "windows"
+      }
+    },
+    "linking_enabled": false
+  },
+  "out_dir_shared": "C:\\Users\\Administrator\\Desktop\\reader\\.dart_tool\\hooks_runner\\shared\\sqlite3\\build\\",
+  "out_file": "C:\\Users\\Administrator\\Desktop\\reader\\.dart_tool\\hooks_runner\\sqlite3\\2fa64e015d8a4437fcfc89edeca88cb7\\output.json",
+  "package_name": "sqlite3",
+  "package_root": "C:\\Users\\Administrator\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\sqlite3-3.1.6\\",
+  "user_defines": {
+    "workspace_pubspec": {
+      "base_path": "C:\\Users\\Administrator\\Desktop\\reader\\pubspec.yaml",
+      "defines": {
+        "source": "system",
+        "name_windows": "winsqlite3"
+      }
+    }
+  }
+}
