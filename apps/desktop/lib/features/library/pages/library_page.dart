@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infrastructure_data/data.dart';
+import 'package:intl/intl.dart';
 
 import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../routes/route_paths.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../controller/library_controller.dart';
@@ -22,18 +24,35 @@ class LibraryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
     final state = ref.watch(desktopLibraryControllerProvider);
     final controller = ref.read(desktopLibraryControllerProvider.notifier);
     final dataModule = ref.watch(dataModuleProvider);
+    final currentCollectionLabel = _currentCollectionLabel(context, state);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('书架'),
+        title: Row(
+          children: [
+            Text(l10n.libraryTitle),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                currentCollectionLabel,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            onPressed: () => context.push(RoutePaths.settingsHome),
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilledButton.icon(
+              onPressed: () => _importBook(context, ref),
+              icon: const Icon(Icons.file_upload_outlined),
+              label: Text(l10n.importBook),
+            ),
           ),
         ],
       ),
@@ -41,19 +60,16 @@ class LibraryPage extends ConsumerWidget {
         LibraryPageStatus.loading =>
           const Center(child: CircularProgressIndicator()),
         LibraryPageStatus.error => Center(
-            child: Text(state.errorMessage ?? '加载失败'),
+            child: Text(state.errorMessage ?? l10n.loadingFailed),
           ),
-        LibraryPageStatus.empty => const Center(
-            child: Text('暂无书籍，先导入一本书。'),
-          ),
-        LibraryPageStatus.normal => Row(
+        LibraryPageStatus.empty || LibraryPageStatus.normal => Row(
             children: [
               if (state.isFilterPanelVisible)
                 SizedBox(
                   width: 240,
-                  child: _buildFilterPanel(context, ref, state, controller),
+                  child: _buildFilterPanel(context, state, controller),
                 ),
-              if (state.isFilterPanelVisible) const VerticalDivider(width: 1),
+              _buildFilterEdgeHandle(context, state, controller),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -62,18 +78,19 @@ class LibraryPage extends ConsumerWidget {
                       ShelfToolbar(
                         sortMode: state.sortMode,
                         viewMode: state.viewMode,
-                        filterPanelVisible: state.isFilterPanelVisible,
-                        onSortChanged: (m) => controller.setSortMode(m),
-                        onViewModeChanged: (m) => controller.setViewMode(m),
-                        onToggleFilterPanel: controller.toggleFilterPanel,
+                        onSortChanged: (mode) => controller.setSortMode(mode),
+                        onViewModeChanged: (mode) =>
+                            controller.setViewMode(mode),
                         onImport: () => _importBook(context, ref),
                         onRefresh: () => controller.refresh(),
                       ),
                       const SizedBox(height: 10),
                       Expanded(
-                        child: state.viewMode == LibraryViewMode.grid
-                            ? _buildGrid(state, controller, dataModule)
-                            : _buildList(state, controller, dataModule),
+                        child: state.filteredItems.isEmpty
+                            ? Center(child: Text(l10n.emptyLibrary))
+                            : (state.viewMode == LibraryViewMode.grid
+                                ? _buildGrid(state, controller, dataModule)
+                                : _buildList(state, controller, dataModule)),
                       ),
                     ],
                   ),
@@ -90,12 +107,49 @@ class LibraryPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildFilterPanel(
+  Widget _buildFilterEdgeHandle(
     BuildContext context,
-    WidgetRef ref,
     DesktopLibraryState state,
     DesktopLibraryController controller,
   ) {
+    final l10n = context.l10n;
+    final visible = state.isFilterPanelVisible;
+    return SizedBox(
+      width: 20,
+      child: Center(
+        child: Tooltip(
+          message: visible ? l10n.collapseFilterPanel : l10n.expandFilterPanel,
+          child: Material(
+            elevation: 1,
+            color: Theme.of(context)
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: controller.toggleFilterPanel,
+              child: SizedBox(
+                width: 16,
+                height: 64,
+                child: Icon(
+                  visible ? Icons.chevron_left : Icons.chevron_right,
+                  size: 16,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterPanel(
+    BuildContext context,
+    DesktopLibraryState state,
+    DesktopLibraryController controller,
+  ) {
+    final l10n = context.l10n;
     final selectedFormat =
         state.filters.formats.isEmpty ? 'ALL' : state.filters.formats.first;
     final selectedCategory = state.filters.categoryIds.isEmpty
@@ -106,21 +160,14 @@ class LibraryPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        Text('筛选', style: Theme.of(context).textTheme.titleMedium),
+        Text(l10n.filter, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
-        const Text('格式'),
-        DropdownButton<String>(
+        Text(l10n.format),
+        const SizedBox(height: 6),
+        _compactDropdown<String>(
           value: selectedFormat,
-          isExpanded: true,
-          onChanged: (value) {
-            if (value == null || value == 'ALL') {
-              controller.setFormats(<String>{});
-            } else {
-              controller.setFormats(<String>{value});
-            }
-          },
           items: [
-            const DropdownMenuItem(value: 'ALL', child: Text('全部')),
+            DropdownMenuItem(value: 'ALL', child: Text(l10n.all)),
             ...state.availableFormats.map(
               (format) => DropdownMenuItem(
                 value: format,
@@ -128,50 +175,50 @@ class LibraryPage extends ConsumerWidget {
               ),
             ),
           ],
+          onChanged: (value) {
+            if (value == null || value == 'ALL') {
+              controller.setFormats(<String>{});
+              return;
+            }
+            controller.setFormats(<String>{value});
+          },
         ),
         const SizedBox(height: 10),
-        const Text('进度'),
-        DropdownButton<LibraryProgressBucket>(
+        Text(l10n.progress),
+        const SizedBox(height: 6),
+        _compactDropdown<LibraryProgressBucket>(
           value: state.filters.progress,
-          isExpanded: true,
+          items: [
+            DropdownMenuItem(
+              value: LibraryProgressBucket.all,
+              child: Text(l10n.all),
+            ),
+            DropdownMenuItem(
+              value: LibraryProgressBucket.notStarted,
+              child: Text(l10n.notStarted),
+            ),
+            DropdownMenuItem(
+              value: LibraryProgressBucket.inProgress,
+              child: Text(l10n.inProgress),
+            ),
+            DropdownMenuItem(
+              value: LibraryProgressBucket.completed,
+              child: Text(l10n.completed),
+            ),
+          ],
           onChanged: (value) {
             if (value != null) {
               controller.setProgressBucket(value);
             }
           },
-          items: const [
-            DropdownMenuItem(
-              value: LibraryProgressBucket.all,
-              child: Text('全部'),
-            ),
-            DropdownMenuItem(
-              value: LibraryProgressBucket.notStarted,
-              child: Text('未开始'),
-            ),
-            DropdownMenuItem(
-              value: LibraryProgressBucket.inProgress,
-              child: Text('阅读中'),
-            ),
-            DropdownMenuItem(
-              value: LibraryProgressBucket.completed,
-              child: Text('已完成'),
-            ),
-          ],
         ),
         const SizedBox(height: 10),
-        const Text('分类'),
-        DropdownButton<String>(
+        Text(l10n.category),
+        const SizedBox(height: 6),
+        _compactDropdown<String>(
           value: selectedCategory,
-          isExpanded: true,
-          onChanged: (value) {
-            if (value == null || value == 'ALL') {
-              controller.setCategories(<String>{});
-            } else {
-              controller.setCategories(<String>{value});
-            }
-          },
           items: [
-            const DropdownMenuItem(value: 'ALL', child: Text('全部')),
+            DropdownMenuItem(value: 'ALL', child: Text(l10n.all)),
             ...state.availableCategories.map(
               (category) => DropdownMenuItem(
                 value: category,
@@ -179,19 +226,25 @@ class LibraryPage extends ConsumerWidget {
               ),
             ),
           ],
+          onChanged: (value) {
+            if (value == null || value == 'ALL') {
+              controller.setCategories(<String>{});
+              return;
+            }
+            controller.setCategories(<String>{value});
+          },
         ),
         const SizedBox(height: 10),
         const Divider(),
         const SizedBox(height: 6),
-        const Text('合集'),
-        DropdownButton<int?>(
+        Text(l10n.collection),
+        const SizedBox(height: 6),
+        _compactDropdown<int?>(
           value: selectedCollectionId,
-          isExpanded: true,
-          onChanged: (value) => controller.setCollectionFilter(value),
           items: [
-            const DropdownMenuItem<int?>(
+            DropdownMenuItem<int?>(
               value: null,
-              child: Text('全部合集'),
+              child: Text(l10n.allCollections),
             ),
             ...state.collections.map(
               (collection) => DropdownMenuItem<int?>(
@@ -200,19 +253,54 @@ class LibraryPage extends ConsumerWidget {
               ),
             ),
           ],
+          onChanged: (value) => controller.setCollectionFilter(value),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => _showCreateCollectionDialog(context, controller),
           icon: const Icon(Icons.add),
-          label: const Text('新建合集'),
+          label: Text(l10n.newCollection),
         ),
         OutlinedButton.icon(
-          onPressed: () => _showManageCollectionsDialog(context, ref),
+          onPressed: () => _showManageCollectionsDialog(context, controller),
           icon: const Icon(Icons.folder_open_outlined),
-          label: const Text('管理合集'),
+          label: Text(l10n.manageCollection),
         ),
       ],
+    );
+  }
+
+  Widget _compactDropdown<T>({
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).dividerColor),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                isDense: true,
+                itemHeight: kMinInteractiveDimension,
+                menuMaxHeight: 260,
+                menuWidth: width,
+                borderRadius: BorderRadius.circular(8),
+                onChanged: onChanged,
+                items: items,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -225,9 +313,9 @@ class LibraryPage extends ConsumerWidget {
       itemCount: state.filteredItems.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        mainAxisExtent: 286,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        mainAxisExtent: 236,
       ),
       itemBuilder: (context, index) {
         final entry = state.filteredItems[index];
@@ -267,13 +355,15 @@ class LibraryPage extends ConsumerWidget {
     DesktopLibraryState state,
     DataModule dataModule,
   ) {
+    final l10n = context.l10n;
     final entry = state.selectedItem;
     if (entry == null) {
-      return const Center(child: Text('选择一本书查看详情'));
+      return Center(child: Text(l10n.selectBookToViewDetail));
     }
 
     final progress = ((entry.cachedProgress ?? 0) * 100).toStringAsFixed(1);
     final lastOpened = entry.lastOpenedAt;
+    final controller = ref.read(desktopLibraryControllerProvider.notifier);
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -296,34 +386,40 @@ class LibraryPage extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 10),
-          BookMetaRow(label: '作者', value: entry.authors.join(' · ')),
-          BookMetaRow(label: '格式', value: entry.format.toUpperCase()),
-          BookMetaRow(label: '进度', value: '$progress%'),
-          BookMetaRow(label: '分类', value: entry.categoryId ?? '未分类'),
+          BookMetaRow(label: l10n.author, value: entry.authors.join(' · ')),
+          BookMetaRow(label: l10n.format, value: entry.format.toUpperCase()),
+          BookMetaRow(label: l10n.progress, value: '$progress%'),
           BookMetaRow(
-            label: '导入时间',
-            value: _formatDate(entry.importedAt),
+              label: l10n.category,
+              value: entry.categoryId ?? l10n.uncategorized),
+          BookMetaRow(
+            label: l10n.importedAt,
+            value: _formatDate(context, entry.importedAt),
           ),
           BookMetaRow(
-            label: '最近阅读',
-            value: lastOpened == null ? '-' : _formatDate(lastOpened),
+            label: l10n.lastOpened,
+            value: lastOpened == null ? '-' : _formatDate(context, lastOpened),
           ),
           const SizedBox(height: 10),
-          Text('合集', style: Theme.of(context).textTheme.titleSmall),
+          Text(l10n.collection, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: _buildCollectionChips(state, entry, ref),
+            children: _buildCollectionChips(state, entry, controller, l10n),
           ),
           const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
-              onPressed: () =>
-                  _showBookCollectionsDialog(context, ref, entry, state),
+              onPressed: () => _showBookCollectionsDialog(
+                context,
+                controller,
+                entry,
+                state,
+              ),
               icon: const Icon(Icons.playlist_add),
-              label: const Text('加入/移出合集'),
+              label: Text(l10n.addOrRemoveCollection),
             ),
           ),
           const Spacer(),
@@ -333,14 +429,14 @@ class LibraryPage extends ConsumerWidget {
                 child: FilledButton(
                   onPressed: () =>
                       context.push(RoutePaths.reader(entry.bookUid)),
-                  child: const Text('继续阅读'),
+                  child: Text(l10n.continueReading),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => context.push(RoutePaths.toc(entry.bookUid)),
-                  child: const Text('打开目录'),
+                  child: Text(l10n.openToc),
                 ),
               ),
             ],
@@ -350,8 +446,8 @@ class LibraryPage extends ConsumerWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               icon: const Icon(Icons.delete_outline),
-              onPressed: () => _deleteBook(context, ref, entry.bookUid),
-              label: const Text('删除书籍'),
+              onPressed: () => _deleteBook(context, controller, entry.bookUid),
+              label: Text(l10n.deleteBook),
             ),
           ),
         ],
@@ -362,13 +458,13 @@ class LibraryPage extends ConsumerWidget {
   List<Widget> _buildCollectionChips(
     DesktopLibraryState state,
     LibraryIndexEntry entry,
-    WidgetRef ref,
+    DesktopLibraryController controller,
+    AppLocalizations l10n,
   ) {
     final belongedIds = state.collectionsOfBook(entry.bookUid);
     if (belongedIds.isEmpty) {
-      return const [Text('未加入合集')];
+      return [Text(l10n.noCollectionAdded)];
     }
-    final controller = ref.read(desktopLibraryControllerProvider.notifier);
     return state.collections
         .where((collection) => belongedIds.contains(collection.id))
         .map(
@@ -389,31 +485,29 @@ class LibraryPage extends ConsumerWidget {
     BuildContext context,
     DesktopLibraryController controller,
   ) async {
+    final l10n = context.l10n;
     final input = TextEditingController();
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('新建合集'),
+        title: Text(l10n.newCollection),
         content: TextField(
           controller: input,
-          decoration: const InputDecoration(
-            hintText: '输入合集名称',
-          ),
+          decoration: InputDecoration(hintText: l10n.inputCollectionName),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('创建'),
+            child: Text(l10n.create),
           ),
         ],
       ),
     );
-
     if (created == true) {
       await controller.createCollection(input.text);
     }
@@ -424,31 +518,29 @@ class LibraryPage extends ConsumerWidget {
     DesktopLibraryController controller,
     Collection collection,
   ) async {
+    final l10n = context.l10n;
     final input = TextEditingController(text: collection.name);
     final rename = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('重命名合集'),
+        title: Text(l10n.renameCollection),
         content: TextField(
           controller: input,
-          decoration: const InputDecoration(
-            hintText: '输入新名称',
-          ),
+          decoration: InputDecoration(hintText: l10n.inputCollectionNewName),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('保存'),
+            child: Text(l10n.save),
           ),
         ],
       ),
     );
-
     if (rename == true) {
       await controller.renameCollection(collection.id, input.text);
     }
@@ -456,20 +548,20 @@ class LibraryPage extends ConsumerWidget {
 
   Future<void> _showManageCollectionsDialog(
     BuildContext context,
-    WidgetRef ref,
+    DesktopLibraryController controller,
   ) async {
-    final controller = ref.read(desktopLibraryControllerProvider.notifier);
+    final l10n = context.l10n;
     await showDialog<void>(
       context: context,
       builder: (_) => Consumer(
         builder: (context, ref, __) {
           final state = ref.watch(desktopLibraryControllerProvider);
           return AlertDialog(
-            title: const Text('管理合集'),
+            title: Text(l10n.manageCollection),
             content: SizedBox(
               width: 420,
               child: state.collections.isEmpty
-                  ? const Center(child: Text('还没有合集'))
+                  ? Center(child: Text(l10n.noCollectionYet))
                   : ListView.separated(
                       shrinkWrap: true,
                       itemCount: state.collections.length,
@@ -482,12 +574,12 @@ class LibraryPage extends ConsumerWidget {
                         return ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(collection.name),
-                          subtitle: Text('$count 本书'),
+                          subtitle: Text(l10n.booksCount(count)),
                           trailing: Wrap(
                             spacing: 4,
                             children: [
                               IconButton(
-                                tooltip: '重命名',
+                                tooltip: l10n.renameCollection,
                                 onPressed: () => _showRenameCollectionDialog(
                                   context,
                                   controller,
@@ -496,7 +588,7 @@ class LibraryPage extends ConsumerWidget {
                                 icon: const Icon(Icons.edit_outlined),
                               ),
                               IconButton(
-                                tooltip: '删除',
+                                tooltip: l10n.delete,
                                 onPressed: () async {
                                   await controller
                                       .deleteCollection(collection.id);
@@ -513,11 +605,11 @@ class LibraryPage extends ConsumerWidget {
               TextButton(
                 onPressed: () =>
                     _showCreateCollectionDialog(context, controller),
-                child: const Text('新建合集'),
+                child: Text(l10n.newCollection),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('关闭'),
+                child: Text(l10n.close),
               ),
             ],
           );
@@ -528,11 +620,11 @@ class LibraryPage extends ConsumerWidget {
 
   Future<void> _showBookCollectionsDialog(
     BuildContext context,
-    WidgetRef ref,
+    DesktopLibraryController controller,
     LibraryIndexEntry entry,
     DesktopLibraryState state,
   ) async {
-    final controller = ref.read(desktopLibraryControllerProvider.notifier);
+    final l10n = context.l10n;
     final localSelected = {...state.collectionsOfBook(entry.bookUid)};
 
     await showDialog<void>(
@@ -540,11 +632,11 @@ class LibraryPage extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text('合集 · ${entry.title}'),
+            title: Text(l10n.collectionsForBookTitle(entry.title)),
             content: SizedBox(
               width: 380,
               child: state.collections.isEmpty
-                  ? const Text('还没有合集，请先创建。')
+                  ? Text(l10n.noCollectionCreateFirst)
                   : ListView(
                       shrinkWrap: true,
                       children: state.collections.map((collection) {
@@ -576,11 +668,11 @@ class LibraryPage extends ConsumerWidget {
               TextButton(
                 onPressed: () =>
                     _showCreateCollectionDialog(context, controller),
-                child: const Text('新建合集'),
+                child: Text(l10n.newCollection),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('完成'),
+                child: Text(l10n.done),
               ),
             ],
           );
@@ -597,29 +689,47 @@ class LibraryPage extends ConsumerWidget {
     return '${dataModule.storagePaths.libraryRoot.path}/${entry.bookUid}/$rel';
   }
 
-  String _formatDate(DateTime value) {
-    final y = value.year.toString().padLeft(4, '0');
-    final m = value.month.toString().padLeft(2, '0');
-    final d = value.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
+  String _formatDate(BuildContext context, DateTime value) {
+    final localeTag = Localizations.localeOf(context).toLanguageTag();
+    return DateFormat('yyyy-MM-dd', localeTag).format(value);
+  }
+
+  String _currentCollectionLabel(
+    BuildContext context,
+    DesktopLibraryState state,
+  ) {
+    final l10n = context.l10n;
+    final selectedId = state.selectedCollectionId;
+    if (selectedId == null) {
+      return l10n.allCollections;
+    }
+    for (final collection in state.collections) {
+      if (collection.id == selectedId) {
+        return collection.name;
+      }
+    }
+    return l10n.unknownCollection;
   }
 
   Future<void> _deleteBook(
-      BuildContext context, WidgetRef ref, String bookUid) async {
-    final controller = ref.read(desktopLibraryControllerProvider.notifier);
+    BuildContext context,
+    DesktopLibraryController controller,
+    String bookUid,
+  ) async {
+    final l10n = context.l10n;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('删除确认'),
-        content: const Text('删除后不可恢复，是否继续？'),
+        title: Text(l10n.confirmDeleteTitle),
+        content: Text(l10n.confirmDeleteMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('删除'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -631,6 +741,7 @@ class LibraryPage extends ConsumerWidget {
   }
 
   Future<void> _importBook(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
     final picked = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       type: FileType.custom,
@@ -659,16 +770,15 @@ class LibraryPage extends ConsumerWidget {
         );
 
     await ref.read(desktopLibraryControllerProvider.notifier).refresh();
-
     if (!context.mounted) {
       return;
     }
 
     final message = result.alreadyImported
-        ? 'Already imported: ${result.bookUid}'
+        ? '${l10n.alreadyImported}: ${result.bookUid}'
         : result.task.status == ImportTaskStatus.success
-            ? 'Imported: ${result.bookUid}'
-            : 'Import failed: ${result.task.errorMessage}';
+            ? '${l10n.imported}: ${result.bookUid}'
+            : '${l10n.importFailed}: ${result.task.errorMessage}';
 
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));

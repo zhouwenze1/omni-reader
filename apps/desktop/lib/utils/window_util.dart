@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../l10n/app_localizations.dart';
+
 class WindowUtil {
   WindowUtil._();
 
   static Future<bool> confirmExit(BuildContext context) async {
+    final l10n = context.l10n;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('退出应用'),
-        content: const Text('确认退出阅读器？未保存的临时状态可能丢失。'),
+        title: Text(l10n.appTitle),
+        content: Text(l10n.confirmExitMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('退出'),
+            child: Text(l10n.exit),
           ),
         ],
       ),

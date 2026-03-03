@@ -53,10 +53,12 @@
         "engine_pdf",
         "file_picker",
         "flutter",
+        "flutter_localizations",
         "flutter_riverpod",
         "foundation_domain",
         "go_router",
         "infrastructure_data",
+        "intl",
         "window_manager"
       ],
       "devDependencies": [
@@ -371,6 +373,24 @@
         "meta",
         "riverpod",
         "state_notifier"
+      ]
+    },
+    {
+      "name": "intl",
+      "version": "0.20.2",
+      "dependencies": [
+        "clock",
+        "meta",
+        "path"
+      ]
+    },
+    {
+      "name": "flutter_localizations",
+      "version": "0.0.0",
+      "dependencies": [
+        "flutter",
+        "intl",
+        "path"
       ]
     },
     {

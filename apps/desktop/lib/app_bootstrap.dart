@@ -13,6 +13,8 @@ Future<void> bootstrapDesktopApp() async {
     title: 'Reader Desktop',
     minimumSize: Size(1024, 700),
     center: true,
+    titleBarStyle: TitleBarStyle.hidden,
+    windowButtonVisibility: false,
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.setPreventClose(true);

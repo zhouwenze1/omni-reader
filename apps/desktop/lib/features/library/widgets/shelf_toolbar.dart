@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
 
+import '../../../l10n/app_localizations.dart';
 import 'sort_menu.dart';
 
 class ShelfToolbar extends StatelessWidget {
@@ -8,63 +9,100 @@ class ShelfToolbar extends StatelessWidget {
     super.key,
     required this.sortMode,
     required this.viewMode,
-    required this.filterPanelVisible,
     required this.onSortChanged,
     required this.onViewModeChanged,
-    required this.onToggleFilterPanel,
     required this.onImport,
     required this.onRefresh,
   });
 
   final LibrarySortMode sortMode;
   final LibraryViewMode viewMode;
-  final bool filterPanelVisible;
   final ValueChanged<LibrarySortMode> onSortChanged;
   final ValueChanged<LibraryViewMode> onViewModeChanged;
-  final VoidCallback onToggleFilterPanel;
   final VoidCallback onImport;
   final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final l10n = context.l10n;
+
+    final controls = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('排序:'),
+        Text('${l10n.sort}:'),
         const SizedBox(width: 8),
-        SortMenu(value: sortMode, onChanged: onSortChanged),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 180),
+          child: SortMenu(value: sortMode, onChanged: onSortChanged),
+        ),
         const SizedBox(width: 12),
         SegmentedButton<LibraryViewMode>(
-          segments: const [
+          segments: [
             ButtonSegment(
               value: LibraryViewMode.grid,
-              icon: Icon(Icons.grid_view),
-              label: Text('网格'),
+              icon: const Icon(Icons.grid_view),
+              label: Text(l10n.grid),
             ),
             ButtonSegment(
               value: LibraryViewMode.list,
-              icon: Icon(Icons.view_list),
-              label: Text('列表'),
+              icon: const Icon(Icons.view_list),
+              label: Text(l10n.list),
             ),
           ],
           selected: {viewMode},
           onSelectionChanged: (next) => onViewModeChanged(next.first),
         ),
-        const SizedBox(width: 8),
+      ],
+    );
+
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         IconButton(
-          tooltip: filterPanelVisible ? '收起筛选栏' : '展开筛选栏',
-          onPressed: onToggleFilterPanel,
-          icon: Icon(
-            filterPanelVisible ? Icons.tune : Icons.tune_outlined,
-          ),
+          onPressed: onRefresh,
+          icon: const Icon(Icons.refresh),
+          tooltip: l10n.refresh,
         ),
-        const Spacer(),
-        IconButton(onPressed: onRefresh, icon: const Icon(Icons.refresh)),
         FilledButton.icon(
           onPressed: onImport,
           icon: const Icon(Icons.file_upload_outlined),
-          label: const Text('导入'),
+          label: Text(l10n.importBook),
         ),
       ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1080) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: controls,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: actions,
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: controls,
+              ),
+            ),
+            const SizedBox(width: 8),
+            actions,
+          ],
+        );
+      },
     );
   }
 }

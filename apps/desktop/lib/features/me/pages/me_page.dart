@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../di/providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../routes/route_paths.dart';
 
 class MePage extends ConsumerWidget {
@@ -13,7 +14,7 @@ class MePage extends ConsumerWidget {
     final asyncLibrary = ref.watch(libraryIndexProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('我的')),
+      appBar: AppBar(title: Text(context.l10n.tabMe)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -24,13 +25,16 @@ class MePage extends ConsumerWidget {
                 loading: () => const Text('统计加载中...'),
                 error: (error, _) => Text('统计加载失败: $error'),
                 data: (items) {
-                  final done = items.where((e) => (e.cachedProgress ?? 0) >= 0.98).length;
+                  final done = items
+                      .where((e) => (e.cachedProgress ?? 0) >= 0.98)
+                      .length;
                   final notes = 0;
                   final highlights = 0;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('本周周报', style: TextStyle(fontWeight: FontWeight.w700)),
+                      const Text('本周周报',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 8),
                       Text('在读书籍: ${items.length}'),
                       Text('已完成书籍: $done'),
@@ -45,26 +49,8 @@ class MePage extends ConsumerWidget {
           _entry(
             context,
             icon: Icons.settings,
-            title: 'APP 设置',
-            path: RoutePaths.appSettings,
-          ),
-          _entry(
-            context,
-            icon: Icons.chrome_reader_mode,
-            title: '阅读器设置',
-            path: RoutePaths.readerSettings,
-          ),
-          _entry(
-            context,
-            icon: Icons.cloud_outlined,
-            title: '云端设置',
-            path: RoutePaths.cloudSettings,
-          ),
-          _entry(
-            context,
-            icon: Icons.info_outline,
-            title: '关于软件',
-            path: RoutePaths.about,
+            title: context.l10n.settings,
+            path: RoutePaths.settingsHome,
           ),
         ],
       ),

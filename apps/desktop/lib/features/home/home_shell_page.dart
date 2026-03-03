@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../routes/route_paths.dart';
-import '../../utils/window_util.dart';
 
 class HomeShellPage extends StatelessWidget {
   const HomeShellPage({
@@ -22,13 +22,16 @@ class HomeShellPage extends StatelessWidget {
     return 2;
   }
 
-  void _goBranch(BuildContext context, int index) {
-    navigationShell.goBranch(index,
-        initialLocation: index == navigationShell.currentIndex);
+  void _goBranch(int index) {
+    navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final location = GoRouterState.of(context).uri.toString();
     final selectedIndex = _indexFromLocation(location);
 
@@ -37,46 +40,23 @@ class HomeShellPage extends StatelessWidget {
         children: [
           NavigationRail(
             selectedIndex: selectedIndex,
-            onDestinationSelected: (index) => _goBranch(context, index),
+            onDestinationSelected: _goBranch,
             labelType: NavigationRailLabelType.all,
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Settings',
-                        onPressed: () => context.push(RoutePaths.settingsHome),
-                        icon: const Icon(Icons.settings_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Exit App',
-                        onPressed: () => WindowUtil.requestExit(context),
-                        icon: const Icon(Icons.power_settings_new),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            destinations: const [
+            destinations: [
               NavigationRailDestination(
-                icon: Icon(Icons.menu_book_outlined),
-                selectedIcon: Icon(Icons.menu_book),
-                label: Text('Reading'),
+                icon: const Icon(Icons.menu_book_outlined),
+                selectedIcon: const Icon(Icons.menu_book),
+                label: Text(l10n.tabReadingNow),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.library_books_outlined),
-                selectedIcon: Icon(Icons.library_books),
-                label: Text('Library'),
+                icon: const Icon(Icons.library_books_outlined),
+                selectedIcon: const Icon(Icons.library_books),
+                label: Text(l10n.tabLibrary),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person),
-                label: Text('Me'),
+                icon: const Icon(Icons.person_outline),
+                selectedIcon: const Icon(Icons.person),
+                label: Text(l10n.tabMe),
               ),
             ],
           ),

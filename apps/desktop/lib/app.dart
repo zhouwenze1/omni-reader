@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'features/settings/controller/settings_controller.dart';
+import 'l10n/app_localizations.dart';
 import 'routes/app_router.dart';
 import 'utils/window_util.dart';
 
@@ -16,6 +18,8 @@ class ReaderDesktopApp extends ConsumerStatefulWidget {
 
 class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
     with WindowListener {
+  bool _closing = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,10 +34,21 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
 
   @override
   void onWindowClose() async {
-    if (!mounted) {
+    if (!mounted || _closing) {
       return;
     }
-    await WindowUtil.requestExit(context);
+    _closing = true;
+    try {
+      final router = ref.read(appRouterProvider);
+      final dialogContext = router.routerDelegate.navigatorKey.currentContext;
+      if (dialogContext == null) {
+        await WindowUtil.forceExit();
+        return;
+      }
+      await WindowUtil.requestExit(dialogContext);
+    } finally {
+      _closing = false;
+    }
   }
 
   @override
@@ -41,9 +56,18 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
     final router = ref.watch(appRouterProvider);
     final settingsState = ref.watch(settingsControllerProvider);
     final themeMode = _toThemeMode(settingsState.app.themeMode);
+    final locale = _toLocale(settingsState.app.locale);
 
     return MaterialApp.router(
-      title: 'Reader Desktop',
+      onGenerateTitle: (context) => context.l10n.appTitle,
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       themeMode: themeMode,
       theme: ThemeData(
         colorSchemeSeed: Colors.indigo,
@@ -54,6 +78,33 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
         colorSchemeSeed: Colors.indigo,
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        final theme = Theme.of(context);
+        final brightness = theme.brightness;
+        final colorScheme = theme.colorScheme;
+        final content = child ?? const SizedBox.shrink();
+        return ColoredBox(
+          color: colorScheme.surface,
+          child: Column(
+            children: [
+              SizedBox(
+                height: kWindowCaptionHeight,
+                child: WindowCaption(
+                  brightness: brightness,
+                  backgroundColor: colorScheme.surface,
+                  title: Text(
+                    'Reader Desktop',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: content),
+            ],
+          ),
+        );
+      },
       routerConfig: router,
     );
   }
@@ -68,4 +119,18 @@ ThemeMode _toThemeMode(AppThemeMode mode) {
     case AppThemeMode.system:
       return ThemeMode.system;
   }
+}
+
+Locale? _toLocale(String locale) {
+  final normalized = locale.trim().toLowerCase();
+  if (normalized.isEmpty || normalized == 'system') {
+    return null;
+  }
+  if (normalized.startsWith('zh')) {
+    return const Locale('zh');
+  }
+  if (normalized.startsWith('en')) {
+    return const Locale('en');
+  }
+  return null;
 }
