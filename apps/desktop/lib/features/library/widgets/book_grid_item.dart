@@ -10,65 +10,116 @@ class BookGridItem extends StatelessWidget {
     required this.entry,
     required this.coverPath,
     required this.selected,
+    required this.selectionMode,
+    required this.multiSelected,
     required this.onTap,
+    this.onLongPress,
   });
 
   final LibraryIndexEntry entry;
   final String? coverPath;
   final bool selected;
+  final bool selectionMode;
+  final bool multiSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final coverHeight =
-            (constraints.maxHeight * 0.46).clamp(82.0, 112.0).toDouble();
+            (constraints.maxHeight * 0.58).clamp(96.0, 152.0).toDouble();
         final coverWidth = (coverHeight * 0.72).toDouble();
+        final cardColor = multiSelected
+            ? Theme.of(context).colorScheme.primaryContainer
+            : selected
+                ? Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.55)
+                : Theme.of(context).colorScheme.surface;
 
-        return InkWell(
-          onTap: onTap,
-          child: Card(
-            color: selected
-                ? Theme.of(context).colorScheme.primaryContainer
-                : Theme.of(context).colorScheme.surface,
+        return Card(
+          color: cardColor,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
             child: Padding(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Align(
                     alignment: Alignment.center,
-                    child: BookCover(
-                      filePath: coverPath,
-                      width: coverWidth,
-                      height: coverHeight,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    height: 36,
-                    child: Text(
-                      entry.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _relativeLastRead(
-                      context,
-                      entry.lastOpenedAt ?? entry.updatedAt,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    child: Stack(
+                      children: [
+                        BookCover(
+                          filePath: coverPath,
+                          width: coverWidth,
+                          height: coverHeight,
                         ),
+                        if (selectionMode)
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                multiSelected
+                                    ? Icons.check_circle
+                                    : Icons.radio_button_unchecked,
+                                size: 20,
+                                color: multiSelected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  SizedBox(
+                    height: 34,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: Text(
+                        entry.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 4),
-                  ProgressBadge(progress: entry.cachedProgress ?? 0),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _relativeLastRead(
+                            context,
+                            entry.lastOpenedAt ?? entry.updatedAt,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ProgressBadge(progress: entry.cachedProgress ?? 0),
+                    ],
+                  ),
                 ],
               ),
             ),

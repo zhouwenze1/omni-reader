@@ -98,6 +98,50 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     await _reloadByCurrentQuery();
   }
 
+  void enterSelectionMode({String? seedBookUid}) {
+    final selected = <String>{...state.selectedBookUids};
+    if (seedBookUid != null) {
+      selected.add(seedBookUid);
+    }
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: selected,
+      selectedBookUid: seedBookUid ?? state.selectedBookUid,
+    );
+  }
+
+  void exitSelectionMode() {
+    state = state.copyWith(
+      isSelectionMode: false,
+      selectedBookUids: <String>{},
+    );
+  }
+
+  void toggleSelectedBook(String bookUid) {
+    final selected = <String>{...state.selectedBookUids};
+    if (selected.contains(bookUid)) {
+      selected.remove(bookUid);
+    } else {
+      selected.add(bookUid);
+    }
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: selected,
+      selectedBookUid: bookUid,
+    );
+  }
+
+  void selectAllVisible() {
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: state.filteredItems.map((it) => it.bookUid).toSet(),
+    );
+  }
+
+  void clearSelectedBooks() {
+    state = state.copyWith(selectedBookUids: <String>{});
+  }
+
   void selectBook(String? bookUid) {
     state = state.copyWith(selectedBookUid: bookUid);
   }
@@ -133,6 +177,16 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     await _reloadByCurrentQuery();
   }
 
+  Future<void> addBooksToCollection(
+    int collectionId,
+    Iterable<String> bookUids,
+  ) async {
+    for (final uid in bookUids.toSet()) {
+      await _collectionRepository.addBookToCollection(collectionId, uid);
+    }
+    await _reloadByCurrentQuery();
+  }
+
   Future<void> removeBookFromCollection(
       int collectionId, String bookUid) async {
     await _collectionRepository.removeBookFromCollection(collectionId, bookUid);
@@ -162,6 +216,49 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
       state = state.copyWith(
         status: LibraryPageStatus.error,
         errorMessage: 'Delete failed: $error',
+      );
+    }
+  }
+
+  Future<void> deleteBooks(Iterable<String> bookUids) async {
+    final ids = bookUids.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    try {
+      for (final uid in ids) {
+        await _collectionRepository.removeBookFromAllCollections(uid);
+        await _bookRepository.deleteBook(uid);
+      }
+      state = state.copyWith(selectedBookUids: <String>{});
+      await _reloadByCurrentQuery();
+    } catch (error) {
+      state = state.copyWith(
+        status: LibraryPageStatus.error,
+        errorMessage: 'Batch delete failed: $error',
+      );
+    }
+  }
+
+  Future<void> moveBooksToCollection({
+    required Iterable<String> bookUids,
+    required int collectionId,
+  }) async {
+    final ids = bookUids.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    try {
+      for (final uid in ids) {
+        await _collectionRepository.removeBookFromAllCollections(uid);
+        await _collectionRepository.addBookToCollection(collectionId, uid);
+      }
+      state = state.copyWith(selectedBookUids: <String>{});
+      await _reloadByCurrentQuery();
+    } catch (error) {
+      state = state.copyWith(
+        status: LibraryPageStatus.error,
+        errorMessage: 'Move to collection failed: $error',
       );
     }
   }
@@ -220,6 +317,10 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     final categories =
         items.map((e) => e.categoryId ?? '').where((e) => e.isNotEmpty).toSet();
 
+    final filteredSelection = state.selectedBookUids
+        .where((uid) => items.any((it) => it.bookUid == uid))
+        .toSet();
+
     String? selectedBookUid = state.selectedBookUid;
     if (items.isEmpty) {
       selectedBookUid = null;
@@ -239,6 +340,8 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
       collectionBookUids: collectionBookUids,
       availableFormats: formats,
       availableCategories: categories,
+      selectedBookUids: filteredSelection,
+      isSelectionMode: state.isSelectionMode && filteredSelection.isNotEmpty,
       clearError: true,
     );
   }

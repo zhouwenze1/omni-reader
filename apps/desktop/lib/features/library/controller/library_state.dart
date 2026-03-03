@@ -17,6 +17,8 @@ class DesktopLibraryState {
     required this.isFilterPanelVisible,
     required this.availableFormats,
     required this.availableCategories,
+    required this.isSelectionMode,
+    required this.selectedBookUids,
     this.errorMessage,
   });
 
@@ -34,6 +36,8 @@ class DesktopLibraryState {
         isFilterPanelVisible = true,
         availableFormats = const <String>{},
         availableCategories = const <String>{},
+        isSelectionMode = false,
+        selectedBookUids = const <String>{},
         errorMessage = null;
 
   final LibraryPageStatus status;
@@ -49,6 +53,8 @@ class DesktopLibraryState {
   final bool isFilterPanelVisible;
   final Set<String> availableFormats;
   final Set<String> availableCategories;
+  final bool isSelectionMode;
+  final Set<String> selectedBookUids;
   final String? errorMessage;
 
   LibraryIndexEntry? get selectedItem {
@@ -88,6 +94,8 @@ class DesktopLibraryState {
     bool? isFilterPanelVisible,
     Set<String>? availableFormats,
     Set<String>? availableCategories,
+    bool? isSelectionMode,
+    Set<String>? selectedBookUids,
     String? errorMessage,
     bool clearError = false,
     bool clearSelectedCollection = false,
@@ -108,6 +116,8 @@ class DesktopLibraryState {
       isFilterPanelVisible: isFilterPanelVisible ?? this.isFilterPanelVisible,
       availableFormats: availableFormats ?? this.availableFormats,
       availableCategories: availableCategories ?? this.availableCategories,
+      isSelectionMode: isSelectionMode ?? this.isSelectionMode,
+      selectedBookUids: selectedBookUids ?? this.selectedBookUids,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }

@@ -9,16 +9,22 @@ class ShelfToolbar extends StatelessWidget {
     super.key,
     required this.sortMode,
     required this.viewMode,
+    required this.selectionMode,
+    required this.selectedCount,
     required this.onSortChanged,
     required this.onViewModeChanged,
+    required this.onToggleSelectionMode,
     required this.onImport,
     required this.onRefresh,
   });
 
   final LibrarySortMode sortMode;
   final LibraryViewMode viewMode;
+  final bool selectionMode;
+  final int selectedCount;
   final ValueChanged<LibrarySortMode> onSortChanged;
   final ValueChanged<LibraryViewMode> onViewModeChanged;
+  final VoidCallback onToggleSelectionMode;
   final VoidCallback onImport;
   final VoidCallback onRefresh;
 
@@ -63,6 +69,23 @@ class ShelfToolbar extends StatelessWidget {
           icon: const Icon(Icons.refresh),
           tooltip: l10n.refresh,
         ),
+        IconButton(
+          onPressed: onToggleSelectionMode,
+          icon: Icon(
+            selectionMode
+                ? Icons.check_box
+                : Icons.check_box_outline_blank_outlined,
+          ),
+          tooltip: selectionMode ? 'Exit multi-select' : 'Multi-select',
+        ),
+        if (selectionMode)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Text(
+              '$selectedCount selected',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         FilledButton.icon(
           onPressed: onImport,
           icon: const Icon(Icons.file_upload_outlined),
