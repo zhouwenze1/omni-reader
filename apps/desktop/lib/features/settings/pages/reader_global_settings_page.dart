@@ -58,7 +58,7 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
               ),
               DropdownTile<String>(
                 title: l10n.theme,
-                value: reader.theme,
+                value: reader.rendererTheme,
                 leading: const Icon(Icons.palette_outlined),
                 items: [
                   DropdownMenuItem(value: 'day', child: Text(l10n.themeDay)),
@@ -69,7 +69,9 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
                 ],
                 onChanged: (value) {
                   if (value != null) {
-                    controller.updateReader(reader.copyWith(theme: value));
+                    controller.updateReader(
+                      reader.copyWith(rendererTheme: value),
+                    );
                   }
                 },
               ),

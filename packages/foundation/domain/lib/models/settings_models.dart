@@ -64,7 +64,7 @@ class ReaderSettings {
     this.textIndentEnabled = true,
     this.textIndentEm = 2,
     this.textIndentSkipFirstParagraph = false,
-    this.theme = 'day',
+    this.rendererTheme = 'day',
     this.layoutMode = 'paged_spread',
     this.progressDisplay = 'percentage',
   });
@@ -78,7 +78,7 @@ class ReaderSettings {
   final bool textIndentEnabled;
   final double textIndentEm;
   final bool textIndentSkipFirstParagraph;
-  final String theme;
+  final String rendererTheme;
   final String layoutMode;
   final String progressDisplay;
 
@@ -92,7 +92,7 @@ class ReaderSettings {
     bool? textIndentEnabled,
     double? textIndentEm,
     bool? textIndentSkipFirstParagraph,
-    String? theme,
+    String? rendererTheme,
     String? layoutMode,
     String? progressDisplay,
   }) {
@@ -107,7 +107,7 @@ class ReaderSettings {
       textIndentEm: textIndentEm ?? this.textIndentEm,
       textIndentSkipFirstParagraph:
           textIndentSkipFirstParagraph ?? this.textIndentSkipFirstParagraph,
-      theme: theme ?? this.theme,
+      rendererTheme: rendererTheme ?? this.rendererTheme,
       layoutMode: layoutMode ?? this.layoutMode,
       progressDisplay: progressDisplay ?? this.progressDisplay,
     );
@@ -129,7 +129,9 @@ class ReaderSettings {
       textIndentEm: _asDouble(json['textIndentEm']) ?? 2,
       textIndentSkipFirstParagraph:
           _asBool(json['textIndentSkipFirstParagraph']) ?? false,
-      theme: (json['theme'] as String?) ?? 'day',
+      rendererTheme:
+          (json['rendererTheme'] as String? ?? json['theme'] as String?) ??
+          'day',
       layoutMode: (json['layoutMode'] as String?) ?? 'paged_spread',
       progressDisplay: (json['progressDisplay'] as String?) ?? 'percentage',
     );
@@ -146,7 +148,9 @@ class ReaderSettings {
       'textIndentEnabled': textIndentEnabled,
       'textIndentEm': textIndentEm,
       'textIndentSkipFirstParagraph': textIndentSkipFirstParagraph,
-      'theme': theme,
+      'rendererTheme': rendererTheme,
+      // Keep legacy key for compatibility with historical local settings.
+      'theme': rendererTheme,
       'layoutMode': layoutMode,
       'progressDisplay': progressDisplay,
     };

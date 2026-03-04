@@ -34,7 +34,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReadingProgress? _pendingProgressToSave;
   Future<void> _progressSaveChain = Future<void>.value();
 
-  String _theme = 'day';
+  String _rendererTheme = 'day';
   double _fontSize = 20;
   double _lineHeight = 1.6;
   double _pageGap = 24;
@@ -52,7 +52,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Future<void> _init() async {
     try {
-      _bootstrapReaderStyleFromSettings(ref.read(settingsControllerProvider));
+      final settingsState = await _waitSettingsLoaded();
+      _bootstrapReaderStyleFromSettings(settingsState);
 
       final bookRepository = ref.read(bookRepositoryProvider);
       final progressRepository = ref.read(progressRepositoryProvider);
@@ -136,6 +137,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _loading = false;
       });
 
+      await _applyReaderStyle();
       unawaited(_openSession(session));
     } catch (error) {
       if (!mounted) {
@@ -148,9 +150,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<SettingsState> _waitSettingsLoaded() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    var current = ref.read(settingsControllerProvider);
+    while (current.isLoading && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      current = ref.read(settingsControllerProvider);
+    }
+    return current;
+  }
+
   void _bootstrapReaderStyleFromSettings(SettingsState settingsState) {
     final reader = settingsState.reader;
-    _theme = reader.theme;
+    _rendererTheme = reader.rendererTheme;
     _fontSize = reader.fontSize;
     _lineHeight = reader.lineHeight;
     _pageGap = reader.pageGap;
@@ -439,11 +451,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     icon: const Icon(Icons.tune, color: Colors.white),
                   ),
                   IconButton(
-                    tooltip:
-                        _theme == 'day' ? l10n.switchToNight : l10n.switchToDay,
+                    tooltip: _rendererTheme == 'day'
+                        ? l10n.switchToNight
+                        : l10n.switchToDay,
                     onPressed: _toggleTheme,
                     icon: Icon(
-                      _theme == 'day' ? Icons.dark_mode : Icons.light_mode,
+                      _rendererTheme == 'day'
+                          ? Icons.dark_mode
+                          : Icons.light_mode,
                       color: Colors.white,
                     ),
                   ),
@@ -507,17 +522,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
   }
 
-  void _toggleTheme() {
-    final next = _theme == 'day' ? 'night' : 'day';
+  Future<void> _toggleTheme() async {
+    final next = _rendererTheme == 'day' ? 'night' : 'day';
     setState(() {
-      _theme = next;
+      _rendererTheme = next;
     });
-    unawaited(_applyReaderStyle());
+    await _applyReaderStyle();
   }
 
   Map<String, dynamic> _currentReaderStyle() {
     return <String, dynamic>{
-      'theme': _theme,
+      'theme': _rendererTheme,
       'columnCount': 1,
       'pageGap': _pageGap.round(),
       'fontSize': _fontSize.round(),
@@ -539,8 +554,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
     try {
       await session.setStyle(_currentReaderStyle());
-      final readerSettings = ReaderSettings(
-        fontFamily: 'system',
+      final currentSettings = ref.read(settingsControllerProvider).reader;
+      final nextSettings = currentSettings.copyWith(
         fontSize: _fontSize,
         lineHeight: _lineHeight,
         pageGap: _pageGap,
@@ -549,15 +564,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         textIndentEnabled: _textIndentEnabled,
         textIndentEm: _textIndentEm,
         textIndentSkipFirstParagraph: _textIndentSkipFirst,
-        theme: _theme,
-        layoutMode: 'paged_spread',
-        progressDisplay: 'percentage',
+        rendererTheme: _rendererTheme,
       );
-      unawaited(
-        ref
-            .read(settingsControllerProvider.notifier)
-            .updateReader(readerSettings),
-      );
+      await ref
+          .read(settingsControllerProvider.notifier)
+          .updateReader(nextSettings);
     } catch (error) {
       debugPrint('[desktop-reader][setStyle.error] $error');
     }
