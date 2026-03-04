@@ -57,6 +57,7 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
     final settingsState = ref.watch(settingsControllerProvider);
     final themeMode = _toThemeMode(settingsState.app.themeMode);
     final locale = _toLocale(settingsState.app.locale);
+    final captionTheme = _toCaptionTheme(settingsState.reader.rendererTheme);
 
     return MaterialApp.router(
       onGenerateTitle: (context) => context.l10n.appTitle,
@@ -79,23 +80,20 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
         useMaterial3: true,
       ),
       builder: (context, child) {
-        final theme = Theme.of(context);
-        final brightness = theme.brightness;
-        final colorScheme = theme.colorScheme;
         final content = child ?? const SizedBox.shrink();
         return ColoredBox(
-          color: colorScheme.surface,
+          color: Theme.of(context).colorScheme.surface,
           child: Column(
             children: [
               SizedBox(
                 height: kWindowCaptionHeight,
                 child: WindowCaption(
-                  brightness: brightness,
-                  backgroundColor: colorScheme.surface,
+                  brightness: captionTheme.brightness,
+                  backgroundColor: captionTheme.backgroundColor,
                   title: Text(
                     'Reader Desktop',
                     style: TextStyle(
-                      color: colorScheme.onSurface,
+                      color: captionTheme.foregroundColor,
                     ),
                   ),
                 ),
@@ -133,4 +131,45 @@ Locale? _toLocale(String locale) {
     return const Locale('en');
   }
   return null;
+}
+
+_CaptionTheme _toCaptionTheme(String rendererTheme) {
+  final normalized = rendererTheme.trim().toLowerCase();
+  switch (normalized) {
+    case 'night':
+    case 'dark':
+    case 'black':
+      return const _CaptionTheme(
+        brightness: Brightness.dark,
+        backgroundColor: Color(0xFF090B0F),
+        foregroundColor: Color(0xFFE7EAF0),
+      );
+    case 'sepia':
+    case 'tea':
+    case 'brown':
+      return const _CaptionTheme(
+        brightness: Brightness.light,
+        backgroundColor: Color(0xFFEFE3C8),
+        foregroundColor: Color(0xFF3B2F24),
+      );
+    case 'day':
+    default:
+      return const _CaptionTheme(
+        brightness: Brightness.light,
+        backgroundColor: Color(0xFFF7F7F7),
+        foregroundColor: Color(0xFF111318),
+      );
+  }
+}
+
+class _CaptionTheme {
+  const _CaptionTheme({
+    required this.brightness,
+    required this.backgroundColor,
+    required this.foregroundColor,
+  });
+
+  final Brightness brightness;
+  final Color backgroundColor;
+  final Color foregroundColor;
 }

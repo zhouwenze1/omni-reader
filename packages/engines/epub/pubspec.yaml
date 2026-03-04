@@ -26,7 +26,7 @@ dependencies:
 flutter:
   assets:
     - assets/renderer/index.html
-    - assets/renderer/assets/index-DSmPE4yG.js
+    - assets/renderer/assets/index-DIyYFVx0.js
     - assets/renderer/assets/index-DNsThFnT.css
 
 
