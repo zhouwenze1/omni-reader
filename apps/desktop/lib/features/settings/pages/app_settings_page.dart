@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
 import '../widgets/dropdown_tile.dart';
 import '../widgets/settings_group.dart';
@@ -14,9 +15,10 @@ class AppSettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(settingsControllerProvider);
     final controller = ref.read(settingsControllerProvider.notifier);
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('APP 设置')),
+      appBar: AppBar(title: Text(l10n.appSettings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -29,16 +31,22 @@ class AppSettingsPage extends ConsumerWidget {
               ),
             ),
           SettingsGroup(
-            title: '通用',
+            title: l10n.general,
             children: [
               DropdownTile<String>(
-                title: '语言',
+                title: l10n.language,
                 value: state.app.locale,
                 leading: const Icon(Icons.language),
-                items: const [
-                  DropdownMenuItem(value: 'system', child: Text('跟随系统')),
-                  DropdownMenuItem(value: 'zh-CN', child: Text('中文简体')),
-                  DropdownMenuItem(value: 'en', child: Text('English')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'system',
+                    child: Text(l10n.followSystem),
+                  ),
+                  DropdownMenuItem(
+                    value: 'zh-CN',
+                    child: Text(l10n.chineseSimplified),
+                  ),
+                  DropdownMenuItem(value: 'en', child: Text(l10n.english)),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -47,21 +55,21 @@ class AppSettingsPage extends ConsumerWidget {
                 },
               ),
               DropdownTile<AppThemeMode>(
-                title: '外观',
+                title: l10n.appearance,
                 value: state.app.themeMode,
                 leading: const Icon(Icons.dark_mode_outlined),
-                items: const [
+                items: [
                   DropdownMenuItem(
                     value: AppThemeMode.system,
-                    child: Text('跟随系统'),
+                    child: Text(l10n.followSystem),
                   ),
                   DropdownMenuItem(
                     value: AppThemeMode.light,
-                    child: Text('浅色'),
+                    child: Text(l10n.lightTheme),
                   ),
                   DropdownMenuItem(
                     value: AppThemeMode.dark,
-                    child: Text('深色'),
+                    child: Text(l10n.darkTheme),
                   ),
                 ],
                 onChanged: (value) {
@@ -73,17 +81,17 @@ class AppSettingsPage extends ConsumerWidget {
             ],
           ),
           SettingsGroup(
-            title: '开发与诊断',
+            title: l10n.diagnostics,
             children: [
               ToggleTile(
-                title: '导入调试日志',
-                subtitle: '生成 debug-import.json，便于排查导入问题',
+                title: l10n.debugImportLogs,
+                subtitle: l10n.debugImportLogsSubtitle,
                 leading: const Icon(Icons.bug_report_outlined),
                 value: state.app.debugImport,
                 onChanged: controller.setDebugImport,
               ),
               ToggleTile(
-                title: '自动检查更新',
+                title: l10n.autoCheckUpdate,
                 leading: const Icon(Icons.system_update_alt),
                 value: state.app.autoCheckUpdate,
                 onChanged: (v) => controller.updateApp(
@@ -91,7 +99,7 @@ class AppSettingsPage extends ConsumerWidget {
                 ),
               ),
               ToggleTile(
-                title: '发送匿名使用数据',
+                title: l10n.sendAnonymousUsage,
                 leading: const Icon(Icons.privacy_tip_outlined),
                 value: state.app.sendAnonymousUsage,
                 onChanged: (v) => controller.updateApp(

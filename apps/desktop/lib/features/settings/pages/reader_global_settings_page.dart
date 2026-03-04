@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
 import '../widgets/dropdown_tile.dart';
 import '../widgets/settings_group.dart';
@@ -15,50 +16,56 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
     final state = ref.watch(settingsControllerProvider);
     final controller = ref.read(settingsControllerProvider.notifier);
     final reader = state.reader;
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('阅读器设置')),
+      appBar: AppBar(title: Text(l10n.readerSettings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SettingsGroup(
-            title: '显示设置',
+            title: l10n.displaySettings,
             children: [
               SliderTile(
-                title: '字体大小',
+                title: l10n.fontSize,
                 min: 12,
                 max: 42,
                 divisions: 30,
                 value: reader.fontSize,
                 valueText: reader.fontSize.toStringAsFixed(0),
-                onChanged: (v) => controller.updateReader(reader.copyWith(fontSize: v)),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(fontSize: v)),
               ),
               SliderTile(
-                title: '行高',
+                title: l10n.lineHeight,
                 min: 1.1,
                 max: 2.4,
                 divisions: 13,
                 value: reader.lineHeight,
                 valueText: reader.lineHeight.toStringAsFixed(2),
-                onChanged: (v) => controller.updateReader(reader.copyWith(lineHeight: v)),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(lineHeight: v)),
               ),
               SliderTile(
-                title: '页间距',
+                title: l10n.pageGap,
                 min: 0,
                 max: 80,
                 divisions: 16,
                 value: reader.pageGap,
                 valueText: reader.pageGap.toStringAsFixed(0),
-                onChanged: (v) => controller.updateReader(reader.copyWith(pageGap: v)),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(pageGap: v)),
               ),
               DropdownTile<String>(
-                title: '主题',
+                title: l10n.theme,
                 value: reader.theme,
                 leading: const Icon(Icons.palette_outlined),
-                items: const [
-                  DropdownMenuItem(value: 'day', child: Text('日间')),
-                  DropdownMenuItem(value: 'night', child: Text('夜间')),
-                  DropdownMenuItem(value: 'sepia', child: Text('护眼')),
+                items: [
+                  DropdownMenuItem(value: 'day', child: Text(l10n.themeDay)),
+                  DropdownMenuItem(
+                      value: 'night', child: Text(l10n.themeNight)),
+                  DropdownMenuItem(
+                      value: 'sepia', child: Text(l10n.themeSepia)),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -67,12 +74,18 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
                 },
               ),
               DropdownTile<String>(
-                title: '分页模式',
+                title: l10n.layoutMode,
                 value: reader.layoutMode,
                 leading: const Icon(Icons.view_day_outlined),
-                items: const [
-                  DropdownMenuItem(value: 'paged_spread', child: Text('分页')),
-                  DropdownMenuItem(value: 'scroll_boundary', child: Text('滚动')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'paged_spread',
+                    child: Text(l10n.layoutPaged),
+                  ),
+                  DropdownMenuItem(
+                    value: 'scroll_boundary',
+                    child: Text(l10n.layoutScroll),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -83,26 +96,27 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
             ],
           ),
           SettingsGroup(
-            title: '排版细节',
+            title: l10n.layoutDetails,
             children: [
               ToggleTile(
-                title: '启用首行缩进',
+                title: l10n.enableTextIndent,
                 value: reader.textIndentEnabled,
                 onChanged: (v) => controller.updateReader(
                   reader.copyWith(textIndentEnabled: v),
                 ),
               ),
               SliderTile(
-                title: '缩进大小 (em)',
+                title: l10n.indentSizeEm,
                 min: 0,
                 max: 4,
                 divisions: 20,
                 value: reader.textIndentEm,
                 valueText: reader.textIndentEm.toStringAsFixed(1),
-                onChanged: (v) => controller.updateReader(reader.copyWith(textIndentEm: v)),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(textIndentEm: v)),
               ),
               ToggleTile(
-                title: '首段不缩进',
+                title: l10n.skipFirstParagraphIndent,
                 value: reader.textIndentSkipFirstParagraph,
                 onChanged: (v) => controller.updateReader(
                   reader.copyWith(textIndentSkipFirstParagraph: v),

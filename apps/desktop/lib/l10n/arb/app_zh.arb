@@ -1,0 +1,207 @@
+{
+  "@@locale": "zh",
+  "appTitle": "Reader 桌面端",
+  "appBrandName": "OmniBook",
+  "appVersionText": "版本: 1.0.0 (Build dev)",
+  "settings": "设置",
+  "tabReadingNow": "阅读中",
+  "tabLibrary": "书架",
+  "tabMe": "我的",
+  "libraryTitle": "书架",
+  "loadingFailed": "加载失败",
+  "emptyLibrary": "暂无书籍，先导入一本书。",
+  "loadingReadingHistory": "加载阅读记录...",
+  "emptyReadingNowTitle": "暂无在读书籍",
+  "emptyReadingNowMessage": "先去书架导入一本书开始阅读。",
+  "filter": "筛选",
+  "sort": "排序",
+  "sortByRecentRead": "最近阅读",
+  "sortByImportedAt": "最近导入",
+  "sortByName": "名称 A-Z",
+  "format": "格式",
+  "progress": "进度",
+  "category": "分类",
+  "collection": "合集",
+  "all": "全部",
+  "allCollections": "全部合集",
+  "unknownCollection": "未知合集",
+  "currentCollection": "当前合集",
+  "notStarted": "未开始",
+  "inProgress": "阅读中",
+  "completed": "已完成",
+  "newCollection": "新建合集",
+  "manageCollection": "管理合集",
+  "collapseFilterPanel": "收起筛选栏",
+  "expandFilterPanel": "展开筛选栏",
+  "grid": "网格",
+  "list": "列表",
+  "refresh": "刷新",
+  "importBook": "导入",
+  "selectBookToViewDetail": "选择一本书查看详情",
+  "author": "作者",
+  "uncategorized": "未分类",
+  "importedAt": "导入时间",
+  "lastOpened": "最近阅读",
+  "continueReading": "继续阅读",
+  "openToc": "打开目录",
+  "deleteBook": "删除书籍",
+  "addOrRemoveCollection": "加入/移出合集",
+  "noCollectionAdded": "未加入合集",
+  "renameCollection": "重命名合集",
+  "inputCollectionName": "输入合集名称",
+  "inputCollectionNewName": "输入新名称",
+  "noCollectionYet": "还没有合集",
+  "noCollectionCreateFirst": "还没有合集，请先创建。",
+  "close": "关闭",
+  "done": "完成",
+  "create": "创建",
+  "save": "保存",
+  "cancel": "取消",
+  "exit": "退出",
+  "confirmExitMessage": "确认退出应用吗？",
+  "delete": "删除",
+  "confirmDeleteTitle": "删除确认",
+  "confirmDeleteMessage": "删除后不可恢复，是否继续？",
+  "imported": "导入成功",
+  "importFailed": "导入失败",
+  "alreadyImported": "已导入",
+  "retry": "重试",
+  "moveSelectedBooks": "移动已选书籍",
+  "targetCollection": "目标合集",
+  "move": "移动",
+  "batchActions": "批量操作",
+  "moveToCollection": "移动到合集",
+  "deleteSelected": "删除所选",
+  "exitMultiSelect": "退出多选",
+  "selectAll": "全选",
+  "clear": "清空",
+  "appSettings": "APP 设置",
+  "readerSettings": "阅读器设置",
+  "cloudSettings": "云端设置",
+  "about": "关于软件",
+  "general": "通用",
+  "language": "语言",
+  "followSystem": "跟随系统",
+  "chineseSimplified": "中文简体",
+  "english": "English",
+  "appearance": "外观",
+  "lightTheme": "浅色",
+  "darkTheme": "深色",
+  "diagnostics": "开发与诊断",
+  "debugImportLogs": "导入调试日志",
+  "debugImportLogsSubtitle": "生成 debug-import.json，便于排查导入问题。",
+  "autoCheckUpdate": "自动检查更新",
+  "sendAnonymousUsage": "发送匿名使用数据",
+  "cloudService": "云服务",
+  "storageProvider": "存储提供商",
+  "disconnected": "未连接",
+  "autoSync": "自动同步",
+  "advancedOptions": "详细配置",
+  "storeOriginalFiles": "存储原始文件",
+  "storeProgress": "存储阅读进度",
+  "storeNotes": "存储笔记",
+  "storeHighlights": "存储高亮",
+  "storeAppData": "存储软件数据",
+  "displaySettings": "显示设置",
+  "theme": "主题",
+  "themeDay": "日间",
+  "themeNight": "夜间",
+  "themeSepia": "护眼",
+  "layoutMode": "分页模式",
+  "layoutPaged": "分页",
+  "layoutScroll": "滚动",
+  "layoutDetails": "排版细节",
+  "fontSize": "字体大小",
+  "lineHeight": "行高",
+  "pageGap": "页间距",
+  "horizontalPadding": "左右边距",
+  "verticalPadding": "上下边距",
+  "enableTextIndent": "启用首行缩进",
+  "indentSizeEm": "缩进大小 (em)",
+  "skipFirstParagraphIndent": "首段不缩进",
+  "checkForUpdates": "检查更新",
+  "searchInBookTitle": "书内搜索",
+  "reader": "阅读器",
+  "imageLoadFailed": "图片加载失败",
+  "back": "返回",
+  "switchToNight": "切换夜间",
+  "switchToDay": "切换日间",
+  "previous": "上一页",
+  "next": "下一页",
+  "quickSettingsTitle": "快捷设置",
+  "recentlyOpenedBooks": "最近打开书籍",
+  "weeklyReportTitle": "阅读统计",
+  "statsTotalBooks": "在库书籍",
+  "statsInProgressBooks": "阅读中",
+  "statsCompletedBooks": "已完成",
+  "statsNotStartedBooks": "未开始",
+  "statsAverageProgress": "平均进度",
+  "statsOpenedIn7Days": "近7天打开",
+  "statsImportedIn7Days": "近7天导入",
+  "statsAnnotationsTotal": "标注总数",
+  "statsLatestOpened": "最近阅读时间",
+  "statsHighlights": "高亮",
+  "statsNotes": "笔记",
+  "statsBookmarks": "书签",
+  "statsNotAvailable": "暂无",
+  "collectionsForBookTitle": "合集 · {title}",
+  "@collectionsForBookTitle": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "booksCount": "{count} 本书",
+  "@booksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedBooksMessage": "确定删除已选 {count} 本书吗？此操作不可恢复。",
+  "@deleteSelectedBooksMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectedBooksCount": "已选书籍: {count}",
+  "@selectedBooksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "recentReadingProgress": "最近阅读 · {progress}%",
+  "@recentReadingProgress": {
+    "placeholders": {
+      "progress": {}
+    }
+  },
+  "readingProgress": "阅读进度: {progress}%",
+  "@readingProgress": {
+    "placeholders": {
+      "progress": {}
+    }
+  },
+  "meStatsLoadFailed": "统计加载失败: {error}",
+  "@meStatsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "tocPageComingSoon": "目录页开发中\\nbookUid={bookUid}",
+  "@tocPageComingSoon": {
+    "placeholders": {
+      "bookUid": {}
+    }
+  },
+  "searchInBookComingSoon": "书内搜索开发中\\nbookUid={bookUid}",
+  "@searchInBookComingSoon": {
+    "placeholders": {
+      "bookUid": {}
+    }
+  }
+}

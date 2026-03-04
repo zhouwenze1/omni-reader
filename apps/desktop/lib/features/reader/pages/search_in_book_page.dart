@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import '../../../l10n/app_localizations.dart';
 
 class SearchInBookPage extends StatelessWidget {
   const SearchInBookPage({super.key, required this.bookUid});
@@ -7,10 +9,14 @@ class SearchInBookPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('书内搜索')),
+      appBar: AppBar(title: Text(l10n.searchInBookTitle)),
       body: Center(
-        child: Text('书内搜索开发中\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child: Text(
+          l10n.searchInBookComingSoon(bookUid),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

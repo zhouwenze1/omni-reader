@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import '../../../l10n/app_localizations.dart';
 
 class TocDrawerPage extends StatelessWidget {
   const TocDrawerPage({super.key, required this.bookUid});
@@ -7,10 +9,14 @@ class TocDrawerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('目录')),
+      appBar: AppBar(title: Text(l10n.openToc)),
       body: Center(
-        child: Text('目录页开发中\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child: Text(
+          l10n.tocPageComingSoon(bookUid),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }

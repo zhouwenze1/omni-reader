@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:foundation_domain/domain.dart';
 import 'package:path/path.dart' as p;
 
 class FileServiceImpl implements FileService {
+  static final Map<String, Future<void>> _pathWriteQueue =
+      <String, Future<void>>{};
+
   @override
   Future<void> ensureDir(String path) async {
     final dir = Directory(path);
@@ -38,20 +42,29 @@ class FileServiceImpl implements FileService {
 
   @override
   Future<void> writeTextAtomic(String path, String content) async {
-    final parent = Directory(p.dirname(path));
-    if (!await parent.exists()) {
-      await parent.create(recursive: true);
-    }
+    await _runWithPathWriteLock(path, () async {
+      final parent = Directory(p.dirname(path));
+      if (!await parent.exists()) {
+        await parent.create(recursive: true);
+      }
 
-    final tempPath = '$path.__tmp__${DateTime.now().microsecondsSinceEpoch}';
-    final tempFile = File(tempPath);
-    await tempFile.writeAsString(content, flush: true);
+      final tempPath = '$path.__tmp__${DateTime.now().microsecondsSinceEpoch}';
+      final tempFile = File(tempPath);
+      await tempFile.writeAsString(content, flush: true);
 
-    final targetFile = File(path);
-    if (await targetFile.exists()) {
-      await targetFile.delete();
-    }
-    await tempFile.rename(path);
+      final targetFile = File(path);
+      if (await targetFile.exists()) {
+        try {
+          await targetFile.delete();
+        } on FileSystemException {
+          // Another writer might have removed it between exists/delete checks.
+          if (await targetFile.exists()) {
+            rethrow;
+          }
+        }
+      }
+      await tempFile.rename(path);
+    });
   }
 
   @override
@@ -135,5 +148,30 @@ class FileServiceImpl implements FileService {
     return FileSystemEntity.type(
       path,
     ).then((type) => type != FileSystemEntityType.notFound);
+  }
+
+  Future<void> _runWithPathWriteLock(
+    String path,
+    Future<void> Function() operation,
+  ) async {
+    final lockKey = p.normalize(path).toLowerCase();
+    final previous = _pathWriteQueue[lockKey] ?? Future<void>.value();
+    final currentCompleter = Completer<void>();
+    _pathWriteQueue[lockKey] = currentCompleter.future;
+
+    try {
+      await previous.catchError((_) {});
+      await operation();
+      currentCompleter.complete();
+    } catch (error, stackTrace) {
+      if (!currentCompleter.isCompleted) {
+        currentCompleter.completeError(error, stackTrace);
+      }
+      rethrow;
+    } finally {
+      if (identical(_pathWriteQueue[lockKey], currentCompleter.future)) {
+        _pathWriteQueue.remove(lockKey);
+      }
+    }
   }
 }

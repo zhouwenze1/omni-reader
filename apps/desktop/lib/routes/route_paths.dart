@@ -1,4 +1,4 @@
-﻿class RoutePaths {
+class RoutePaths {
   static const String readingNow = '/reading-now';
   static const String library = '/library';
   static const String me = '/me';

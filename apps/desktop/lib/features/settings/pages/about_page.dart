@@ -1,12 +1,15 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import '../../../l10n/app_localizations.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('关于软件')),
+      appBar: AppBar(title: Text(l10n.about)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -16,12 +19,18 @@ class AboutPage extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
-                  children: const [
-                    Icon(Icons.menu_book, size: 64),
-                    SizedBox(height: 12),
-                    Text('OmniBook', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    Text('版本: 1.0.0 (Build dev)'),
+                  children: [
+                    const Icon(Icons.menu_book, size: 64),
+                    const SizedBox(height: 12),
+                    Text(
+                      l10n.appBrandName,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(l10n.appVersionText),
                   ],
                 ),
               ),
@@ -29,7 +38,7 @@ class AboutPage extends StatelessWidget {
             const Spacer(),
             FilledButton(
               onPressed: () {},
-              child: const Text('检查更新'),
+              child: Text(l10n.checkForUpdates),
             ),
           ],
         ),

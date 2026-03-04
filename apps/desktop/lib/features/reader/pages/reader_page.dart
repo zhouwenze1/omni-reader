@@ -4,9 +4,11 @@ import 'package:engine_api/engine_api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../di/engines_providers.dart';
 import '../../../di/repositories_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../../settings/controller/settings_state.dart';
 
@@ -22,11 +24,15 @@ class ReaderPage extends ConsumerStatefulWidget {
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReaderSession? _session;
   StreamSubscription<EngineEvent>? _subscription;
+  ProgressRepository? _progressRepository;
   Book? _book;
   ReadingProgress? _progress;
   String? _error;
   bool _loading = true;
   bool _chromeVisible = false;
+  Timer? _progressSaveDebounce;
+  ReadingProgress? _pendingProgressToSave;
+  Future<void> _progressSaveChain = Future<void>.value();
 
   String _theme = 'day';
   double _fontSize = 20;
@@ -50,6 +56,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
       final bookRepository = ref.read(bookRepositoryProvider);
       final progressRepository = ref.read(progressRepositoryProvider);
+      _progressRepository = progressRepository;
       final registry = ref.read(engineRegistryProvider);
 
       final book = await bookRepository.getBook(widget.bookUid);
@@ -89,6 +96,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           _handleTapIntent(event.payload);
         }
 
+        if (event.type == EngineEventType.link) {
+          await _handleLinkEvent(event.payload);
+        }
+
+        if (event.type == EngineEventType.mediaTap) {
+          await _handleMediaTapEvent(event.payload);
+        }
+
         if (event.type == EngineEventType.relocated && event.locator != null) {
           final payloadProgress =
               (event.payload?['progression'] as num?)?.toDouble();
@@ -103,8 +118,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             updatedAt: DateTime.now(),
             lastReadAt: DateTime.now(),
           );
-          await progressRepository.saveProgress(nextProgress);
           _progress = nextProgress;
+          _scheduleProgressSave(nextProgress);
           if (mounted) {
             setState(() {});
           }
@@ -161,6 +176,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   void dispose() {
+    _progressSaveDebounce?.cancel();
+    _flushPendingProgressSave();
     final subscription = _subscription;
     if (subscription != null) {
       unawaited(subscription.cancel().catchError((_) {}));
@@ -172,8 +189,35 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     super.dispose();
   }
 
+  void _scheduleProgressSave(ReadingProgress progress) {
+    _pendingProgressToSave = progress;
+    _progressSaveDebounce?.cancel();
+    _progressSaveDebounce = Timer(
+      const Duration(milliseconds: 280),
+      _flushPendingProgressSave,
+    );
+  }
+
+  void _flushPendingProgressSave() {
+    final repository = _progressRepository;
+    final pending = _pendingProgressToSave;
+    if (repository == null || pending == null) {
+      return;
+    }
+
+    _pendingProgressToSave = null;
+    _progressSaveChain = _progressSaveChain.then((_) async {
+      try {
+        await repository.saveProgress(pending);
+      } catch (error) {
+        debugPrint('[desktop-reader][saveProgress.error] $error');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -182,7 +226,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Reader')),
+        appBar: AppBar(title: Text(l10n.reader)),
         body: Center(child: Text(_error!)),
       );
     }
@@ -213,7 +257,144 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
+  Future<void> _handleLinkEvent(Map<String, dynamic>? payload) async {
+    if (payload == null) {
+      return;
+    }
+
+    final handledBy = _asLowerText(payload['handledBy']);
+    final action = _asLowerText(payload['action']);
+    final externalUri = _resolveExternalUri(payload);
+
+    if (handledBy == 'blocked') {
+      debugPrint('[desktop-reader][link.blocked] payload=$payload');
+      return;
+    }
+
+    if (handledBy == 'renderer') {
+      debugPrint('[desktop-reader][link.renderer] payload=$payload');
+      return;
+    }
+
+    if (action != 'open_external' || externalUri == null) {
+      return;
+    }
+
+    final launched = await launchUrl(
+      externalUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      debugPrint(
+        '[desktop-reader][link.open_external.failed] uri=$externalUri payload=$payload',
+      );
+    }
+  }
+
+  Future<void> _handleMediaTapEvent(Map<String, dynamic>? payload) async {
+    if (payload == null || !mounted) {
+      return;
+    }
+
+    final src = _resolveMediaSrc(payload);
+    if (src == null || src.isEmpty) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) {
+        final l10n = context.l10n;
+        return Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(24),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  maxScale: 4,
+                  child: Image.network(
+                    src,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        l10n.imageLoadFailed,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Uri? _resolveExternalUri(Map<String, dynamic> payload) {
+    final resolved = _resolveUrlCandidate(payload, 'resolved');
+    if (resolved != null && resolved.hasScheme) {
+      return resolved;
+    }
+    final href = _resolveUrlCandidate(payload, 'href');
+    if (href != null && href.hasScheme) {
+      return href;
+    }
+    return null;
+  }
+
+  String? _resolveMediaSrc(Map<String, dynamic> payload) {
+    final resolved = _resolveUrlCandidate(payload, 'resolvedSrc');
+    if (resolved != null) {
+      return resolved.toString();
+    }
+    final src = _resolveUrlCandidate(payload, 'src');
+    return src?.toString();
+  }
+
+  Uri? _resolveUrlCandidate(Map<String, dynamic> payload, String key) {
+    final rawValue = _asText(payload[key]);
+    if (rawValue == null || rawValue.isEmpty) {
+      return null;
+    }
+
+    final direct = Uri.tryParse(rawValue);
+    if (direct != null && direct.hasScheme) {
+      return direct;
+    }
+
+    final fromUrl = _asText(payload['fromUrl']);
+    final base = fromUrl == null ? null : Uri.tryParse(fromUrl);
+    if (base != null) {
+      return base.resolve(rawValue);
+    }
+    return direct;
+  }
+
+  String? _asText(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    return text;
+  }
+
+  String _asLowerText(Object? value) {
+    return _asText(value)?.toLowerCase() ?? '';
+  }
+
   Widget _buildTopToolbar(BuildContext context) {
+    final l10n = context.l10n;
     final title = _book?.title ?? '';
     final format = _book?.format.toUpperCase() ?? '';
     final progressPercent =
@@ -240,7 +421,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: 'Back',
+                    tooltip: l10n.back,
                     onPressed: () => Navigator.of(context).maybePop(),
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
@@ -253,13 +434,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Reader settings',
+                    tooltip: l10n.readerSettings,
                     onPressed: _openReaderSettings,
                     icon: const Icon(Icons.tune, color: Colors.white),
                   ),
                   IconButton(
                     tooltip:
-                        _theme == 'day' ? 'Switch to night' : 'Switch to day',
+                        _theme == 'day' ? l10n.switchToNight : l10n.switchToDay,
                     onPressed: _toggleTheme,
                     icon: Icon(
                       _theme == 'day' ? Icons.dark_mode : Icons.light_mode,
@@ -276,6 +457,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   Widget _buildBottomToolbar(BuildContext context) {
+    final l10n = context.l10n;
     final progressPercent =
         ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
 
@@ -300,19 +482,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: 'Previous',
+                    tooltip: l10n.previous,
                     onPressed: () => _session?.navigatePrev(),
                     icon: const Icon(Icons.chevron_left, color: Colors.white),
                   ),
                   Expanded(
                     child: Text(
-                      'Progress: $progressPercent%',
+                      l10n.readingProgress(progressPercent),
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Next',
+                    tooltip: l10n.next,
                     onPressed: () => _session?.navigateNext(),
                     icon: const Icon(Icons.chevron_right, color: Colors.white),
                   ),
@@ -386,6 +568,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     await showDialog<void>(
       context: hostContext,
       builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> applyFromDialog() async {
@@ -403,9 +586,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '阅读设置',
-                        style: TextStyle(
+                      Text(
+                        l10n.readerSettings,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -413,7 +596,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       ),
                       const SizedBox(height: 12),
                       _buildSliderControl(
-                        label: '字体大小',
+                        label: l10n.fontSize,
                         valueLabel: _fontSize.toStringAsFixed(0),
                         min: 12,
                         max: 42,
@@ -426,7 +609,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                       ),
                       _buildSliderControl(
-                        label: '行高',
+                        label: l10n.lineHeight,
                         valueLabel: _lineHeight.toStringAsFixed(2),
                         min: 1.1,
                         max: 2.4,
@@ -439,7 +622,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                       ),
                       _buildSliderControl(
-                        label: '页间距',
+                        label: l10n.pageGap,
                         valueLabel: _pageGap.toStringAsFixed(0),
                         min: 0,
                         max: 80,
@@ -452,7 +635,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                       ),
                       _buildSliderControl(
-                        label: '左右边距',
+                        label: l10n.horizontalPadding,
                         valueLabel: _paddingLeftRight.toStringAsFixed(0),
                         min: 0,
                         max: 100,
@@ -465,7 +648,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                       ),
                       _buildSliderControl(
-                        label: '上下边距',
+                        label: l10n.verticalPadding,
                         valueLabel: _paddingTopBottom.toStringAsFixed(0),
                         min: 0,
                         max: 80,
@@ -481,9 +664,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         activeThumbColor: Colors.lightBlueAccent,
-                        title: const Text(
-                          '启用首行缩进',
-                          style: TextStyle(color: Colors.white),
+                        title: Text(
+                          l10n.enableTextIndent,
+                          style: const TextStyle(color: Colors.white),
                         ),
                         value: _textIndentEnabled,
                         onChanged: (v) async {
@@ -494,7 +677,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         },
                       ),
                       _buildSliderControl(
-                        label: '缩进 (em)',
+                        label: l10n.indentSizeEm,
                         valueLabel: _textIndentEm.toStringAsFixed(1),
                         min: 0,
                         max: 4,
@@ -510,9 +693,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         activeThumbColor: Colors.lightBlueAccent,
-                        title: const Text(
-                          '首段不缩进',
-                          style: TextStyle(color: Colors.white),
+                        title: Text(
+                          l10n.skipFirstParagraphIndent,
+                          style: const TextStyle(color: Colors.white),
                         ),
                         value: _textIndentSkipFirst,
                         onChanged: (v) async {
@@ -527,7 +710,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () => Navigator.of(dialogContext).pop(),
-                          child: const Text('关闭'),
+                          child: Text(l10n.close),
                         ),
                       ),
                     ],

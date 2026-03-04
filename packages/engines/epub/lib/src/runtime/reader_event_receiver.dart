@@ -59,6 +59,7 @@ class ReaderEventReceiver {
     'ready',
     'error',
     'link',
+    'mediaTap',
     'selection',
     'tapIntent',
     'relocated',
@@ -192,6 +193,8 @@ class ReaderEventReceiver {
         return EngineEventType.error;
       case 'link':
         return EngineEventType.link;
+      case 'mediaTap':
+        return EngineEventType.mediaTap;
       case 'selection':
         return EngineEventType.selection;
       case 'tapIntent':

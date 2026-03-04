@@ -22,3 +22,7 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
   return ref.watch(dataModuleProvider).collectionRepository;
 });
+
+final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
+  return ref.watch(dataModuleProvider).annotationRepository;
+});

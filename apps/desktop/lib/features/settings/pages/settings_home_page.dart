@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../routes/route_paths.dart';
 
 class SettingsHomePage extends StatelessWidget {
@@ -8,21 +9,34 @@ class SettingsHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _entry(context, Icons.settings, 'APP 设置', RoutePaths.appSettings),
-          _entry(context, Icons.chrome_reader_mode, '阅读器设置', RoutePaths.readerSettings),
-          _entry(context, Icons.cloud_outlined, '云端设置', RoutePaths.cloudSettings),
-          _entry(context, Icons.info_outline, '关于软件', RoutePaths.about),
+          _entry(context, Icons.settings, l10n.appSettings,
+              RoutePaths.appSettings),
+          _entry(
+            context,
+            Icons.chrome_reader_mode,
+            l10n.readerSettings,
+            RoutePaths.readerSettings,
+          ),
+          _entry(
+            context,
+            Icons.cloud_outlined,
+            l10n.cloudSettings,
+            RoutePaths.cloudSettings,
+          ),
+          _entry(context, Icons.info_outline, l10n.about, RoutePaths.about),
         ],
       ),
     );
   }
 
-  Widget _entry(BuildContext context, IconData icon, String title, String path) {
+  Widget _entry(
+      BuildContext context, IconData icon, String title, String path) {
     return Card(
       child: ListTile(
         leading: Icon(icon),

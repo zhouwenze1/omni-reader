@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
 import '../widgets/dropdown_tile.dart';
 import '../widgets/settings_group.dart';
@@ -14,23 +15,31 @@ class CloudSettingsPage extends ConsumerWidget {
     final state = ref.watch(settingsControllerProvider);
     final controller = ref.read(settingsControllerProvider.notifier);
     final cloud = state.cloud;
+    final l10n = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('云端设置')),
+      appBar: AppBar(title: Text(l10n.cloudSettings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           SettingsGroup(
-            title: '云服务',
+            title: l10n.cloudService,
             children: [
               DropdownTile<String>(
-                title: '存储提供商',
+                title: l10n.storageProvider,
                 leading: const Icon(Icons.cloud_queue),
                 value: cloud.provider,
-                items: const [
-                  DropdownMenuItem(value: 'none', child: Text('未连接')),
-                  DropdownMenuItem(value: 'gdrive', child: Text('Google Drive')),
-                  DropdownMenuItem(value: 'onedrive', child: Text('OneDrive')),
+                items: [
+                  DropdownMenuItem(
+                      value: 'none', child: Text(l10n.disconnected)),
+                  const DropdownMenuItem(
+                    value: 'gdrive',
+                    child: Text('Google Drive'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'onedrive',
+                    child: Text('OneDrive'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -39,7 +48,7 @@ class CloudSettingsPage extends ConsumerWidget {
                 },
               ),
               ToggleTile(
-                title: '自动同步',
+                title: l10n.autoSync,
                 value: cloud.autoSync,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(autoSync: v),
@@ -48,38 +57,38 @@ class CloudSettingsPage extends ConsumerWidget {
             ],
           ),
           SettingsGroup(
-            title: '详细配置',
+            title: l10n.advancedOptions,
             children: [
               ToggleTile(
-                title: '存储原始文件',
+                title: l10n.storeOriginalFiles,
                 value: cloud.storeOriginalFiles,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(storeOriginalFiles: v),
                 ),
               ),
               ToggleTile(
-                title: '存储阅读进度',
+                title: l10n.storeProgress,
                 value: cloud.storeProgress,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(storeProgress: v),
                 ),
               ),
               ToggleTile(
-                title: '存储笔记',
+                title: l10n.storeNotes,
                 value: cloud.storeNotes,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(storeNotes: v),
                 ),
               ),
               ToggleTile(
-                title: '存储高亮',
+                title: l10n.storeHighlights,
                 value: cloud.storeHighlights,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(storeHighlights: v),
                 ),
               ),
               ToggleTile(
-                title: '存储软件数据',
+                title: l10n.storeAppData,
                 value: cloud.storeAppData,
                 onChanged: (v) => controller.updateCloud(
                   cloud.copyWith(storeAppData: v),

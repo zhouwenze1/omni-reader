@@ -5,6 +5,7 @@ enum EngineEventType {
   ready,
   error,
   link,
+  mediaTap,
   selection,
   tapIntent,
   relocated,

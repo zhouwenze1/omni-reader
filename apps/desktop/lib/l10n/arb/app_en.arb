@@ -1,0 +1,207 @@
+{
+  "@@locale": "en",
+  "appTitle": "Reader Desktop",
+  "appBrandName": "OmniBook",
+  "appVersionText": "Version: 1.0.0 (Build dev)",
+  "settings": "Settings",
+  "tabReadingNow": "Reading",
+  "tabLibrary": "Library",
+  "tabMe": "Me",
+  "libraryTitle": "Library",
+  "loadingFailed": "Load failed",
+  "emptyLibrary": "No books yet. Import one first.",
+  "loadingReadingHistory": "Loading reading history...",
+  "emptyReadingNowTitle": "No active books",
+  "emptyReadingNowMessage": "Import a book in Library to start reading.",
+  "filter": "Filter",
+  "sort": "Sort",
+  "sortByRecentRead": "Recent reading",
+  "sortByImportedAt": "Recently imported",
+  "sortByName": "Name A-Z",
+  "format": "Format",
+  "progress": "Progress",
+  "category": "Category",
+  "collection": "Collection",
+  "all": "All",
+  "allCollections": "All collections",
+  "unknownCollection": "Unknown collection",
+  "currentCollection": "Current collection",
+  "notStarted": "Not started",
+  "inProgress": "In progress",
+  "completed": "Completed",
+  "newCollection": "New collection",
+  "manageCollection": "Manage collections",
+  "collapseFilterPanel": "Collapse filters",
+  "expandFilterPanel": "Expand filters",
+  "grid": "Grid",
+  "list": "List",
+  "refresh": "Refresh",
+  "importBook": "Import",
+  "selectBookToViewDetail": "Select a book to view details",
+  "author": "Author",
+  "uncategorized": "Uncategorized",
+  "importedAt": "Imported at",
+  "lastOpened": "Last opened",
+  "continueReading": "Continue",
+  "openToc": "Open TOC",
+  "deleteBook": "Delete book",
+  "addOrRemoveCollection": "Add/Remove collection",
+  "noCollectionAdded": "No collection",
+  "renameCollection": "Rename collection",
+  "inputCollectionName": "Input collection name",
+  "inputCollectionNewName": "Input new name",
+  "noCollectionYet": "No collections yet",
+  "noCollectionCreateFirst": "No collections, create one first.",
+  "close": "Close",
+  "done": "Done",
+  "create": "Create",
+  "save": "Save",
+  "cancel": "Cancel",
+  "exit": "Exit",
+  "confirmExitMessage": "Do you want to exit now?",
+  "delete": "Delete",
+  "confirmDeleteTitle": "Confirm delete",
+  "confirmDeleteMessage": "This action cannot be undone. Continue?",
+  "imported": "Imported",
+  "importFailed": "Import failed",
+  "alreadyImported": "Already imported",
+  "retry": "Retry",
+  "moveSelectedBooks": "Move selected books",
+  "targetCollection": "Target collection",
+  "move": "Move",
+  "batchActions": "Batch actions",
+  "moveToCollection": "Move to collection",
+  "deleteSelected": "Delete selected",
+  "exitMultiSelect": "Exit multi-select",
+  "selectAll": "Select all",
+  "clear": "Clear",
+  "appSettings": "App settings",
+  "readerSettings": "Reader settings",
+  "cloudSettings": "Cloud settings",
+  "about": "About",
+  "general": "General",
+  "language": "Language",
+  "followSystem": "Follow system",
+  "chineseSimplified": "Chinese (Simplified)",
+  "english": "English",
+  "appearance": "Appearance",
+  "lightTheme": "Light",
+  "darkTheme": "Dark",
+  "diagnostics": "Diagnostics",
+  "debugImportLogs": "Import debug logs",
+  "debugImportLogsSubtitle": "Write debug-import.json for troubleshooting.",
+  "autoCheckUpdate": "Auto-check updates",
+  "sendAnonymousUsage": "Send anonymous usage data",
+  "cloudService": "Cloud service",
+  "storageProvider": "Storage provider",
+  "disconnected": "Disconnected",
+  "autoSync": "Auto sync",
+  "advancedOptions": "Advanced options",
+  "storeOriginalFiles": "Store original files",
+  "storeProgress": "Store reading progress",
+  "storeNotes": "Store notes",
+  "storeHighlights": "Store highlights",
+  "storeAppData": "Store app data",
+  "displaySettings": "Display settings",
+  "theme": "Theme",
+  "themeDay": "Day",
+  "themeNight": "Night",
+  "themeSepia": "Sepia",
+  "layoutMode": "Layout mode",
+  "layoutPaged": "Paged",
+  "layoutScroll": "Scroll",
+  "layoutDetails": "Typography details",
+  "fontSize": "Font size",
+  "lineHeight": "Line height",
+  "pageGap": "Page gap",
+  "horizontalPadding": "Horizontal padding",
+  "verticalPadding": "Vertical padding",
+  "enableTextIndent": "Enable first-line indent",
+  "indentSizeEm": "Indent size (em)",
+  "skipFirstParagraphIndent": "Skip first paragraph indent",
+  "checkForUpdates": "Check for updates",
+  "searchInBookTitle": "Search in book",
+  "reader": "Reader",
+  "imageLoadFailed": "Image failed to load",
+  "back": "Back",
+  "switchToNight": "Switch to night",
+  "switchToDay": "Switch to day",
+  "previous": "Previous",
+  "next": "Next",
+  "quickSettingsTitle": "Quick settings",
+  "recentlyOpenedBooks": "Recently opened books",
+  "weeklyReportTitle": "Reading report",
+  "statsTotalBooks": "Books in library",
+  "statsInProgressBooks": "In progress",
+  "statsCompletedBooks": "Completed",
+  "statsNotStartedBooks": "Not started",
+  "statsAverageProgress": "Average progress",
+  "statsOpenedIn7Days": "Opened in 7 days",
+  "statsImportedIn7Days": "Imported in 7 days",
+  "statsAnnotationsTotal": "Annotations",
+  "statsLatestOpened": "Latest opened",
+  "statsHighlights": "Highlights",
+  "statsNotes": "Notes",
+  "statsBookmarks": "Bookmarks",
+  "statsNotAvailable": "N/A",
+  "collectionsForBookTitle": "Collections · {title}",
+  "@collectionsForBookTitle": {
+    "placeholders": {
+      "title": {}
+    }
+  },
+  "booksCount": "{count} books",
+  "@booksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deleteSelectedBooksMessage": "Delete {count} selected books? This action cannot be undone.",
+  "@deleteSelectedBooksMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectedBooksCount": "Selected books: {count}",
+  "@selectedBooksCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "recentReadingProgress": "Last opened · {progress}%",
+  "@recentReadingProgress": {
+    "placeholders": {
+      "progress": {}
+    }
+  },
+  "readingProgress": "Progress: {progress}%",
+  "@readingProgress": {
+    "placeholders": {
+      "progress": {}
+    }
+  },
+  "meStatsLoadFailed": "Failed to load stats: {error}",
+  "@meStatsLoadFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
+  "tocPageComingSoon": "TOC page is under development\\nbookUid={bookUid}",
+  "@tocPageComingSoon": {
+    "placeholders": {
+      "bookUid": {}
+    }
+  },
+  "searchInBookComingSoon": "Search page is under development\\nbookUid={bookUid}",
+  "@searchInBookComingSoon": {
+    "placeholders": {
+      "bookUid": {}
+    }
+  }
+}

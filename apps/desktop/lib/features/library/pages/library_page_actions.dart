@@ -288,8 +288,7 @@ class LibraryPageActions {
       builder: (context) => AlertDialog(
         title: Text(l10n.confirmDeleteTitle),
         content: Text(
-          'Delete ${state.selectedBookUids.length} selected books? This action cannot be undone.',
-        ),
+            l10n.deleteSelectedBooksMessage(state.selectedBookUids.length)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -325,18 +324,18 @@ class LibraryPageActions {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            title: const Text('Move selected books'),
+            title: Text(l10n.moveSelectedBooks),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${state.selectedBookUids.length} books selected'),
+                Text(l10n.selectedBooksCount(state.selectedBookUids.length)),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<int>(
                   initialValue: selectedCollectionId,
-                  decoration: const InputDecoration(
-                    labelText: 'Target collection',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.targetCollection,
+                    border: const OutlineInputBorder(),
                   ),
                   items: state.collections
                       .map(
@@ -363,7 +362,7 @@ class LibraryPageActions {
                 onPressed: selectedCollectionId == null
                     ? null
                     : () => Navigator.of(context).pop(true),
-                child: const Text('Move'),
+                child: Text(l10n.move),
               ),
             ],
           );

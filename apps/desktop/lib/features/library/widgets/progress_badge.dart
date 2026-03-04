@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class ProgressBadge extends StatelessWidget {
   const ProgressBadge({super.key, required this.progress});

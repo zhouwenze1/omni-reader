@@ -45,17 +45,19 @@ class LibraryDetailPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Batch Actions',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              l10n.batchActions,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 10),
-            Text('Selected books: $selectedCount'),
+            Text(l10n.selectedBooksCount(selectedCount)),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: selectedCount == 0 ? null : onMoveSelected,
                 icon: const Icon(Icons.drive_file_move_outline),
-                label: const Text('Move to collection'),
+                label: Text(l10n.moveToCollection),
               ),
             ),
             const SizedBox(height: 8),
@@ -64,7 +66,7 @@ class LibraryDetailPanel extends StatelessWidget {
               child: FilledButton.tonalIcon(
                 onPressed: selectedCount == 0 ? null : onDeleteSelected,
                 icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete selected'),
+                label: Text(l10n.deleteSelected),
               ),
             ),
             const SizedBox(height: 8),
@@ -72,7 +74,7 @@ class LibraryDetailPanel extends StatelessWidget {
               width: double.infinity,
               child: TextButton(
                 onPressed: onExitSelectionMode,
-                child: const Text('Exit multi-select'),
+                child: Text(l10n.exitMultiSelect),
               ),
             ),
           ],
@@ -113,8 +115,9 @@ class LibraryDetailPanel extends StatelessWidget {
           BookMetaRow(label: l10n.format, value: entry.format.toUpperCase()),
           BookMetaRow(label: l10n.progress, value: '$progress%'),
           BookMetaRow(
-              label: l10n.category,
-              value: entry.categoryId ?? l10n.uncategorized),
+            label: l10n.category,
+            value: entry.categoryId ?? l10n.uncategorized,
+          ),
           BookMetaRow(
               label: l10n.importedAt, value: formatDate(entry.importedAt)),
           BookMetaRow(

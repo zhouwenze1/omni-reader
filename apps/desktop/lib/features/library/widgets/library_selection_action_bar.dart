@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 class LibrarySelectionActionBar extends StatelessWidget {
   const LibrarySelectionActionBar({
     super.key,
@@ -20,6 +22,7 @@ class LibrarySelectionActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -28,33 +31,33 @@ class LibrarySelectionActionBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text('Selected $selectedCount'),
+          Text(l10n.selectedBooksCount(selectedCount)),
           const SizedBox(width: 12),
           OutlinedButton(
             onPressed: onSelectAll,
-            child: const Text('Select all'),
+            child: Text(l10n.selectAll),
           ),
           const SizedBox(width: 8),
           OutlinedButton(
             onPressed: onClear,
-            child: const Text('Clear'),
+            child: Text(l10n.clear),
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(
             onPressed: selectedCount == 0 ? null : onMoveToCollection,
             icon: const Icon(Icons.drive_file_move_outline),
-            label: const Text('Move to collection'),
+            label: Text(l10n.moveToCollection),
           ),
           const SizedBox(width: 8),
           FilledButton.tonalIcon(
             onPressed: selectedCount == 0 ? null : onDeleteSelected,
             icon: const Icon(Icons.delete_outline),
-            label: const Text('Delete selected'),
+            label: Text(l10n.deleteSelected),
           ),
           const Spacer(),
           TextButton(
             onPressed: onExit,
-            child: const Text('Exit'),
+            child: Text(l10n.exit),
           ),
         ],
       ),
