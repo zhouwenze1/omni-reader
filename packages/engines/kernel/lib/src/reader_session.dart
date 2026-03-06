@@ -18,6 +18,8 @@ abstract class ReaderSession {
 
   Future<void> setStyle(ReaderStyle style);
 
+  Future<void> setLayoutMode(String layoutMode) async {}
+
   Future<void> patchStyle(Map<String, dynamic> patch) {
     return setStyle(style.mergePatch(patch));
   }

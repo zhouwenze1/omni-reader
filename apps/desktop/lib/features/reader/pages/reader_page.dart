@@ -43,6 +43,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   bool _textIndentEnabled = true;
   double _textIndentEm = 2;
   bool _textIndentSkipFirst = false;
+  String _layoutMode = ReaderLayoutMode.pagedAuto;
+  String? _appliedRendererLayoutMode;
+  bool _layoutSyncScheduled = false;
 
   @override
   void initState() {
@@ -105,9 +108,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
+      final initialLayoutMode = _resolveRendererLayoutMode();
       final session = await engine.createSession(
         book: book,
         initialProgress: progress,
+        initialLayoutMode: initialLayoutMode,
       );
 
       _subscription = session.events.listen((event) async {
@@ -161,6 +166,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       setState(() {
         _book = book;
         _progress = progress;
+        _appliedRendererLayoutMode = initialLayoutMode;
         _session = session;
         _loading = false;
       });
@@ -199,6 +205,56 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _textIndentEnabled = reader.textIndentEnabled;
     _textIndentEm = reader.textIndentEm;
     _textIndentSkipFirst = reader.textIndentSkipFirstParagraph;
+    _layoutMode = ReaderLayoutMode.normalize(reader.layoutMode);
+  }
+
+  String _resolveRendererLayoutMode() {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery == null) {
+      return ReaderLayoutMode.normalizeRendererMode(_layoutMode);
+    }
+    return ReaderLayoutMode.resolveAdaptive(
+      _layoutMode,
+      shortestSide: mediaQuery.size.shortestSide,
+    );
+  }
+
+  Future<void> _syncLayoutMode({bool force = false}) async {
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+    final nextLayoutMode = _resolveRendererLayoutMode();
+    if (!force && nextLayoutMode == _appliedRendererLayoutMode) {
+      return;
+    }
+    try {
+      await session.setLayoutMode(nextLayoutMode);
+      _appliedRendererLayoutMode = nextLayoutMode;
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      debugPrint('[desktop-reader][setLayoutMode.error] $error');
+    }
+  }
+
+  void _scheduleViewportLayoutSync() {
+    final session = _session;
+    if (session == null || _layoutSyncScheduled) {
+      return;
+    }
+    if (_resolveRendererLayoutMode() == _appliedRendererLayoutMode) {
+      return;
+    }
+    _layoutSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _layoutSyncScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      unawaited(_syncLayoutMode());
+    });
   }
 
   Future<void> _openSession(ReaderSession session) async {
@@ -249,6 +305,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
     }
 
+    _scheduleViewportLayoutSync();
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -528,6 +585,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
     try {
+      final nextLayoutMode = _resolveRendererLayoutMode();
+      await session.setLayoutMode(nextLayoutMode);
+      _appliedRendererLayoutMode = nextLayoutMode;
       await session.setStyle(_currentReaderStyle());
       final currentSettings = ref.read(settingsControllerProvider).reader;
       final nextSettings = currentSettings.copyWith(
@@ -540,6 +600,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         textIndentEm: _textIndentEm,
         textIndentSkipFirstParagraph: _textIndentSkipFirst,
         rendererTheme: _rendererTheme,
+        layoutMode: _layoutMode,
       );
       _scheduleReaderSettingsSave(nextSettings);
     } catch (error) {
@@ -622,6 +683,45 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           await applyFromDialog();
                         },
                       ),
+                      DropdownButtonFormField<String>(
+                        initialValue: _layoutMode,
+                        decoration: const InputDecoration(
+                          labelText: 'Layout mode',
+                        ),
+                        dropdownColor: const Color(0xFF1A1A1A),
+                        items: const [
+                          DropdownMenuItem(
+                            value: ReaderLayoutMode.pagedAuto,
+                            child: Text('Auto'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReaderLayoutMode.pagedSingle,
+                            child: Text('Single'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReaderLayoutMode.pagedSpread,
+                            child: Text('Spread'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReaderLayoutMode.scrollBoundary,
+                            child: Text('Boundary'),
+                          ),
+                          DropdownMenuItem(
+                            value: ReaderLayoutMode.scrollContinuous,
+                            child: Text('Continuous'),
+                          ),
+                        ],
+                        onChanged: (value) async {
+                          if (value == null) {
+                            return;
+                          }
+                          setDialogState(() {
+                            _layoutMode = value;
+                          });
+                          await applyFromDialog();
+                        },
+                      ),
+                      const SizedBox(height: 8),
                       _buildSliderControl(
                         label: l10n.horizontalPadding,
                         valueLabel: _paddingLeftRight.toStringAsFixed(0),

@@ -75,11 +75,11 @@ class LibraryPage extends ConsumerWidget {
                       ? GridView.builder(
                           itemCount: state.items.length,
                           gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 176,
                             mainAxisSpacing: 8,
                             crossAxisSpacing: 8,
-                            childAspectRatio: 0.64,
+                            childAspectRatio: 0.62,
                           ),
                           itemBuilder: (context, index) {
                             final entry = state.items[index];

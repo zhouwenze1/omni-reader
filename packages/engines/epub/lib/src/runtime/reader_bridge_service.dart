@@ -112,18 +112,35 @@ class ReaderBridgeService {
   }
 
   Future<void> configure({
-    required String layoutMode,
-    required Map<String, dynamic> spineManifest,
-    required Map<String, dynamic> style,
+    String? layoutMode,
+    Map<String, dynamic>? spineManifest,
+    Map<String, dynamic>? style,
+    String? customCss,
   }) async {
+    final payload = <String, dynamic>{};
+    if (layoutMode != null) {
+      payload['layoutMode'] = layoutMode;
+    }
+    if (spineManifest != null) {
+      payload['spineManifest'] = spineManifest;
+    }
+    if (style != null) {
+      payload['style'] = style;
+    }
+    if (customCss != null) {
+      payload['customCss'] = customCss;
+    }
+    if (payload.isEmpty) {
+      return;
+    }
     await invokeReader(
       'configure',
-      <String, dynamic>{
-        'layoutMode': layoutMode,
-        'spineManifest': spineManifest,
-        'style': style,
-      },
+      payload,
     );
+  }
+
+  Future<void> setLayoutMode(String layoutMode) async {
+    await configure(layoutMode: layoutMode);
   }
 
   Future<void> open({

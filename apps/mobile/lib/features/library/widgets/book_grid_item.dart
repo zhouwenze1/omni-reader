@@ -21,14 +21,23 @@ class BookGridItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Card(
+        clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Align(
-                alignment: Alignment.center,
-                child: BookCover(filePath: coverPath, width: 84, height: 118),
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: BookCover(
+                      filePath: coverPath,
+                      width: 84,
+                      height: 118,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -36,7 +45,7 @@ class BookGridItem extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const Spacer(),
+              const SizedBox(height: 8),
               ProgressBadge(progress: entry.cachedProgress ?? 0),
             ],
           ),

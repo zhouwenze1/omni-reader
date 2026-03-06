@@ -31,6 +31,7 @@ class LdfReaderEngine extends ReaderEngine {
     required Book book,
     ReadingProgress? initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
+    String? initialLayoutMode,
   }) async {
     return _LdfStubSession(
       book: book,

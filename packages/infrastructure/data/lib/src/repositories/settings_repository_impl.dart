@@ -5,7 +5,8 @@ class SettingsRepositoryImpl implements SettingsRepository {
   SettingsRepositoryImpl(this._box);
 
   static const String appSettingsKey = 'settings.app.v1';
-  static const String readerSettingsKey = 'settings.reader.v1';
+  static const String readerSettingsKey = 'settings.reader.v2';
+  static const String legacyReaderSettingsKey = 'settings.reader.v1';
   static const String cloudSettingsKey = 'settings.cloud.v1';
 
   final Box<dynamic> _box;
@@ -30,6 +31,25 @@ class SettingsRepositoryImpl implements SettingsRepository {
     if (raw is Map) {
       return ReaderSettings.fromJson(raw.map((k, v) => MapEntry('$k', v)));
     }
+
+    final legacyRaw = _box.get(legacyReaderSettingsKey);
+    if (legacyRaw is Map) {
+      final legacyJson = legacyRaw.map((k, v) => MapEntry('$k', v));
+      final legacySettings = ReaderSettings.fromJson(legacyJson);
+      final legacyLayoutMode = legacyJson['layoutMode']?.toString().trim();
+      final migratedLayoutMode =
+          legacyLayoutMode == null ||
+              legacyLayoutMode.isEmpty ||
+              legacyLayoutMode.toLowerCase() == 'paged_spread'
+          ? ReaderLayoutMode.pagedAuto
+          : ReaderLayoutMode.normalize(legacyLayoutMode);
+      final migratedSettings = legacySettings.copyWith(
+        layoutMode: migratedLayoutMode,
+      );
+      await saveReaderSettings(migratedSettings);
+      return migratedSettings;
+    }
+
     return const ReaderSettings();
   }
 

@@ -1,3 +1,5 @@
+import 'reader_layout_mode.dart';
+
 enum AppThemeMode { system, light, dark }
 
 class AppSettings {
@@ -65,7 +67,7 @@ class ReaderSettings {
     this.textIndentEm = 2,
     this.textIndentSkipFirstParagraph = false,
     this.rendererTheme = 'day',
-    this.layoutMode = 'paged_spread',
+    this.layoutMode = ReaderLayoutMode.pagedAuto,
     this.progressDisplay = 'percentage',
   });
 
@@ -132,7 +134,7 @@ class ReaderSettings {
       rendererTheme:
           (json['rendererTheme'] as String? ?? json['theme'] as String?) ??
           'day',
-      layoutMode: (json['layoutMode'] as String?) ?? 'paged_spread',
+      layoutMode: ReaderLayoutMode.normalize(json['layoutMode'] as String?),
       progressDisplay: (json['progressDisplay'] as String?) ?? 'percentage',
     );
   }

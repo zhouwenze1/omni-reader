@@ -22,5 +22,6 @@ abstract class ReaderEngine {
     required Book book,
     ReadingProgress? initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
+    String? initialLayoutMode,
   });
 }

@@ -22,8 +22,10 @@ class EpubReaderSession extends ReaderSession {
     required Book book,
     this.initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
+    String initialLayoutMode = ReaderLayoutMode.pagedAuto,
   })  : _book = book,
         _readerStyle = initialStyle,
+        _layoutMode = ReaderLayoutMode.normalizeRendererMode(initialLayoutMode),
         _runtimeFuture = _prepareRuntime(book.uid);
 
   final Book _book;
@@ -45,7 +47,7 @@ class EpubReaderSession extends ReaderSession {
   bool _debugInfoPublished = false;
   bool _inAppDevToolsOpened = false;
 
-  final String _layoutMode = 'paged_spread';
+  String _layoutMode;
   ReaderStyle _readerStyle;
 
   @override
@@ -230,6 +232,21 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
     await bridge.setStyle(_readerStyle.toJson());
+  }
+
+  @override
+  Future<void> setLayoutMode(String layoutMode) async {
+    final nextLayoutMode = ReaderLayoutMode.normalizeRendererMode(layoutMode);
+    if (_layoutMode == nextLayoutMode) {
+      return;
+    }
+    _layoutMode = nextLayoutMode;
+    await _waitWebViewReady();
+    final bridge = _bridge;
+    if (bridge == null || !_bootstrapped) {
+      return;
+    }
+    await bridge.setLayoutMode(_layoutMode);
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Locator;
 import 'package:foundation_application/application.dart';
 import 'package:foundation_domain/domain.dart';
@@ -10,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../di/engines_providers.dart';
 import '../../../di/repositories_providers.dart';
+import '../../../l10n/l10n.dart';
 import '../../../routes/route_paths.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/dictionary_sheet.dart';
@@ -38,7 +40,8 @@ class ReaderPage extends ConsumerStatefulWidget {
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends ConsumerState<ReaderPage> {
+class _ReaderPageState extends ConsumerState<ReaderPage>
+    with WidgetsBindingObserver {
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
   ProgressRepository? _progressRepository;
@@ -46,6 +49,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReadingProgress? _progress;
   String? _error;
   bool _loading = true;
+  bool _chromeVisible = true;
+  bool _isProgressDragging = false;
   double _sliderProgress = 0;
 
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
@@ -54,11 +59,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   double _fontSize = 18;
   double _lineHeight = 1.6;
   double _pageGap = 24;
+  double _paddingHorizontal = 36;
+  double _paddingVertical = 16;
   bool _textIndentEnabled = true;
+  double _textIndentEm = 2;
+  bool _textIndentSkipFirstParagraph = false;
+  String _layoutMode = ReaderLayoutMode.pagedAuto;
+  String? _appliedRendererLayoutMode;
+  bool _layoutSyncScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _progressWriteQueue = DebouncedAsyncWriter<ReadingProgress>(
       debounce: const Duration(milliseconds: 280),
       writer: (progress) async {
@@ -106,10 +119,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
+      final initialLayoutMode = _resolveRendererLayoutMode();
       final session = await engine.createSession(
         book: book,
         initialProgress: progress,
         initialStyle: _currentReaderStyle(),
+        initialLayoutMode: initialLayoutMode,
       );
 
       _subscription = session.events.listen((event) async {
@@ -127,10 +142,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           );
           _scheduleProgressSave(nextProgress);
           _progress = nextProgress;
-          _sliderProgress = progression;
+          if (!_isProgressDragging) {
+            _sliderProgress = progression;
+          }
           if (mounted) {
             setState(() {});
           }
+        }
+
+        if (event.type == ReaderEventType.tapIntent) {
+          _handleTapIntent(event.asData<ReaderTapIntentData>(), event.payload);
         }
 
         if (event.type == ReaderEventType.link) {
@@ -152,11 +173,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         _book = book;
         _progress = progress;
         _sliderProgress = progress?.progression ?? 0;
+        _appliedRendererLayoutMode = initialLayoutMode;
         _session = session;
         _loading = false;
       });
 
       unawaited(_openSession(session));
+      unawaited(_enterImmersiveMode());
     } catch (error) {
       if (!mounted) {
         return;
@@ -173,7 +196,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _fontSize = settings.fontSize;
     _lineHeight = settings.lineHeight;
     _pageGap = settings.pageGap;
+    _paddingHorizontal = settings.paddingHorizontal;
+    _paddingVertical = settings.paddingVertical;
     _textIndentEnabled = settings.textIndentEnabled;
+    _textIndentEm = settings.textIndentEm;
+    _textIndentSkipFirstParagraph = settings.textIndentSkipFirstParagraph;
+    _layoutMode = ReaderLayoutMode.normalize(settings.layoutMode);
   }
 
   ReaderStyle _currentReaderStyle() {
@@ -183,10 +211,63 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       pageGap: _pageGap.round(),
       fontSize: _fontSize.round(),
       lineHeight: _lineHeight,
+      paddingTop: _paddingVertical.round(),
+      paddingRight: _paddingHorizontal.round(),
+      paddingBottom: _paddingVertical.round(),
+      paddingLeft: _paddingHorizontal.round(),
       textIndentEnabled: _textIndentEnabled,
-      textIndentEm: 2,
-      textIndentSkipFirstParagraph: false,
+      textIndentEm: _textIndentEm,
+      textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
     );
+  }
+
+  String _resolveRendererLayoutMode() {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery == null) {
+      return ReaderLayoutMode.normalizeRendererMode(_layoutMode);
+    }
+    return ReaderLayoutMode.resolveAdaptive(
+      _layoutMode,
+      shortestSide: mediaQuery.size.shortestSide,
+    );
+  }
+
+  Future<void> _syncLayoutMode({bool force = false}) async {
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+    final nextLayoutMode = _resolveRendererLayoutMode();
+    if (!force && nextLayoutMode == _appliedRendererLayoutMode) {
+      return;
+    }
+    try {
+      await session.setLayoutMode(nextLayoutMode);
+      _appliedRendererLayoutMode = nextLayoutMode;
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      debugPrint('[mobile-reader][setLayoutMode.error] $error');
+    }
+  }
+
+  void _scheduleViewportLayoutSync() {
+    final session = _session;
+    if (session == null || _layoutSyncScheduled) {
+      return;
+    }
+    if (_resolveRendererLayoutMode() == _appliedRendererLayoutMode) {
+      return;
+    }
+    _layoutSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _layoutSyncScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      unawaited(_syncLayoutMode());
+    });
   }
 
   Future<void> _openSession(ReaderSession session) async {
@@ -199,6 +280,51 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       setState(() {
         _error = 'Failed to open session: $error';
       });
+    }
+  }
+
+  Future<void> _enterImmersiveMode() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+  }
+
+  SystemUiOverlayStyle _defaultOverlayStyleForTheme() {
+    final brightness = Theme.of(context).brightness;
+    return brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+  }
+
+  Future<void> _restoreSystemUi() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(_defaultOverlayStyleForTheme());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_enterImmersiveMode());
+    }
+  }
+
+  void _handleTapIntent(
+    ReaderTapIntentData? data,
+    Map<String, dynamic>? payload,
+  ) {
+    final source = ReaderEventParser.selectPayload(
+      typed: data?.toJson(),
+      payload: payload,
+    );
+    if (source == null) {
+      return;
+    }
+    final zone = '${source['zone'] ?? ''}'.toLowerCase();
+    final mode = '${source['mode'] ?? ''}'.toLowerCase();
+    if (zone == 'center' && mode == 'reading' && mounted) {
+      setState(() {
+        _chromeVisible = !_chromeVisible;
+      });
+      unawaited(_enterImmersiveMode());
     }
   }
 
@@ -253,6 +379,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       barrierColor: Colors.black87,
       builder: (context) {
+        final l10n = context.l10n;
         return Dialog.fullscreen(
           backgroundColor: Colors.black,
           child: Stack(
@@ -263,10 +390,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   child: Image.network(
                     src,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Center(
+                    errorBuilder: (_, __, ___) => Center(
                       child: Text(
-                        'Image failed to load',
-                        style: TextStyle(color: Colors.white70),
+                        l10n.imageLoadFailed,
+                        style: const TextStyle(color: Colors.white70),
                       ),
                     ),
                   ),
@@ -285,6 +412,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         );
       },
     );
+    await _enterImmersiveMode();
   }
 
   void _scheduleProgressSave(ReadingProgress progress) {
@@ -299,6 +427,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     await session.goTo(Locator(locations: {'progression': value.clamp(0, 1)}));
   }
 
+  void _handleProgressChangeStart(double value) {
+    setState(() {
+      _isProgressDragging = true;
+      _sliderProgress = value;
+    });
+  }
+
+  Future<void> _handleProgressChangeEnd(double value) async {
+    setState(() {
+      _isProgressDragging = false;
+      _sliderProgress = value;
+    });
+    await _jumpToProgress(value);
+  }
+
   Future<void> _toggleTheme() async {
     _rendererTheme = _rendererTheme == 'day' ? 'night' : 'day';
     await _applyReaderStyle();
@@ -309,19 +452,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (session == null) {
       return;
     }
-    final nextSettings = ref.read(settingsControllerProvider).reader.copyWith(
-          fontSize: _fontSize,
-          lineHeight: _lineHeight,
-          pageGap: _pageGap,
-          textIndentEnabled: _textIndentEnabled,
-          rendererTheme: _rendererTheme,
-        );
-    await session.setStyle(_currentReaderStyle());
-    await ref
-        .read(settingsControllerProvider.notifier)
-        .updateReader(nextSettings);
-    if (mounted) {
-      setState(() {});
+    try {
+      final nextSettings = ref.read(settingsControllerProvider).reader.copyWith(
+            fontSize: _fontSize,
+            lineHeight: _lineHeight,
+            pageGap: _pageGap,
+            paddingHorizontal: _paddingHorizontal,
+            paddingVertical: _paddingVertical,
+            textIndentEnabled: _textIndentEnabled,
+            textIndentEm: _textIndentEm,
+            textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
+            rendererTheme: _rendererTheme,
+            layoutMode: _layoutMode,
+            progressDisplay: 'bar',
+          );
+      await session.setLayoutMode(_resolveRendererLayoutMode());
+      _appliedRendererLayoutMode = _resolveRendererLayoutMode();
+      await session.setStyle(_currentReaderStyle());
+      await ref
+          .read(settingsControllerProvider.notifier)
+          .updateReader(nextSettings);
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      debugPrint('[mobile-reader][applyReaderStyle.error] $error');
     }
   }
 
@@ -330,8 +485,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           fontSize: _fontSize,
           lineHeight: _lineHeight,
           pageGap: _pageGap,
+          paddingHorizontal: _paddingHorizontal,
+          paddingVertical: _paddingVertical,
           textIndentEnabled: _textIndentEnabled,
+          textIndentEm: _textIndentEm,
+          textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
           rendererTheme: _rendererTheme,
+          layoutMode: _layoutMode,
         );
     await showModalBottomSheet<void>(
       context: context,
@@ -346,6 +506,128 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         );
       },
     );
+    await _enterImmersiveMode();
+  }
+
+  Future<void> _openToc() async {
+    final book = _book;
+    if (book == null) {
+      return;
+    }
+    final tocItem = await context.push<TocItem>(RoutePaths.toc(book.uid));
+    if (tocItem?.href != null) {
+      await _session?.goTo(
+        Locator(
+          href: tocItem!.href,
+          locations: _progress?.locator.locations,
+        ),
+      );
+    }
+    await _enterImmersiveMode();
+  }
+
+  Future<void> _openAnnotationHub() async {
+    final l10n = context.l10n;
+    final selection = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.format_paint_outlined),
+                title: Text(l10n.highlights),
+                onTap: () => Navigator.of(context).pop('highlights'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_note_outlined),
+                title: Text(l10n.notes),
+                onTap: () => Navigator.of(context).pop('notes'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.bookmark_border),
+                title: Text(l10n.bookmarks),
+                onTap: () => Navigator.of(context).pop('bookmarks'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selection != null) {
+      await _openAuxPage(selection);
+    }
+    await _enterImmersiveMode();
+  }
+
+  Future<void> _openMoreActions() async {
+    final book = _book;
+    if (book == null) {
+      return;
+    }
+    final l10n = context.l10n;
+    final actions = <_ReaderSheetAction>[
+      _ReaderSheetAction(
+        value: 'debug',
+        icon: Icons.bug_report_outlined,
+        label: l10n.debugInfo,
+      ),
+    ];
+    if (book.format == 'pdf') {
+      actions.addAll(<_ReaderSheetAction>[
+        _ReaderSheetAction(
+          value: 'pdfOutline',
+          icon: Icons.account_tree_outlined,
+          label: l10n.pdfOutline,
+        ),
+        _ReaderSheetAction(
+          value: 'pdfThumb',
+          icon: Icons.grid_view_outlined,
+          label: l10n.pdfThumbnails,
+        ),
+      ]);
+    }
+    if (book.format == 'audio' || book.format.toLowerCase() == 'w3caudiobook') {
+      actions.add(
+        _ReaderSheetAction(
+          value: 'audio',
+          icon: Icons.graphic_eq_outlined,
+          label: l10n.audioPlayer,
+        ),
+      );
+    }
+    if (book.format == 'comicZip') {
+      actions.add(
+        _ReaderSheetAction(
+          value: 'comic',
+          icon: Icons.auto_stories_outlined,
+          label: l10n.comicMode,
+        ),
+      );
+    }
+
+    final selection = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: actions.map((action) {
+              return ListTile(
+                leading: Icon(action.icon),
+                title: Text(action.label),
+                onTap: () => Navigator.of(context).pop(action.value),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+    if (selection != null) {
+      await _openAuxPage(selection);
+    }
+    await _enterImmersiveMode();
   }
 
   Future<void> _openAuxPage(String value) async {
@@ -363,6 +645,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => HighlightsPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'notes':
         await Navigator.of(context).push(
@@ -370,6 +653,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => NotesPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'bookmarks':
         await Navigator.of(context).push(
@@ -377,6 +661,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => BookmarksPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'debug':
         await Navigator.of(context).push(
@@ -389,6 +674,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             ),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'pdfOutline':
         await Navigator.of(context).push(
@@ -396,6 +682,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => PdfOutlinePage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'pdfThumb':
         await Navigator.of(context).push(
@@ -403,6 +690,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => PdfThumbnailPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'audio':
         await Navigator.of(context).push(
@@ -410,6 +698,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => AudioPlayerPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
       case 'comic':
         await Navigator.of(context).push(
@@ -417,6 +706,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             builder: (_) => ComicReaderPage(bookUid: book.uid),
           ),
         );
+        await _enterImmersiveMode();
         return;
     }
   }
@@ -450,6 +740,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         );
       },
     );
+    await _enterImmersiveMode();
   }
 
   Future<void> _showToolSheet(Widget child) {
@@ -457,11 +748,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       context: context,
       isScrollControlled: true,
       builder: (_) => child,
-    );
+    ).whenComplete(_enterImmersiveMode);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close());
     final subscription = _subscription;
     if (subscription != null) {
@@ -471,11 +763,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (session != null) {
       unawaited(session.dispose().catchError((_) {}));
     }
+    unawaited(_restoreSystemUi());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -484,127 +778,72 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Reader')),
+        appBar: AppBar(title: Text(l10n.reader)),
         body: Center(child: Text(_error!)),
       );
     }
 
     final book = _book!;
-    final progress = ((_progress?.progression ?? 0) * 100).toStringAsFixed(1);
+    _scheduleViewportLayoutSync();
 
     return ReaderShell(
-      appBar: ReaderTopBar(
-        title: '${book.title} ($progress%)',
+      chromeVisible: _chromeVisible,
+      topBar: ReaderTopBar(
+        onBackPressed: () => Navigator.of(context).maybePop(),
+        title: book.title,
         actions: [
           IconButton(
-            onPressed: () => context.push(RoutePaths.searchInBook(book.uid)),
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
+            tooltip: l10n.search,
             onPressed: () async {
-              final tocItem =
-                  await context.push<TocItem>(RoutePaths.toc(book.uid));
-              if (tocItem?.href != null) {
-                await _session?.goTo(
-                  Locator(
-                    href: tocItem!.href,
-                    locations: _progress?.locator.locations,
-                  ),
-                );
-              }
+              await context.push(RoutePaths.searchInBook(book.uid));
+              await _enterImmersiveMode();
             },
-            icon: const Icon(Icons.list),
+            icon: const Icon(Icons.search, color: Colors.white),
           ),
           IconButton(
+            tooltip: l10n.switchThemeQuick,
             onPressed: _toggleTheme,
             icon: Icon(
               _rendererTheme == 'day' ? Icons.dark_mode : Icons.light_mode,
+              color: Colors.white,
             ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: _openAuxPage,
-            itemBuilder: (context) {
-              final items = <PopupMenuEntry<String>>[
-                const PopupMenuItem(
-                  value: 'settings',
-                  child: Text('\u9605\u8bfb\u8bbe\u7f6e'),
-                ),
-                const PopupMenuItem(
-                  value: 'highlights',
-                  child: Text('\u9ad8\u4eae'),
-                ),
-                const PopupMenuItem(
-                  value: 'notes',
-                  child: Text('\u7b14\u8bb0'),
-                ),
-                const PopupMenuItem(
-                  value: 'bookmarks',
-                  child: Text('\u4e66\u7b7e'),
-                ),
-                const PopupMenuItem(
-                  value: 'debug',
-                  child: Text('\u8c03\u8bd5\u4fe1\u606f'),
-                ),
-              ];
-              if (book.format == 'pdf') {
-                items.addAll(const [
-                  PopupMenuItem(
-                    value: 'pdfOutline',
-                    child: Text('PDF \u5927\u7eb2'),
-                  ),
-                  PopupMenuItem(
-                    value: 'pdfThumb',
-                    child: Text('PDF \u7f29\u7565\u56fe'),
-                  ),
-                ]);
-              }
-              if (book.format == 'audio' ||
-                  book.format.toLowerCase() == 'w3caudiobook') {
-                items.add(
-                  const PopupMenuItem(
-                    value: 'audio',
-                    child: Text('\u97f3\u9891\u64ad\u653e\u5668'),
-                  ),
-                );
-              }
-              if (book.format == 'comicZip') {
-                items.add(
-                  const PopupMenuItem(
-                    value: 'comic',
-                    child: Text('\u6f2b\u753b\u6a21\u5f0f'),
-                  ),
-                );
-              }
-              return items;
-            },
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: _session!.buildView()),
-          Positioned(
-            right: 12,
-            bottom: 12,
-            child: FloatingActionButton.small(
-              heroTag: 'selectionTools',
-              onPressed: _openSelectionTools,
-              child: const Icon(Icons.auto_awesome),
-            ),
-          ),
-        ],
+      body: _session!.buildView(),
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: 'selectionTools',
+        onPressed: _openSelectionTools,
+        child: const Icon(Icons.auto_awesome),
       ),
       bottomBar: ReaderBottomBar(
         progress: _sliderProgress,
+        onProgressChangeStart: _handleProgressChangeStart,
         onProgressChanged: (value) {
           setState(() {
             _sliderProgress = value;
           });
         },
-        onProgressChangeEnd: _jumpToProgress,
+        onProgressChangeEnd: _handleProgressChangeEnd,
         onPrev: () => _session?.navigatePrev(),
         onNext: () => _session?.navigateNext(),
+        onOpenToc: _openToc,
+        onOpenAnnotations: _openAnnotationHub,
+        onOpenSettings: _openReaderSettings,
+        onOpenMore: _openMoreActions,
       ),
     );
   }
+}
+
+class _ReaderSheetAction {
+  const _ReaderSheetAction({
+    required this.value,
+    required this.icon,
+    required this.label,
+  });
+
+  final String value;
+  final IconData icon;
+  final String label;
 }

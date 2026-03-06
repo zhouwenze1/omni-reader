@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation_domain/domain.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
@@ -79,14 +80,26 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
                 title: l10n.layoutMode,
                 value: reader.layoutMode,
                 leading: const Icon(Icons.view_day_outlined),
-                items: [
+                items: const [
                   DropdownMenuItem(
-                    value: 'paged_spread',
-                    child: Text(l10n.layoutPaged),
+                    value: ReaderLayoutMode.pagedAuto,
+                    child: Text('Auto'),
                   ),
                   DropdownMenuItem(
-                    value: 'scroll_boundary',
-                    child: Text(l10n.layoutScroll),
+                    value: ReaderLayoutMode.pagedSingle,
+                    child: Text('Single'),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.pagedSpread,
+                    child: Text('Spread'),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.scrollBoundary,
+                    child: Text('Boundary'),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.scrollContinuous,
+                    child: Text('Continuous'),
                   ),
                 ],
                 onChanged: (value) {

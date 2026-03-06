@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
 
+import '../../../l10n/l10n.dart';
+
 class ReaderSettingsPanel extends StatelessWidget {
   const ReaderSettingsPanel({
     super.key,
@@ -13,6 +15,7 @@ class ReaderSettingsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -33,13 +36,12 @@ class ReaderSettingsPanel extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                '阅读设置',
+                l10n.readerSettings,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 12),
               _slider(
-                context,
-                title: '字体大小',
+                title: l10n.fontSize,
                 value: settings.fontSize,
                 min: 12,
                 max: 42,
@@ -47,8 +49,7 @@ class ReaderSettingsPanel extends StatelessWidget {
                     onChanged(settings.copyWith(fontSize: value)),
               ),
               _slider(
-                context,
-                title: '行高',
+                title: l10n.lineHeight,
                 value: settings.lineHeight,
                 min: 1.1,
                 max: 2.4,
@@ -56,8 +57,7 @@ class ReaderSettingsPanel extends StatelessWidget {
                     onChanged(settings.copyWith(lineHeight: value)),
               ),
               _slider(
-                context,
-                title: '页间距',
+                title: l10n.pageGap,
                 value: settings.pageGap,
                 min: 0,
                 max: 80,
@@ -67,11 +67,17 @@ class ReaderSettingsPanel extends StatelessWidget {
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 initialValue: settings.rendererTheme,
-                decoration: const InputDecoration(labelText: '主题'),
-                items: const [
-                  DropdownMenuItem(value: 'day', child: Text('白天')),
-                  DropdownMenuItem(value: 'night', child: Text('夜间')),
-                  DropdownMenuItem(value: 'sepia', child: Text('护眼')),
+                decoration: InputDecoration(labelText: l10n.theme),
+                items: [
+                  DropdownMenuItem(value: 'day', child: Text(l10n.dayTheme)),
+                  DropdownMenuItem(
+                    value: 'night',
+                    child: Text(l10n.nightTheme),
+                  ),
+                  DropdownMenuItem(
+                    value: 'sepia',
+                    child: Text(l10n.sepiaTheme),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -79,9 +85,47 @@ class ReaderSettingsPanel extends StatelessWidget {
                   }
                 },
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: settings.layoutMode,
+                decoration: InputDecoration(labelText: l10n.layoutMode),
+                items: [
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.pagedAuto,
+                    child: Text(l10n.layoutAuto),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.pagedSingle,
+                    child: Text(l10n.layoutSingle),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.pagedSpread,
+                    child: Text(l10n.layoutSpread),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.scrollBoundary,
+                    child: Text(l10n.layoutBoundary),
+                  ),
+                  DropdownMenuItem(
+                    value: ReaderLayoutMode.scrollContinuous,
+                    child: Text(l10n.layoutContinuous),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    onChanged(settings.copyWith(layoutMode: value));
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.layoutAutoHint,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('首行缩进'),
+                title: Text(l10n.enableTextIndent),
                 value: settings.textIndentEnabled,
                 onChanged: (value) => onChanged(
                   settings.copyWith(textIndentEnabled: value),
@@ -94,8 +138,7 @@ class ReaderSettingsPanel extends StatelessWidget {
     );
   }
 
-  Widget _slider(
-    BuildContext context, {
+  Widget _slider({
     required String title,
     required double value,
     required double min,

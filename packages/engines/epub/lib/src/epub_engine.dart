@@ -36,11 +36,13 @@ class EpubReaderEngine extends ReaderEngine {
     required Book book,
     ReadingProgress? initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
+    String? initialLayoutMode,
   }) async {
     return EpubReaderSession(
       book: book,
       initialProgress: initialProgress,
       initialStyle: initialStyle,
+      initialLayoutMode: initialLayoutMode ?? ReaderLayoutMode.pagedAuto,
     );
   }
 }
