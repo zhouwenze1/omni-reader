@@ -1,70 +1,123 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foundation_domain/domain.dart';
 
-import '../../../di/repositories_providers.dart';
+import '../controller/settings_controller.dart';
+import '../widgets/dropdown_tile.dart';
+import '../widgets/settings_group.dart';
+import '../widgets/slider_tile.dart';
+import '../widgets/toggle_tile.dart';
 
-class ReaderGlobalSettingsPage extends ConsumerStatefulWidget {
+class ReaderGlobalSettingsPage extends ConsumerWidget {
   const ReaderGlobalSettingsPage({super.key});
 
   @override
-  ConsumerState<ReaderGlobalSettingsPage> createState() =>
-      _ReaderGlobalSettingsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(settingsControllerProvider);
+    final controller = ref.read(settingsControllerProvider.notifier);
+    final reader = state.reader;
 
-class _ReaderGlobalSettingsPageState
-    extends ConsumerState<ReaderGlobalSettingsPage> {
-  ReaderSettings _settings = const ReaderSettings();
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final value = await ref.read(settingsRepositoryProvider).getReaderSettings();
-    if (!mounted) return;
-    setState(() {
-      _settings = value;
-      _loading = false;
-    });
-  }
-
-  Future<void> _save(ReaderSettings value) async {
-    setState(() => _settings = value);
-    await ref.read(settingsRepositoryProvider).saveReaderSettings(value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     return Scaffold(
       appBar: AppBar(title: const Text('阅读器设置')),
       body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          ListTile(
-            title: const Text('字体大小'),
-            subtitle: Slider(
-              min: 12,
-              max: 42,
-              value: _settings.fontSize,
-              onChanged: (v) => _save(_settings.copyWith(fontSize: v)),
-            ),
-            trailing: Text(_settings.fontSize.toStringAsFixed(0)),
+          SettingsGroup(
+            title: '显示',
+            children: [
+              SliderTile(
+                title: '字体大小',
+                min: 12,
+                max: 42,
+                divisions: 30,
+                value: reader.fontSize,
+                valueText: reader.fontSize.toStringAsFixed(0),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(fontSize: v)),
+              ),
+              SliderTile(
+                title: '行高',
+                min: 1.1,
+                max: 2.4,
+                divisions: 13,
+                value: reader.lineHeight,
+                valueText: reader.lineHeight.toStringAsFixed(2),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(lineHeight: v)),
+              ),
+              SliderTile(
+                title: '页间距',
+                min: 0,
+                max: 80,
+                divisions: 16,
+                value: reader.pageGap,
+                valueText: reader.pageGap.toStringAsFixed(0),
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(pageGap: v)),
+              ),
+              DropdownTile<String>(
+                title: '主题',
+                value: reader.rendererTheme,
+                leading: const Icon(Icons.palette_outlined),
+                items: const [
+                  DropdownMenuItem(value: 'day', child: Text('白天')),
+                  DropdownMenuItem(value: 'night', child: Text('夜间')),
+                  DropdownMenuItem(value: 'sepia', child: Text('护眼')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.updateReader(
+                      reader.copyWith(rendererTheme: value),
+                    );
+                  }
+                },
+              ),
+              DropdownTile<String>(
+                title: '布局模式',
+                value: reader.layoutMode,
+                leading: const Icon(Icons.view_day_outlined),
+                items: const [
+                  DropdownMenuItem(value: 'paged_spread', child: Text('分页')),
+                  DropdownMenuItem(
+                    value: 'scroll_boundary',
+                    child: Text('滚动'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.updateReader(reader.copyWith(layoutMode: value));
+                  }
+                },
+              ),
+            ],
           ),
-          ListTile(
-            title: const Text('行高'),
-            subtitle: Slider(
-              min: 1.1,
-              max: 2.4,
-              value: _settings.lineHeight,
-              onChanged: (v) => _save(_settings.copyWith(lineHeight: v)),
-            ),
-            trailing: Text(_settings.lineHeight.toStringAsFixed(2)),
+          SettingsGroup(
+            title: '版式细节',
+            children: [
+              ToggleTile(
+                title: '启用首行缩进',
+                value: reader.textIndentEnabled,
+                onChanged: (v) => controller.updateReader(
+                  reader.copyWith(textIndentEnabled: v),
+                ),
+              ),
+              SliderTile(
+                title: '缩进大小',
+                min: 0,
+                max: 4,
+                divisions: 20,
+                value: reader.textIndentEm,
+                valueText: '${reader.textIndentEm.toStringAsFixed(1)}em',
+                onChanged: (v) =>
+                    controller.updateReader(reader.copyWith(textIndentEm: v)),
+              ),
+              ToggleTile(
+                title: '首段不缩进',
+                value: reader.textIndentSkipFirstParagraph,
+                onChanged: (v) => controller.updateReader(
+                  reader.copyWith(textIndentSkipFirstParagraph: v),
+                ),
+              ),
+            ],
           ),
         ],
       ),

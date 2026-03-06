@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+
+import '../widgets/update_button.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -19,17 +21,27 @@ class AboutPage extends StatelessWidget {
                   children: const [
                     Icon(Icons.menu_book, size: 64),
                     SizedBox(height: 12),
-                    Text('OmniBook', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Reader Mobile',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     SizedBox(height: 8),
-                    Text('版本: 1.0.0 (Build dev)'),
+                    Text('版本: 0.1.0-dev'),
+                    SizedBox(height: 8),
+                    Text(
+                      '基于 Flutter 的本地阅读器移动端，支持书架、导入、阅读中和设置。',
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
             ),
             const Spacer(),
-            FilledButton(
+            UpdateButton(
               onPressed: () {},
-              child: const Text('检查更新'),
             ),
           ],
         ),

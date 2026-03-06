@@ -1,63 +1,87 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foundation_domain/domain.dart';
 
-import '../../../di/repositories_providers.dart';
+import '../controller/settings_controller.dart';
+import '../widgets/dropdown_tile.dart';
+import '../widgets/settings_group.dart';
+import '../widgets/toggle_tile.dart';
 
-class CloudSettingsPage extends ConsumerStatefulWidget {
+class CloudSettingsPage extends ConsumerWidget {
   const CloudSettingsPage({super.key});
 
   @override
-  ConsumerState<CloudSettingsPage> createState() => _CloudSettingsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(settingsControllerProvider);
+    final controller = ref.read(settingsControllerProvider.notifier);
+    final cloud = state.cloud;
 
-class _CloudSettingsPageState extends ConsumerState<CloudSettingsPage> {
-  CloudOptions _settings = const CloudOptions();
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final value = await ref.read(settingsRepositoryProvider).getCloudOptions();
-    if (!mounted) return;
-    setState(() {
-      _settings = value;
-      _loading = false;
-    });
-  }
-
-  Future<void> _save(CloudOptions value) async {
-    setState(() => _settings = value);
-    await ref.read(settingsRepositoryProvider).saveCloudOptions(value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     return Scaffold(
       appBar: AppBar(title: const Text('云端设置')),
       body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          SwitchListTile(
-            value: _settings.autoSync,
-            onChanged: (v) => _save(_settings.copyWith(autoSync: v)),
-            title: const Text('自动同步'),
+          SettingsGroup(
+            title: '连接',
+            children: [
+              DropdownTile<String>(
+                title: '存储提供方',
+                leading: const Icon(Icons.cloud_queue_outlined),
+                value: cloud.provider,
+                items: const [
+                  DropdownMenuItem(value: 'none', child: Text('未连接')),
+                  DropdownMenuItem(value: 'gdrive', child: Text('Google Drive')),
+                  DropdownMenuItem(value: 'onedrive', child: Text('OneDrive')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.updateCloud(cloud.copyWith(provider: value));
+                  }
+                },
+              ),
+              ToggleTile(
+                title: '自动同步',
+                leading: const Icon(Icons.sync_outlined),
+                value: cloud.autoSync,
+                onChanged: (v) =>
+                    controller.updateCloud(cloud.copyWith(autoSync: v)),
+              ),
+            ],
           ),
-          SwitchListTile(
-            value: _settings.storeProgress,
-            onChanged: (v) => _save(_settings.copyWith(storeProgress: v)),
-            title: const Text('存储阅读进度'),
-          ),
-          SwitchListTile(
-            value: _settings.storeNotes,
-            onChanged: (v) => _save(_settings.copyWith(storeNotes: v)),
-            title: const Text('存储笔记'),
+          SettingsGroup(
+            title: '同步内容',
+            children: [
+              ToggleTile(
+                title: '同步原始文件',
+                value: cloud.storeOriginalFiles,
+                onChanged: (v) => controller.updateCloud(
+                  cloud.copyWith(storeOriginalFiles: v),
+                ),
+              ),
+              ToggleTile(
+                title: '同步阅读进度',
+                value: cloud.storeProgress,
+                onChanged: (v) =>
+                    controller.updateCloud(cloud.copyWith(storeProgress: v)),
+              ),
+              ToggleTile(
+                title: '同步笔记',
+                value: cloud.storeNotes,
+                onChanged: (v) =>
+                    controller.updateCloud(cloud.copyWith(storeNotes: v)),
+              ),
+              ToggleTile(
+                title: '同步高亮',
+                value: cloud.storeHighlights,
+                onChanged: (v) =>
+                    controller.updateCloud(cloud.copyWith(storeHighlights: v)),
+              ),
+              ToggleTile(
+                title: '同步应用数据',
+                value: cloud.storeAppData,
+                onChanged: (v) =>
+                    controller.updateCloud(cloud.copyWith(storeAppData: v)),
+              ),
+            ],
           ),
         ],
       ),

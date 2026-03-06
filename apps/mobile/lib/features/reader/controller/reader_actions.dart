@@ -1,2 +1,8 @@
-﻿// Placeholder: intentionally left as minimal stub for future feature expansion.
-
+enum ReaderAction {
+  openToc,
+  search,
+  openSettings,
+  openBookmarks,
+  openHighlights,
+  openNotes,
+}

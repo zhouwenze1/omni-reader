@@ -1,60 +1,104 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
-import '../../../di/repositories_providers.dart';
+import '../controller/settings_controller.dart';
+import '../widgets/dropdown_tile.dart';
+import '../widgets/settings_group.dart';
+import '../widgets/toggle_tile.dart';
 
-class AppSettingsPage extends ConsumerStatefulWidget {
+class AppSettingsPage extends ConsumerWidget {
   const AppSettingsPage({super.key});
 
   @override
-  ConsumerState<AppSettingsPage> createState() => _AppSettingsPageState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(settingsControllerProvider);
+    final controller = ref.read(settingsControllerProvider.notifier);
 
-class _AppSettingsPageState extends ConsumerState<AppSettingsPage> {
-  AppSettings _settings = const AppSettings();
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final value = await ref.read(settingsRepositoryProvider).getAppSettings();
-    if (!mounted) return;
-    setState(() {
-      _settings = value;
-      _loading = false;
-    });
-  }
-
-  Future<void> _save(AppSettings value) async {
-    setState(() => _settings = value);
-    await ref.read(settingsRepositoryProvider).saveAppSettings(value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     return Scaffold(
-      appBar: AppBar(title: const Text('APP 设置')),
+      appBar: AppBar(title: const Text('应用设置')),
       body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          SwitchListTile(
-            value: _settings.themeMode == AppThemeMode.dark,
-            onChanged: (v) => _save(_settings.copyWith(
-              themeMode: v ? AppThemeMode.dark : AppThemeMode.light,
-            )),
-            title: const Text('夜间模式'),
+          if (state.errorMessage != null)
+            Card(
+              color: Colors.red.withValues(alpha: 0.12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(state.errorMessage!),
+              ),
+            ),
+          SettingsGroup(
+            title: '通用',
+            children: [
+              DropdownTile<String>(
+                title: '语言',
+                value: state.app.locale,
+                leading: const Icon(Icons.language_outlined),
+                items: const [
+                  DropdownMenuItem(value: 'system', child: Text('跟随系统')),
+                  DropdownMenuItem(value: 'zh-CN', child: Text('简体中文')),
+                  DropdownMenuItem(value: 'en', child: Text('English')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.setLocale(value);
+                  }
+                },
+              ),
+              DropdownTile<AppThemeMode>(
+                title: '外观',
+                value: state.app.themeMode,
+                leading: const Icon(Icons.palette_outlined),
+                items: const [
+                  DropdownMenuItem(
+                    value: AppThemeMode.system,
+                    child: Text('跟随系统'),
+                  ),
+                  DropdownMenuItem(
+                    value: AppThemeMode.light,
+                    child: Text('浅色'),
+                  ),
+                  DropdownMenuItem(
+                    value: AppThemeMode.dark,
+                    child: Text('深色'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    controller.setThemeMode(value);
+                  }
+                },
+              ),
+            ],
           ),
-          SwitchListTile(
-            value: _settings.debugImport,
-            onChanged: (v) => _save(_settings.copyWith(debugImport: v)),
-            title: const Text('导入调试日志'),
+          SettingsGroup(
+            title: '诊断',
+            children: [
+              ToggleTile(
+                title: '导入调试日志',
+                subtitle: '保存额外调试信息，便于定位导入问题。',
+                leading: const Icon(Icons.bug_report_outlined),
+                value: state.app.debugImport,
+                onChanged: controller.setDebugImport,
+              ),
+              ToggleTile(
+                title: '自动检查更新',
+                leading: const Icon(Icons.system_update_alt),
+                value: state.app.autoCheckUpdate,
+                onChanged: (v) => controller.updateApp(
+                  state.app.copyWith(autoCheckUpdate: v),
+                ),
+              ),
+              ToggleTile(
+                title: '发送匿名使用统计',
+                leading: const Icon(Icons.privacy_tip_outlined),
+                value: state.app.sendAnonymousUsage,
+                onChanged: (v) => controller.updateApp(
+                  state.app.copyWith(sendAnonymousUsage: v),
+                ),
+              ),
+            ],
           ),
         ],
       ),

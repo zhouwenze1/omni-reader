@@ -1,2 +1,7 @@
-﻿// Placeholder: intentionally left as minimal stub for future feature expansion.
+class PermissionsUtil {
+  const PermissionsUtil._();
 
+  static Future<bool> ensureStorageAccess() async {
+    return true;
+  }
+}
