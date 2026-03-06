@@ -281,13 +281,8 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
       filters: state.filters,
     );
     final collections = await _collectionRepository.listCollections();
-    final collectionBookUids = <int, Set<String>>{};
-    for (final collection in collections) {
-      final collectionItems =
-          await _collectionRepository.listCollectionItems(collection.id);
-      collectionBookUids[collection.id] =
-          collectionItems.map((it) => it.bookUid).toSet();
-    }
+    final collectionBookUids =
+        await _collectionRepository.listCollectionBookUids();
     return _LibrarySnapshot(
       items: items,
       collections: collections,

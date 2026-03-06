@@ -1,4 +1,4 @@
-import 'package:engine_api/engine_api.dart';
+import 'package:kernel/kernel.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:foundation_domain/domain.dart';
 
@@ -46,7 +46,7 @@ class ReaderEventReceiver {
     required BookStorageService storageService,
     required LocatorNormalizer locatorNormalizer,
     required BookUriMapper uriMapper,
-    required void Function(EngineEvent event) emitEvent,
+    required void Function(ReaderEvent event) emitEvent,
   })  : _controller = controller,
         _bookUuid = bookUuid,
         _storageService = storageService,
@@ -75,7 +75,7 @@ class ReaderEventReceiver {
   final BookStorageService _storageService;
   final LocatorNormalizer _locatorNormalizer;
   final BookUriMapper _uriMapper;
-  final void Function(EngineEvent event) _emitEvent;
+  final void Function(ReaderEvent event) _emitEvent;
 
   void registerAll() {
     for (final name in eventNames) {
@@ -87,7 +87,7 @@ class ReaderEventReceiver {
           final locator = _extractLocator(normalized);
 
           _emitEvent(
-            EngineEvent(
+            ReaderEvent.fromRaw(
               type: _mapEventType(name),
               payload: normalized,
               locator: locator,
@@ -183,36 +183,36 @@ class ReaderEventReceiver {
     return <String, dynamic>{'value': raw};
   }
 
-  EngineEventType _mapEventType(String name) {
+  ReaderEventType _mapEventType(String name) {
     switch (name) {
       case 'load':
-        return EngineEventType.load;
+        return ReaderEventType.load;
       case 'ready':
-        return EngineEventType.ready;
+        return ReaderEventType.ready;
       case 'error':
-        return EngineEventType.error;
+        return ReaderEventType.error;
       case 'link':
-        return EngineEventType.link;
+        return ReaderEventType.link;
       case 'mediaTap':
-        return EngineEventType.mediaTap;
+        return ReaderEventType.mediaTap;
       case 'selection':
-        return EngineEventType.selection;
+        return ReaderEventType.selection;
       case 'tapIntent':
-        return EngineEventType.tapIntent;
+        return ReaderEventType.tapIntent;
       case 'relocated':
-        return EngineEventType.relocated;
+        return ReaderEventType.relocated;
       case 'boundary':
-        return EngineEventType.boundary;
+        return ReaderEventType.boundary;
       case 'highlightCreateRequest':
-        return EngineEventType.highlightCreateRequest;
+        return ReaderEventType.highlightCreateRequest;
       case 'highlightTapped':
-        return EngineEventType.highlightTapped;
+        return ReaderEventType.highlightTapped;
       case 'highlightApplyReport':
-        return EngineEventType.highlightApplyReport;
+        return ReaderEventType.highlightApplyReport;
       case 'log':
-        return EngineEventType.log;
+        return ReaderEventType.log;
       default:
-        return EngineEventType.log;
+        return ReaderEventType.log;
     }
   }
 }

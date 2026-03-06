@@ -7,7 +7,7 @@ packages:
   - packages/foundation/domain
   - packages/foundation/application
   - packages/infrastructure/data
-  - packages/engines/engine_api
+  - packages/engines/kernel
   - packages/engines/epub
   - packages/engines/pdf
   - packages/engines/audio

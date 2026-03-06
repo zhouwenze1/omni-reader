@@ -65,49 +65,7 @@ class BookRepositoryImpl implements BookRepository {
     LibrarySortMode sortMode = LibrarySortMode.recentRead,
     LibraryFilters filters = const LibraryFilters(),
   }) async {
-    final items = await _libraryIndexDao.listAll();
-    final filtered = items.where((item) {
-      if (filters.hasFormatFilter &&
-          !filters.formats.map((e) => e.toLowerCase()).contains(
-                item.format.toLowerCase(),
-              )) {
-        return false;
-      }
-
-      if (filters.hasCategoryFilter) {
-        final categoryId = item.categoryId ?? '';
-        if (!filters.categoryIds.contains(categoryId)) {
-          return false;
-        }
-      }
-
-      final progress = item.cachedProgress ?? 0.0;
-      switch (filters.progress) {
-        case LibraryProgressBucket.all:
-          return true;
-        case LibraryProgressBucket.notStarted:
-          return progress <= 0.0001;
-        case LibraryProgressBucket.inProgress:
-          return progress > 0.0001 && progress < 0.9999;
-        case LibraryProgressBucket.completed:
-          return progress >= 0.9999;
-      }
-    }).toList();
-
-    filtered.sort((a, b) {
-      switch (sortMode) {
-        case LibrarySortMode.recentRead:
-          final aTime = a.lastOpenedAt ?? a.updatedAt;
-          final bTime = b.lastOpenedAt ?? b.updatedAt;
-          return bTime.compareTo(aTime);
-        case LibrarySortMode.importedAt:
-          return b.importedAt.compareTo(a.importedAt);
-        case LibrarySortMode.name:
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-      }
-    });
-
-    return filtered;
+    return _libraryIndexDao.query(sortMode: sortMode, filters: filters);
   }
 
   @override
@@ -122,7 +80,8 @@ class BookRepositoryImpl implements BookRepository {
 
   @override
   Future<void> deleteBook(String bookUid) async {
-    await _fileService.removeDir(p.join(_storagePaths.libraryRoot.path, bookUid));
+    await _fileService
+        .removeDir(p.join(_storagePaths.libraryRoot.path, bookUid));
     await _fileService.removeDir(p.join(_storagePaths.booksRoot.path, bookUid));
     await _libraryIndexDao.deleteByBookUid(bookUid);
   }

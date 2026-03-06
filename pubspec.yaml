@@ -13,7 +13,7 @@ workspace:
   - packages/foundation/domain
   - packages/foundation/application
   - packages/infrastructure/data
-  - packages/engines/engine_api
+  - packages/engines/kernel
   - packages/engines/epub
   - packages/engines/pdf
   - packages/engines/audio
@@ -27,7 +27,7 @@ melos:
     - packages/foundation/domain
     - packages/foundation/application
     - packages/infrastructure/data
-    - packages/engines/engine_api
+    - packages/engines/kernel
     - packages/engines/epub
     - packages/engines/pdf
     - packages/engines/audio
@@ -38,6 +38,7 @@ melos:
     format: melos exec -- dart format lib test
 
 dev_dependencies:
+  lints: ^5.0.0
   melos: ^7.4.0
 
 hooks:

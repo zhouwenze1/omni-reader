@@ -1,0 +1,8 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - .dart_tool/**
+    - build/**
+    - dist/**
+    - "**/build/**"

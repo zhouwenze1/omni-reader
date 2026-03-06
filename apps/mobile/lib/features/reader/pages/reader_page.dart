@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:engine_api/engine_api.dart';
+import 'package:foundation_application/application.dart';
+import 'package:kernel/kernel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
@@ -20,15 +21,31 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReaderSession? _session;
-  StreamSubscription<EngineEvent>? _subscription;
+  StreamSubscription<ReaderEvent>? _subscription;
+  ProgressRepository? _progressRepository;
   Book? _book;
   ReadingProgress? _progress;
   String? _error;
   bool _loading = true;
+  late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
 
   @override
   void initState() {
     super.initState();
+    _progressWriteQueue = DebouncedAsyncWriter<ReadingProgress>(
+      debounce: const Duration(milliseconds: 280),
+      writer: (progress) async {
+        final repository = _progressRepository;
+        if (repository == null) {
+          return;
+        }
+        try {
+          await repository.saveProgress(progress);
+        } catch (error) {
+          debugPrint('[mobile-reader][saveProgress.error] $error');
+        }
+      },
+    );
     _init();
   }
 
@@ -36,6 +53,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     try {
       final bookRepository = ref.read(bookRepositoryProvider);
       final progressRepository = ref.read(progressRepositoryProvider);
+      _progressRepository = progressRepository;
       final registry = ref.read(engineRegistryProvider);
 
       final book = await bookRepository.getBook(widget.bookUid);
@@ -63,20 +81,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
 
       _subscription = session.events.listen((event) async {
-        if (event.type == EngineEventType.log ||
-            event.type == EngineEventType.error ||
-            event.type == EngineEventType.ready) {
+        if (event.type == ReaderEventType.log ||
+            event.type == ReaderEventType.error ||
+            event.type == ReaderEventType.ready) {
           debugPrint(
             '[mobile-reader][${event.type.name}] payload=${event.payload}',
           );
         }
 
-        if (event.type == EngineEventType.relocated && event.locator != null) {
-          final payloadProgress =
-              (event.payload?['progression'] as num?)?.toDouble();
-          final locatorProgress =
-              (event.locator!.locations?['progression'] as num?)?.toDouble();
-          final progression = payloadProgress ?? locatorProgress ?? 0;
+        if (event.type == ReaderEventType.relocated && event.locator != null) {
+          final progression = ReaderEventParser.resolveProgression(
+            payload: event.payload,
+            locatorLocations: event.locator!.locations,
+          );
 
           final nextProgress = ReadingProgress(
             bookUid: book.uid,
@@ -85,19 +102,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             updatedAt: DateTime.now(),
             lastReadAt: DateTime.now(),
           );
-          await progressRepository.saveProgress(nextProgress);
+          _scheduleProgressSave(nextProgress);
           _progress = nextProgress;
           if (mounted) {
             setState(() {});
           }
         }
 
-        if (event.type == EngineEventType.link) {
-          await _handleLinkEvent(event.payload);
+        if (event.type == ReaderEventType.link) {
+          await _handleLinkEvent(event.asData<ReaderLinkData>(), event.payload);
         }
 
-        if (event.type == EngineEventType.mediaTap) {
-          await _handleMediaTapEvent(event.payload);
+        if (event.type == ReaderEventType.mediaTap) {
+          await _handleMediaTapEvent(
+            event.asData<ReaderMediaTapData>(),
+            event.payload,
+          );
         }
       });
 
@@ -136,26 +156,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
   }
 
-  Future<void> _handleLinkEvent(Map<String, dynamic>? payload) async {
-    if (payload == null) {
+  Future<void> _handleLinkEvent(
+    ReaderLinkData? data,
+    Map<String, dynamic>? payload,
+  ) async {
+    final source = ReaderEventParser.selectPayload(
+      typed: data?.toJson(),
+      payload: payload,
+    );
+    if (source == null) {
       return;
     }
 
-    final handledBy = _asLowerText(payload['handledBy']);
-    final action = _asLowerText(payload['action']);
-    final externalUri = _resolveExternalUri(payload);
-
-    if (handledBy == 'blocked') {
-      debugPrint('[mobile-reader][link.blocked] payload=$payload');
-      return;
+    final decision = ReaderEventParser.resolveLink(source);
+    switch (decision.action) {
+      case ReaderLinkAction.blocked:
+        debugPrint('[mobile-reader][link.blocked] payload=$source');
+        return;
+      case ReaderLinkAction.renderer:
+        debugPrint('[mobile-reader][link.renderer] payload=$source');
+        return;
+      case ReaderLinkAction.ignore:
+        return;
+      case ReaderLinkAction.openExternal:
+        break;
     }
-
-    if (handledBy == 'renderer') {
-      debugPrint('[mobile-reader][link.renderer] payload=$payload');
-      return;
-    }
-
-    if (action != 'open_external' || externalUri == null) {
+    final externalUri = decision.externalUri;
+    if (externalUri == null) {
       return;
     }
 
@@ -165,17 +192,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
     if (!launched) {
       debugPrint(
-        '[mobile-reader][link.open_external.failed] uri=$externalUri payload=$payload',
+        '[mobile-reader][link.open_external.failed] uri=$externalUri payload=$source',
       );
     }
   }
 
-  Future<void> _handleMediaTapEvent(Map<String, dynamic>? payload) async {
-    if (payload == null || !mounted) {
+  Future<void> _handleMediaTapEvent(
+    ReaderMediaTapData? data,
+    Map<String, dynamic>? payload,
+  ) async {
+    final source = ReaderEventParser.selectPayload(
+      typed: data?.toJson(),
+      payload: payload,
+    );
+    if (source == null || !mounted) {
       return;
     }
 
-    final src = _resolveMediaSrc(payload);
+    final src = ReaderEventParser.resolveMediaSource(source);
     if (src == null || src.isEmpty) {
       return;
     }
@@ -218,62 +252,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
   }
 
-  Uri? _resolveExternalUri(Map<String, dynamic> payload) {
-    final resolved = _resolveUrlCandidate(payload, 'resolved');
-    if (resolved != null && resolved.hasScheme) {
-      return resolved;
-    }
-    final href = _resolveUrlCandidate(payload, 'href');
-    if (href != null && href.hasScheme) {
-      return href;
-    }
-    return null;
-  }
-
-  String? _resolveMediaSrc(Map<String, dynamic> payload) {
-    final resolved = _resolveUrlCandidate(payload, 'resolvedSrc');
-    if (resolved != null) {
-      return resolved.toString();
-    }
-    final src = _resolveUrlCandidate(payload, 'src');
-    return src?.toString();
-  }
-
-  Uri? _resolveUrlCandidate(Map<String, dynamic> payload, String key) {
-    final rawValue = _asText(payload[key]);
-    if (rawValue == null || rawValue.isEmpty) {
-      return null;
-    }
-
-    final direct = Uri.tryParse(rawValue);
-    if (direct != null && direct.hasScheme) {
-      return direct;
-    }
-
-    final fromUrl = _asText(payload['fromUrl']);
-    final base = fromUrl == null ? null : Uri.tryParse(fromUrl);
-    if (base != null) {
-      return base.resolve(rawValue);
-    }
-    return direct;
-  }
-
-  String? _asText(Object? value) {
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) {
-      return null;
-    }
-    return text;
-  }
-
-  String _asLowerText(Object? value) {
-    return _asText(value)?.toLowerCase() ?? '';
+  void _scheduleProgressSave(ReadingProgress progress) {
+    _progressWriteQueue.schedule(progress);
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
-    _session?.dispose();
+    unawaited(_progressWriteQueue.close());
+    final subscription = _subscription;
+    if (subscription != null) {
+      unawaited(subscription.cancel().catchError((_) {}));
+    }
+    final session = _session;
+    if (session != null) {
+      unawaited(session.dispose().catchError((_) {}));
+    }
     super.dispose();
   }
 

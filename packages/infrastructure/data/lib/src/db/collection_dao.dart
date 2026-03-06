@@ -112,4 +112,20 @@ class CollectionDao {
         .map((row) => (row.data['collectionId'] as num).toInt())
         .toList();
   }
+
+  Future<Map<int, Set<String>>> listCollectionBookUids() async {
+    final rows = await _db
+        .customSelect(
+          'SELECT collectionId, bookUid FROM collection_items',
+        )
+        .get();
+
+    final result = <int, Set<String>>{};
+    for (final row in rows) {
+      final collectionId = (row.data['collectionId'] as num).toInt();
+      final bookUid = row.data['bookUid'] as String;
+      result.putIfAbsent(collectionId, () => <String>{}).add(bookUid);
+    }
+    return result;
+  }
 }

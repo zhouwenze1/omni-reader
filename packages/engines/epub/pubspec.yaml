@@ -1,4 +1,4 @@
-﻿name: engine_epub
+name: engine_epub
 description: EPUB engine backed by InAppWebView + JS bridge
 publish_to: none
 
@@ -11,8 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  engine_api:
-    path: ../engine_api
+  kernel:
+    path: ../kernel
   foundation_domain:
     path: ../../foundation/domain
   archive: ^3.6.1
@@ -28,5 +28,6 @@ flutter:
     - assets/renderer/index.html
     - assets/renderer/assets/index-DIyYFVx0.js
     - assets/renderer/assets/index-DNsThFnT.css
+
 
 

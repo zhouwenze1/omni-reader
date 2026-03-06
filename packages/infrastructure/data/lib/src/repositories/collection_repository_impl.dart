@@ -46,4 +46,9 @@ class CollectionRepositoryImpl implements CollectionRepository {
   Future<List<CollectionItem>> listCollectionItems(int collectionId) {
     return _dao.listCollectionItems(collectionId);
   }
+
+  @override
+  Future<Map<int, Set<String>>> listCollectionBookUids() {
+    return _dao.listCollectionBookUids();
+  }
 }

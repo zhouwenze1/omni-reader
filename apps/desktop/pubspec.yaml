@@ -1,4 +1,4 @@
-﻿name: reader_desktop
+name: reader_desktop
 description: Desktop app for full reader demo
 publish_to: none
 
@@ -21,10 +21,12 @@ dependencies:
   window_manager: ^0.5.1
   foundation_domain:
     path: ../../packages/foundation/domain
+  foundation_application:
+    path: ../../packages/foundation/application
   infrastructure_data:
     path: ../../packages/infrastructure/data
-  engine_api:
-    path: ../../packages/engines/engine_api
+  kernel:
+    path: ../../packages/engines/kernel
   engine_epub:
     path: ../../packages/engines/epub
   engine_pdf:
@@ -37,6 +39,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
@@ -47,5 +50,6 @@ hooks:
     sqlite3:
       source: system
       name_windows: winsqlite3
+
 
 

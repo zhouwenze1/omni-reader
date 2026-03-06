@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:engine_api/engine_api.dart';
+import 'package:kernel/kernel.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -17,16 +17,20 @@ import 'runtime/locator_normalizer.dart';
 import 'runtime/reader_bridge_service.dart';
 import 'runtime/reader_event_receiver.dart';
 
-class EpubReaderSession implements ReaderSession {
-  EpubReaderSession({required Book book, this.initialProgress})
-      : _book = book,
+class EpubReaderSession extends ReaderSession {
+  EpubReaderSession({
+    required Book book,
+    this.initialProgress,
+    ReaderStyle initialStyle = ReaderStyle.defaults,
+  })  : _book = book,
+        _readerStyle = initialStyle,
         _runtimeFuture = _prepareRuntime(book.uid);
 
   final Book _book;
   final ReadingProgress? initialProgress;
 
-  final StreamController<EngineEvent> _eventsController =
-      StreamController<EngineEvent>.broadcast();
+  final StreamController<ReaderEvent> _eventsController =
+      StreamController<ReaderEvent>.broadcast();
   final Completer<void> _webViewReady = Completer<void>();
   final Completer<void> _pageLoadStopped = Completer<void>();
   final LocatorNormalizer _locatorNormalizer = const LocatorNormalizer();
@@ -41,24 +45,28 @@ class EpubReaderSession implements ReaderSession {
   bool _debugInfoPublished = false;
   bool _inAppDevToolsOpened = false;
 
-  String _layoutMode = 'paged_spread';
-  final Map<String, dynamic> _readerStyle = <String, dynamic>{
-    'theme': 'day',
-    'columnCount': 1,
-    'pageGap': 24,
-    'fontSize': 20,
-    'lineHeight': 1.6,
-    'paddingTop': 16,
-    'paddingRight': 36,
-    'paddingBottom': 16,
-    'paddingLeft': 36,
-    'textIndentEnabled': true,
-    'textIndentEm': 2,
-    'textIndentSkipFirstParagraph': false,
-  };
+  final String _layoutMode = 'paged_spread';
+  ReaderStyle _readerStyle;
 
   @override
-  Stream<EngineEvent> get events => _eventsController.stream;
+  Stream<ReaderEvent> get events => _eventsController.stream;
+
+  @override
+  Set<ReaderCapability> get capabilities => const <ReaderCapability>{
+        ReaderCapability.linearNavigation,
+        ReaderCapability.jumpNavigation,
+        ReaderCapability.style,
+        ReaderCapability.theme,
+        ReaderCapability.externalLink,
+        ReaderCapability.mediaTap,
+        ReaderCapability.selection,
+        ReaderCapability.highlights,
+        ReaderCapability.toc,
+        ReaderCapability.inBookSearch,
+      };
+
+  @override
+  ReaderStyle get style => _readerStyle;
 
   @override
   Widget buildView() {
@@ -89,14 +97,15 @@ class EpubReaderSession implements ReaderSession {
               controllerProvider: () => _controller!,
               emitEvent: _emitEvent,
             );
-            ReaderEventReceiver(
+            final receiver = ReaderEventReceiver(
               controller: controller,
               bookUuid: _book.uid,
               storageService: runtime.bookStorageService,
               locatorNormalizer: _locatorNormalizer,
               uriMapper: runtime.uriMapper,
               emitEvent: _emitEvent,
-            )..registerAll();
+            );
+            receiver.registerAll();
 
             if (!_webViewReady.isCompleted) {
               _webViewReady.complete();
@@ -104,8 +113,8 @@ class EpubReaderSession implements ReaderSession {
           },
           onLoadStart: (_, url) {
             _emitEvent(
-              EngineEvent(
-                type: EngineEventType.log,
+              ReaderEvent(
+                type: ReaderEventType.log,
                 payload: <String, dynamic>{
                   'phase': 'webview.onLoadStart',
                   'url': url?.toString(),
@@ -118,8 +127,8 @@ class EpubReaderSession implements ReaderSession {
               _pageLoadStopped.complete();
             }
             _emitEvent(
-              EngineEvent(
-                type: EngineEventType.log,
+              ReaderEvent(
+                type: ReaderEventType.log,
                 payload: <String, dynamic>{
                   'phase': 'webview.onLoadStop',
                   'url': url?.toString(),
@@ -134,8 +143,8 @@ class EpubReaderSession implements ReaderSession {
                 await controller.openDevTools();
               } catch (error) {
                 _emitEvent(
-                  EngineEvent(
-                    type: EngineEventType.error,
+                  ReaderEvent(
+                    type: ReaderEventType.error,
                     payload: <String, dynamic>{
                       'phase': 'debug.openInAppDevTools',
                       'error': '$error',
@@ -152,8 +161,8 @@ class EpubReaderSession implements ReaderSession {
           },
           onConsoleMessage: (_, message) {
             _emitEvent(
-              EngineEvent(
-                type: EngineEventType.log,
+              ReaderEvent(
+                type: ReaderEventType.log,
                 payload: <String, dynamic>{
                   'phase': 'webview.console',
                   'message': message.message,
@@ -164,8 +173,8 @@ class EpubReaderSession implements ReaderSession {
           },
           onReceivedError: (_, request, error) {
             _emitEvent(
-              EngineEvent(
-                type: EngineEventType.error,
+              ReaderEvent(
+                type: ReaderEventType.error,
                 payload: <String, dynamic>{
                   'phase': 'webview.error',
                   'url': request.url.toString(),
@@ -178,8 +187,8 @@ class EpubReaderSession implements ReaderSession {
           },
           onReceivedHttpError: (_, request, response) {
             _emitEvent(
-              EngineEvent(
-                type: EngineEventType.error,
+              ReaderEvent(
+                type: ReaderEventType.error,
                 payload: <String, dynamic>{
                   'phase': 'webview.httpError',
                   'url': request.url.toString(),
@@ -213,24 +222,14 @@ class EpubReaderSession implements ReaderSession {
   }
 
   @override
-  Future<void> setStyle(Map<String, dynamic> style) async {
-    _readerStyle.addAll(style);
-    final runtime = await _runtimeFuture;
+  Future<void> setStyle(ReaderStyle style) async {
+    _readerStyle = style;
     await _waitWebViewReady();
     final bridge = _bridge;
-    if (bridge == null) {
+    if (bridge == null || !_bootstrapped) {
       return;
     }
-    await bridge.configure(
-      layoutMode: _layoutMode,
-      spineManifest: _buildSpineManifest(runtime),
-      style: Map<String, dynamic>.from(_readerStyle),
-    );
-  }
-
-  @override
-  Future<void> applyTheme(String theme) {
-    return setStyle(<String, dynamic>{'theme': theme});
+    await bridge.setStyle(_readerStyle.toJson());
   }
 
   @override
@@ -282,8 +281,8 @@ class EpubReaderSession implements ReaderSession {
         (normalized['href'] as String?) ?? runtime.metadata.firstSpineHref;
     if (href == null || href.isEmpty) {
       _emitEvent(
-        const EngineEvent(
-          type: EngineEventType.error,
+        const ReaderEvent(
+          type: ReaderEventType.error,
           message: 'goTo failed: no href and no spine item available',
         ),
       );
@@ -314,8 +313,8 @@ class EpubReaderSession implements ReaderSession {
     final ready = await bridge.waitUntilReaderAvailable();
     if (!ready) {
       _emitEvent(
-        const EngineEvent(
-          type: EngineEventType.error,
+        const ReaderEvent(
+          type: ReaderEventType.error,
           payload: <String, dynamic>{
             'phase': 'waitUntilReaderAvailable',
             'timeoutSec': 12,
@@ -331,7 +330,7 @@ class EpubReaderSession implements ReaderSession {
       await bridge.configure(
         layoutMode: _layoutMode,
         spineManifest: _buildSpineManifest(runtime),
-        style: Map<String, dynamic>.from(_readerStyle),
+        style: _readerStyle.toJson(),
       );
       _bootstrapped = true;
     }
@@ -347,8 +346,8 @@ class EpubReaderSession implements ReaderSession {
         (normalized['href'] as String?) ?? runtime.metadata.firstSpineHref;
     if (href == null || href.isEmpty) {
       _emitEvent(
-        const EngineEvent(
-          type: EngineEventType.error,
+        const ReaderEvent(
+          type: ReaderEventType.error,
           message: 'open failed: spine is empty',
         ),
       );
@@ -410,8 +409,8 @@ class EpubReaderSession implements ReaderSession {
 
   void _publishDebugInfo(_SessionRuntime runtime) {
     _emitEvent(
-      EngineEvent(
-        type: EngineEventType.log,
+      ReaderEvent(
+        type: ReaderEventType.log,
         payload: <String, dynamic>{
           'phase': 'debug.startup',
           'debugEnabled': true,
@@ -451,8 +450,8 @@ class EpubReaderSession implements ReaderSession {
       }
     } catch (error) {
       _emitEvent(
-        EngineEvent(
-          type: EngineEventType.error,
+        ReaderEvent(
+          type: ReaderEventType.error,
           payload: <String, dynamic>{
             'phase': 'debug.openExternalBrowser',
             'url': url,
@@ -469,8 +468,8 @@ class EpubReaderSession implements ReaderSession {
       const Duration(seconds: 15),
       onTimeout: () {
         _emitEvent(
-          const EngineEvent(
-            type: EngineEventType.error,
+          const ReaderEvent(
+            type: ReaderEventType.error,
             payload: <String, dynamic>{
               'phase': 'waitWebViewReady',
               'timeoutSec': 15,
@@ -488,8 +487,8 @@ class EpubReaderSession implements ReaderSession {
       const Duration(seconds: 15),
       onTimeout: () {
         _emitEvent(
-          const EngineEvent(
-            type: EngineEventType.error,
+          const ReaderEvent(
+            type: ReaderEventType.error,
             payload: <String, dynamic>{
               'phase': 'waitPageLoadStopped',
               'timeoutSec': 15,
@@ -522,7 +521,7 @@ class EpubReaderSession implements ReaderSession {
     return metadata.spineItems.first.href;
   }
 
-  void _emitEvent(EngineEvent event) {
+  void _emitEvent(ReaderEvent event) {
     if (_eventsController.isClosed) {
       return;
     }
@@ -619,13 +618,14 @@ class EpubReaderSession implements ReaderSession {
 
   @override
   Future<void> dispose() async {
+    try {
+      final runtime = await _runtimeFuture;
+      await runtime.bookStorageService.flushPendingLocator(_book.uid);
+      await runtime.webViewEnvironment?.dispose();
+    } catch (_) {}
     if (!_eventsController.isClosed) {
       await _eventsController.close();
     }
-    try {
-      final runtime = await _runtimeFuture;
-      await runtime.webViewEnvironment?.dispose();
-    } catch (_) {}
   }
 }
 

@@ -11,20 +11,74 @@ class LibraryIndexDao {
   final AppDatabase _db;
 
   Future<List<LibraryIndexEntry>> listAll() async {
-    final rows = await _db
-        .customSelect('SELECT * FROM library_index ORDER BY updatedAt DESC')
-        .get();
+    return query(
+      sortMode: LibrarySortMode.recentRead,
+      filters: const LibraryFilters(),
+    );
+  }
 
+  Future<List<LibraryIndexEntry>> query({
+    required LibrarySortMode sortMode,
+    required LibraryFilters filters,
+  }) async {
+    final where = <String>[];
+    final variables = <Variable<Object>>[];
+
+    if (filters.hasFormatFilter) {
+      final formats = filters.formats.map((it) => it.toLowerCase()).toList()
+        ..sort();
+      if (formats.isNotEmpty) {
+        where.add(
+          'LOWER(format) IN (${List<String>.filled(formats.length, '?').join(', ')})',
+        );
+        for (final format in formats) {
+          variables.add(Variable.withString(format));
+        }
+      }
+    }
+
+    if (filters.hasCategoryFilter) {
+      final categoryIds = filters.categoryIds.toList()..sort();
+      where.add(
+        'categoryId IN (${List<String>.filled(categoryIds.length, '?').join(', ')})',
+      );
+      for (final categoryId in categoryIds) {
+        variables.add(Variable.withString(categoryId));
+      }
+    }
+
+    switch (filters.progress) {
+      case LibraryProgressBucket.all:
+        break;
+      case LibraryProgressBucket.notStarted:
+        where.add('COALESCE(cachedProgress, 0) <= 0.0001');
+        break;
+      case LibraryProgressBucket.inProgress:
+        where.add('COALESCE(cachedProgress, 0) > 0.0001');
+        where.add('COALESCE(cachedProgress, 0) < 0.9999');
+        break;
+      case LibraryProgressBucket.completed:
+        where.add('COALESCE(cachedProgress, 0) >= 0.9999');
+        break;
+    }
+
+    final orderBy = switch (sortMode) {
+      LibrarySortMode.recentRead => 'COALESCE(lastOpenedAt, updatedAt) DESC',
+      LibrarySortMode.importedAt => 'importedAt DESC',
+      LibrarySortMode.name => 'LOWER(title) ASC',
+    };
+
+    final whereSql = where.isEmpty ? '' : ' WHERE ${where.join(' AND ')}';
+    final sql = 'SELECT * FROM library_index$whereSql ORDER BY $orderBy';
+    final rows = await _db.customSelect(sql, variables: variables).get();
     return rows.map(_mapEntry).toList();
   }
 
   Future<LibraryIndexEntry?> findByFingerprint(String fingerprint) async {
-    final rows = await _db
-        .customSelect(
-          'SELECT * FROM library_index WHERE fingerprint = ? LIMIT 1',
-          variables: [Variable.withString(fingerprint)],
-        )
-        .get();
+    final rows = await _db.customSelect(
+      'SELECT * FROM library_index WHERE fingerprint = ? LIMIT 1',
+      variables: [Variable.withString(fingerprint)],
+    ).get();
 
     if (rows.isEmpty) {
       return null;

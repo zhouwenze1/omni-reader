@@ -1,17 +1,17 @@
 import 'dart:convert';
 
-import 'package:engine_api/engine_api.dart';
+import 'package:kernel/kernel.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class ReaderBridgeService {
   ReaderBridgeService({
     required InAppWebViewController Function() controllerProvider,
-    required void Function(EngineEvent event) emitEvent,
+    required void Function(ReaderEvent event) emitEvent,
   })  : _controllerProvider = controllerProvider,
         _emitEvent = emitEvent;
 
   final InAppWebViewController Function() _controllerProvider;
-  final void Function(EngineEvent event) _emitEvent;
+  final void Function(ReaderEvent event) _emitEvent;
 
   Future<bool> waitUntilReaderAvailable({
     Duration timeout = const Duration(seconds: 12),
@@ -75,8 +75,8 @@ class ReaderBridgeService {
     final normalized = _normalizeResult(result);
 
     _emitEvent(
-      EngineEvent(
-        type: EngineEventType.log,
+      ReaderEvent(
+        type: ReaderEventType.log,
         payload: <String, dynamic>{
           'phase': 'invokeReader',
           'method': method,
@@ -90,8 +90,8 @@ class ReaderBridgeService {
         normalized['ok'] == false &&
         normalized['error'] != null) {
       _emitEvent(
-        EngineEvent(
-          type: EngineEventType.error,
+        ReaderEvent(
+          type: ReaderEventType.error,
           payload: <String, dynamic>{
             'phase': 'invokeReader',
             'method': method,

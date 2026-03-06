@@ -10,7 +10,7 @@ class AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -78,6 +78,28 @@ class AppDatabase extends GeneratedDatabase {
         FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
       );
     ''');
+
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_format ON library_index(format);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_category ON library_index(categoryId);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_last_opened ON library_index(lastOpenedAt);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_imported ON library_index(importedAt);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_cached_progress ON library_index(cachedProgress);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items(collectionId);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_collection_items_book ON collection_items(bookUid);',
+    );
   }
 
   Future<bool> _hasColumn(String table, String column) async {

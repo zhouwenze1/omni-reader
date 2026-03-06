@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation_application/application.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/home/home_shell_page.dart';
@@ -13,84 +14,24 @@ import '../features/settings/pages/app_settings_page.dart';
 import '../features/settings/pages/cloud_settings_page.dart';
 import '../features/settings/pages/reader_global_settings_page.dart';
 import '../features/settings/pages/settings_home_page.dart';
-import 'route_paths.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
-    initialLocation: RoutePaths.readingNow,
-    routes: [
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) {
-          return HomeShellPage(navigationShell: navigationShell);
-        },
-        branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: RoutePaths.readingNow,
-                builder: (context, state) => const ReadingNowPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: RoutePaths.library,
-                builder: (context, state) => const LibraryPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: RoutePaths.me,
-                builder: (context, state) => const MePage(),
-              ),
-            ],
-          ),
-        ],
-      ),
-      GoRoute(
-        path: RoutePaths.readerPattern,
-        builder: (context, state) {
-          final uid = state.pathParameters['uid']!;
-          return ReaderPage(bookUid: uid);
-        },
-      ),
-      GoRoute(
-        path: RoutePaths.tocPattern,
-        builder: (context, state) {
-          final uid = state.pathParameters['uid']!;
-          return TocDrawerPage(bookUid: uid);
-        },
-      ),
-      GoRoute(
-        path: RoutePaths.searchInBookPattern,
-        builder: (context, state) {
-          final uid = state.pathParameters['uid']!;
-          return SearchInBookPage(bookUid: uid);
-        },
-      ),
-      GoRoute(
-        path: RoutePaths.settingsHome,
-        builder: (context, state) => const SettingsHomePage(),
-      ),
-      GoRoute(
-        path: RoutePaths.appSettings,
-        builder: (context, state) => const AppSettingsPage(),
-      ),
-      GoRoute(
-        path: RoutePaths.readerSettings,
-        builder: (context, state) => const ReaderGlobalSettingsPage(),
-      ),
-      GoRoute(
-        path: RoutePaths.cloudSettings,
-        builder: (context, state) => const CloudSettingsPage(),
-      ),
-      GoRoute(
-        path: RoutePaths.about,
-        builder: (context, state) => const AboutPage(),
-      ),
-    ],
+  return buildReaderAppRouter(
+    pages: ReaderAppRouterPages(
+      homeShellBuilder: (context, navigationShell) {
+        return HomeShellPage(navigationShell: navigationShell);
+      },
+      readingNowBuilder: (context) => const ReadingNowPage(),
+      libraryBuilder: (context) => const LibraryPage(),
+      meBuilder: (context) => const MePage(),
+      readerBuilder: (context, uid) => ReaderPage(bookUid: uid),
+      tocBuilder: (context, uid) => TocDrawerPage(bookUid: uid),
+      searchInBookBuilder: (context, uid) => SearchInBookPage(bookUid: uid),
+      settingsHomeBuilder: (context) => const SettingsHomePage(),
+      appSettingsBuilder: (context) => const AppSettingsPage(),
+      readerSettingsBuilder: (context) => const ReaderGlobalSettingsPage(),
+      cloudSettingsBuilder: (context) => const CloudSettingsPage(),
+      aboutBuilder: (context) => const AboutPage(),
+    ),
   );
 });

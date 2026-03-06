@@ -1,39 +1,71 @@
 import 'dart:async';
 
-import 'package:engine_api/engine_api.dart';
+import 'package:kernel/kernel.dart';
 import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
 
-class LdfReaderEngine implements ReaderEngine {
+class LdfReaderEngine extends ReaderEngine {
+  static const Set<String> _formats = <String>{'ldf'};
+
+  static const Set<ReaderCapability> _capabilities = <ReaderCapability>{
+    ReaderCapability.linearNavigation,
+    ReaderCapability.jumpNavigation,
+    ReaderCapability.style,
+    ReaderCapability.theme,
+  };
+
   @override
   String get id => 'ldf';
 
   @override
-  bool supportsFormat(String format) => format.toLowerCase() == 'ldf';
+  String get displayName => 'LDF';
+
+  @override
+  Set<String> get supportedFormats => _formats;
+
+  @override
+  Set<ReaderCapability> get capabilities => _capabilities;
 
   @override
   Future<ReaderSession> createSession({
     required Book book,
     ReadingProgress? initialProgress,
+    ReaderStyle initialStyle = ReaderStyle.defaults,
   }) async {
-    return _LdfStubSession(book: book, initialProgress: initialProgress);
+    return _LdfStubSession(
+      book: book,
+      initialProgress: initialProgress,
+      initialStyle: initialStyle,
+    );
   }
 }
 
-class _LdfStubSession implements ReaderSession {
-  _LdfStubSession({required Book book, this.initialProgress}) : _book = book {
+class _LdfStubSession extends ReaderSession {
+  _LdfStubSession({
+    required Book book,
+    this.initialProgress,
+    required ReaderStyle initialStyle,
+  })  : _book = book,
+        _style = initialStyle {
     _progress = initialProgress?.progression ?? 0;
   }
 
   final Book _book;
   final ReadingProgress? initialProgress;
-  final StreamController<EngineEvent> _events =
-      StreamController<EngineEvent>.broadcast();
+  final StreamController<ReaderEvent> _events =
+      StreamController<ReaderEvent>.broadcast();
+  ReaderStyle _style;
 
   double _progress = 0;
 
   @override
-  Stream<EngineEvent> get events => _events.stream;
+  Stream<ReaderEvent> get events => _events.stream;
+
+  @override
+  Set<ReaderCapability> get capabilities => LdfReaderEngine._capabilities;
+
+  @override
+  ReaderStyle get style => _style;
 
   @override
   Widget buildView() {
@@ -76,8 +108,8 @@ class _LdfStubSession implements ReaderSession {
   @override
   Future<void> open() async {
     _events.add(
-      EngineEvent(
-        type: EngineEventType.ready,
+      ReaderEvent(
+        type: ReaderEventType.ready,
         payload: {'format': 'ldf', 'bookUid': _book.uid},
       ),
     );
@@ -85,10 +117,14 @@ class _LdfStubSession implements ReaderSession {
   }
 
   @override
-  Future<void> setStyle(Map<String, dynamic> style) async {}
+  Future<void> setStyle(ReaderStyle style) async {
+    _style = style;
+  }
 
   @override
-  Future<void> applyTheme(String theme) async {}
+  Future<void> applyTheme(String theme) async {
+    _style = _style.copyWith(theme: theme);
+  }
 
   @override
   Future<void> navigateNext() async {
@@ -113,8 +149,8 @@ class _LdfStubSession implements ReaderSession {
 
   void _emitRelocated({Locator? locator}) {
     _events.add(
-      EngineEvent(
-        type: EngineEventType.relocated,
+      ReaderEvent(
+        type: ReaderEventType.relocated,
         locator: locator ?? Locator(locations: {'progression': _progress}),
         payload: {'progression': _progress, 'format': 'ldf'},
       ),

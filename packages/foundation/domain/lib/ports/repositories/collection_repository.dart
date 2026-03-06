@@ -16,4 +16,6 @@ abstract class CollectionRepository {
   Future<void> removeBookFromAllCollections(String bookUid);
 
   Future<List<CollectionItem>> listCollectionItems(int collectionId);
+
+  Future<Map<int, Set<String>>> listCollectionBookUids();
 }

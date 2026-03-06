@@ -1,19 +1,22 @@
+import 'package:foundation_application/application.dart';
+
 class RoutePaths {
-  static const String readingNow = '/reading-now';
-  static const String library = '/library';
-  static const String me = '/me';
+  static const String readingNow = ReaderRoutePaths.readingNow;
+  static const String library = ReaderRoutePaths.library;
+  static const String me = ReaderRoutePaths.me;
 
-  static const String readerPattern = '/reader/:uid';
-  static const String tocPattern = '/reader/:uid/toc';
-  static const String searchInBookPattern = '/reader/:uid/search';
+  static const String readerPattern = ReaderRoutePaths.readerPattern;
+  static const String tocPattern = ReaderRoutePaths.tocPattern;
+  static const String searchInBookPattern =
+      ReaderRoutePaths.searchInBookPattern;
 
-  static const String settingsHome = '/settings';
-  static const String appSettings = '/settings/app';
-  static const String readerSettings = '/settings/reader';
-  static const String cloudSettings = '/settings/cloud';
-  static const String about = '/settings/about';
+  static const String settingsHome = ReaderRoutePaths.settingsHome;
+  static const String appSettings = ReaderRoutePaths.appSettings;
+  static const String readerSettings = ReaderRoutePaths.readerSettings;
+  static const String cloudSettings = ReaderRoutePaths.cloudSettings;
+  static const String about = ReaderRoutePaths.about;
 
-  static String reader(String uid) => '/reader/$uid';
-  static String toc(String uid) => '/reader/$uid/toc';
-  static String searchInBook(String uid) => '/reader/$uid/search';
+  static String reader(String uid) => ReaderRoutePaths.reader(uid);
+  static String toc(String uid) => ReaderRoutePaths.toc(uid);
+  static String searchInBook(String uid) => ReaderRoutePaths.searchInBook(uid);
 }

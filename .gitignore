@@ -1,0 +1,33 @@
+.DS_Store
+Thumbs.db
+
+# Dart / Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+
+# Build outputs
+build/
+dist/
+coverage/
+**/build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Platform tooling / generated
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+**/ephemeral/
+**/generated_plugin_registrant.*
+**/generated_plugins.cmake
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp

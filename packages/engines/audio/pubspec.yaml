@@ -1,4 +1,4 @@
-﻿name: engine_audio
+name: engine_audio
 description: Stub audio reader engine
 publish_to: none
 
@@ -11,9 +11,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  engine_api:
-    path: ../engine_api
+  kernel:
+    path: ../kernel
   foundation_domain:
     path: ../../foundation/domain
+
 
 
