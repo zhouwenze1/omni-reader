@@ -6,37 +6,60 @@ class ReaderTopBar extends StatelessWidget {
     required this.onBackPressed,
     required this.title,
     required this.actions,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.borderColor,
   });
 
   final VoidCallback onBackPressed;
   final String title;
   final List<Widget> actions;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final Color borderColor;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.72),
-      child: SizedBox(
-        height: kToolbarHeight,
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: onBackPressed,
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+      color: backgroundColor,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: borderColor),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: borderColor.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-            ...actions,
           ],
+        ),
+        child: SizedBox(
+          height: kToolbarHeight,
+          child: IconTheme(
+            data: IconThemeData(color: foregroundColor),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: onBackPressed,
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foregroundColor,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                ...actions,
+              ],
+            ),
+          ),
         ),
       ),
     );

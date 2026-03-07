@@ -9,9 +9,9 @@ class ProgressRepositoryImpl implements ProgressRepository {
     required StoragePaths storagePaths,
     required FileService fileService,
     required LibraryIndexDao libraryIndexDao,
-  }) : _storagePaths = storagePaths,
-       _fileService = fileService,
-       _libraryIndexDao = libraryIndexDao;
+  })  : _storagePaths = storagePaths,
+        _fileService = fileService,
+        _libraryIndexDao = libraryIndexDao;
 
   final StoragePaths _storagePaths;
   final FileService _fileService;
@@ -43,6 +43,8 @@ class ProgressRepositoryImpl implements ProgressRepository {
     await _libraryIndexDao.updateCachedProgress(
       progress.bookUid,
       progress.progression,
+      updatedAt: progress.updatedAt,
+      lastOpenedAt: progress.lastReadAt,
     );
   }
 }

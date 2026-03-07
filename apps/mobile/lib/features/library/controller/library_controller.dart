@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
@@ -21,16 +21,26 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
         super(const MobileLibraryState.initial());
 
   final BookRepository _bookRepository;
+  int _requestId = 0;
 
   Future<void> load() async {
+    final requestId = ++_requestId;
     state = state.copyWith(status: LibraryPageStatus.loading, clearError: true);
+    final sortMode = state.sortMode;
+    final filters = state.filters;
     try {
-      final items = await _bookRepository.listLibraryIndex(
-        sortMode: state.sortMode,
-        filters: state.filters,
+      final nextState = await _queryState(
+        sortMode: sortMode,
+        filters: filters,
       );
-      state = _buildState(items);
+      if (requestId != _requestId) {
+        return;
+      }
+      state = nextState;
     } catch (error) {
+      if (requestId != _requestId) {
+        return;
+      }
       state = state.copyWith(
         status: LibraryPageStatus.error,
         errorMessage: 'Load failed: $error',
@@ -88,13 +98,22 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
   }
 
   Future<void> _reload() async {
+    final requestId = ++_requestId;
+    final sortMode = state.sortMode;
+    final filters = state.filters;
     try {
-      final items = await _bookRepository.listLibraryIndex(
-        sortMode: state.sortMode,
-        filters: state.filters,
+      final nextState = await _queryState(
+        sortMode: sortMode,
+        filters: filters,
       );
-      state = _buildState(items);
+      if (requestId != _requestId) {
+        return;
+      }
+      state = nextState;
     } catch (error) {
+      if (requestId != _requestId) {
+        return;
+      }
       state = state.copyWith(
         status: LibraryPageStatus.error,
         errorMessage: 'Reload failed: $error',
@@ -102,14 +121,30 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
     }
   }
 
-  MobileLibraryState _buildState(List<LibraryIndexEntry> items) {
-    final formats = items.map((e) => e.format).toSet();
-    final categories = items
+  Future<MobileLibraryState> _queryState({
+    required LibrarySortMode sortMode,
+    required LibraryFilters filters,
+  }) async {
+    final allItems = await _bookRepository.listLibraryIndex(sortMode: sortMode);
+    final items = await _bookRepository.listLibraryIndex(
+      sortMode: sortMode,
+      filters: filters,
+    );
+    return _buildState(items, allItems);
+  }
+
+  MobileLibraryState _buildState(
+    List<LibraryIndexEntry> items,
+    List<LibraryIndexEntry> allItems,
+  ) {
+    final formats = allItems.map((e) => e.format).toSet();
+    final categories = allItems
         .map((e) => e.categoryId ?? '')
         .where((e) => e.isNotEmpty)
         .toSet();
     return state.copyWith(
-      status: items.isEmpty ? LibraryPageStatus.empty : LibraryPageStatus.normal,
+      status:
+          allItems.isEmpty ? LibraryPageStatus.empty : LibraryPageStatus.normal,
       items: items,
       availableFormats: formats,
       availableCategories: categories,

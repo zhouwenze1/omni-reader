@@ -7,23 +7,29 @@ class ReaderShell extends StatelessWidget {
     required this.body,
     required this.bottomBar,
     required this.chromeVisible,
+    required this.backgroundColor,
     this.floatingActionButton,
+    this.immersiveOverlay,
+    this.immersiveOverlayPadding = const EdgeInsets.fromLTRB(16, 0, 16, 12),
   });
 
   final Widget topBar;
   final Widget body;
   final Widget bottomBar;
   final bool chromeVisible;
+  final Color backgroundColor;
   final Widget? floatingActionButton;
+  final Widget? immersiveOverlay;
+  final EdgeInsets immersiveOverlayPadding;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: backgroundColor,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          body,
+          Positioned.fill(child: body),
           Align(
             alignment: Alignment.topCenter,
             child: SafeArea(
@@ -51,6 +57,21 @@ class ReaderShell extends StatelessWidget {
                 visible: chromeVisible,
                 hiddenOffset: const Offset(0, 0.3),
                 child: floatingActionButton!,
+              ),
+            ),
+          if (immersiveOverlay != null)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: SafeArea(
+                top: false,
+                minimum: immersiveOverlayPadding,
+                child: _ChromeSlot(
+                  visible: !chromeVisible,
+                  hiddenOffset: const Offset(0, 0.3),
+                  child: IgnorePointer(
+                    child: immersiveOverlay!,
+                  ),
+                ),
               ),
             ),
         ],

@@ -48,9 +48,9 @@ class MeController extends StateNotifier<MeState> {
       for (final item in items) {
         final progress = (item.cachedProgress ?? 0).clamp(0.0, 1.0);
         progressSum += progress;
-        if (progress >= 0.98) {
+        if (progress >= libraryProgressCompletedThreshold) {
           completedBooks += 1;
-        } else if (progress <= 0.0001) {
+        } else if (progress <= libraryProgressStartedThreshold) {
           notStartedBooks += 1;
         } else {
           inProgressBooks += 1;
@@ -84,7 +84,7 @@ class MeController extends StateNotifier<MeState> {
         highlightsCount: counters.highlights,
         notesCount: counters.notes,
         bookmarksCount: counters.bookmarks,
-        recentBooks: items.take(5).toList(),
+        recentBooks: items.where(_hasReadingActivity).take(5).toList(),
         latestOpenedAt: latestOpenedAt,
         clearError: true,
       );
@@ -130,6 +130,12 @@ class MeController extends StateNotifier<MeState> {
       notes: notes,
       bookmarks: bookmarks,
     );
+  }
+
+  bool _hasReadingActivity(LibraryIndexEntry item) {
+    final progress = (item.cachedProgress ?? 0).clamp(0.0, 1.0);
+    return item.lastOpenedAt != null ||
+        progress > libraryProgressStartedThreshold;
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,12 +11,16 @@ import 'package:kernel/kernel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../di/engines_providers.dart';
+import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../l10n/l10n.dart';
 import '../../../routes/route_paths.dart';
+import '../../library/controller/library_controller.dart';
+import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/dictionary_sheet.dart';
 import '../widgets/reader_bottom_bar.dart';
+import '../widgets/reader_immersive_hud.dart';
 import '../widgets/reader_settings_panel.dart';
 import '../widgets/reader_shell.dart';
 import '../widgets/reader_top_bar.dart';
@@ -42,8 +47,14 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage>
     with WidgetsBindingObserver {
+  static const MethodChannel _deviceStatusChannel = MethodChannel(
+    'reader_mobile/device_status',
+  );
+  static const double _immersiveHudReserveHeight = 44;
+
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
+  Timer? _deviceStatusTimer;
   ProgressRepository? _progressRepository;
   Book? _book;
   ReadingProgress? _progress;
@@ -52,6 +63,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _chromeVisible = true;
   bool _isProgressDragging = false;
   double _sliderProgress = 0;
+  DateTime _deviceNow = DateTime.now();
+  int? _batteryLevel;
+  SystemUiOverlayStyle _restoreOverlayStyle = SystemUiOverlayStyle.dark;
 
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
 
@@ -66,12 +80,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _textIndentSkipFirstParagraph = false;
   String _layoutMode = ReaderLayoutMode.pagedAuto;
   String? _appliedRendererLayoutMode;
+  String? _appliedReaderStyleSignature;
   bool _layoutSyncScheduled = false;
+  bool _readerStyleSyncScheduled = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _startDeviceStatusRefresh();
     _progressWriteQueue = DebouncedAsyncWriter<ReadingProgress>(
       debounce: const Duration(milliseconds: 280),
       writer: (progress) async {
@@ -87,6 +104,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       },
     );
     _init();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _restoreOverlayStyle =
+        _overlayStyleForBrightness(Theme.of(context).brightness);
   }
 
   Future<void> _init() async {
@@ -173,6 +197,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _book = book;
         _progress = progress;
         _sliderProgress = progress?.progression ?? 0;
+        _appliedReaderStyleSignature = _readerStyleSignature(
+          _currentReaderStyle(),
+        );
         _appliedRendererLayoutMode = initialLayoutMode;
         _session = session;
         _loading = false;
@@ -205,20 +232,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   ReaderStyle _currentReaderStyle() {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final viewPadding = mediaQuery?.viewPadding ?? EdgeInsets.zero;
     return ReaderStyle(
       theme: _rendererTheme,
       columnCount: 1,
       pageGap: _pageGap.round(),
       fontSize: _fontSize.round(),
       lineHeight: _lineHeight,
-      paddingTop: _paddingVertical.round(),
-      paddingRight: _paddingHorizontal.round(),
-      paddingBottom: _paddingVertical.round(),
-      paddingLeft: _paddingHorizontal.round(),
+      paddingTop: (_paddingVertical + viewPadding.top).round(),
+      paddingRight: (_paddingHorizontal + viewPadding.right).round(),
+      paddingBottom:
+          (_paddingVertical + viewPadding.bottom + _immersiveHudReserveHeight)
+              .round(),
+      paddingLeft: (_paddingHorizontal + viewPadding.left).round(),
       textIndentEnabled: _textIndentEnabled,
       textIndentEm: _textIndentEm,
       textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
     );
+  }
+
+  String _readerStyleSignature(ReaderStyle style) {
+    return jsonEncode(style.toJson());
   }
 
   String _resolveRendererLayoutMode() {
@@ -270,6 +305,43 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
   }
 
+  Future<void> _syncViewportReaderStyle({bool force = false}) async {
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+    final nextStyle = _currentReaderStyle();
+    final nextSignature = _readerStyleSignature(nextStyle);
+    if (!force && nextSignature == _appliedReaderStyleSignature) {
+      return;
+    }
+    try {
+      await session.setStyle(nextStyle);
+      _appliedReaderStyleSignature = nextSignature;
+    } catch (error) {
+      debugPrint('[mobile-reader][syncViewportReaderStyle.error] $error');
+    }
+  }
+
+  void _scheduleViewportReaderStyleSync() {
+    final session = _session;
+    if (session == null || _readerStyleSyncScheduled) {
+      return;
+    }
+    final nextSignature = _readerStyleSignature(_currentReaderStyle());
+    if (nextSignature == _appliedReaderStyleSignature) {
+      return;
+    }
+    _readerStyleSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _readerStyleSyncScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      unawaited(_syncViewportReaderStyle());
+    });
+  }
+
   Future<void> _openSession(ReaderSession session) async {
     try {
       await session.open();
@@ -288,22 +360,80 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   }
 
-  SystemUiOverlayStyle _defaultOverlayStyleForTheme() {
-    final brightness = Theme.of(context).brightness;
+  void _startDeviceStatusRefresh() {
+    unawaited(_refreshDeviceStatus());
+    _scheduleNextDeviceStatusRefresh();
+  }
+
+  void _scheduleNextDeviceStatusRefresh() {
+    if (!mounted) {
+      return;
+    }
+    _deviceStatusTimer?.cancel();
+    final now = DateTime.now();
+    final nextMinute = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+      now.minute + 1,
+    );
+    _deviceStatusTimer = Timer(nextMinute.difference(now), () {
+      unawaited(
+        _refreshDeviceStatus().whenComplete(_scheduleNextDeviceStatusRefresh),
+      );
+    });
+  }
+
+  Future<void> _refreshDeviceStatus() async {
+    final now = DateTime.now();
+    final batteryLevel = await _readBatteryLevel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _deviceNow = now;
+      _batteryLevel = batteryLevel ?? _batteryLevel;
+    });
+  }
+
+  Future<int?> _readBatteryLevel() async {
+    try {
+      final level = await _deviceStatusChannel.invokeMethod<int>(
+        'getBatteryLevel',
+      );
+      if (level == null || level < 0 || level > 100) {
+        return null;
+      }
+      return level;
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  String _buildImmersiveProgressText() {
+    final percent = _sliderProgress.clamp(0.0, 1.0) * 100;
+    return '${percent.toStringAsFixed(percent >= 10 ? 0 : 1)}%';
+  }
+
+  SystemUiOverlayStyle _overlayStyleForBrightness(Brightness brightness) {
     return brightness == Brightness.dark
         ? SystemUiOverlayStyle.light
         : SystemUiOverlayStyle.dark;
   }
 
-  Future<void> _restoreSystemUi() async {
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(_defaultOverlayStyleForTheme());
+  void _restoreSystemUi() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(_restoreOverlayStyle);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(_enterImmersiveMode());
+      unawaited(_refreshDeviceStatus());
     }
   }
 
@@ -466,9 +596,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             layoutMode: _layoutMode,
             progressDisplay: 'bar',
           );
+      final nextStyle = _currentReaderStyle();
       await session.setLayoutMode(_resolveRendererLayoutMode());
       _appliedRendererLayoutMode = _resolveRendererLayoutMode();
-      await session.setStyle(_currentReaderStyle());
+      await session.setStyle(nextStyle);
+      _appliedReaderStyleSignature = _readerStyleSignature(nextStyle);
       await ref
           .read(settingsControllerProvider.notifier)
           .updateReader(nextSettings);
@@ -754,6 +886,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deviceStatusTimer?.cancel();
+    ref.invalidate(libraryIndexProvider);
+    ref.invalidate(mobileLibraryControllerProvider);
+    ref.invalidate(meControllerProvider);
     unawaited(_progressWriteQueue.close());
     final subscription = _subscription;
     if (subscription != null) {
@@ -763,7 +899,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (session != null) {
       unawaited(session.dispose().catchError((_) {}));
     }
-    unawaited(_restoreSystemUi());
+    _restoreSystemUi();
     super.dispose();
   }
 
@@ -785,12 +921,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
     final book = _book!;
     _scheduleViewportLayoutSync();
+    _scheduleViewportReaderStyleSync();
+    final chromePalette = _ReaderChromePalette.resolve(_rendererTheme);
+    final immersiveOverlayHorizontalPadding =
+        _paddingHorizontal.clamp(20, 44).toDouble();
 
     return ReaderShell(
+      backgroundColor: chromePalette.pageBackground,
       chromeVisible: _chromeVisible,
       topBar: ReaderTopBar(
         onBackPressed: () => Navigator.of(context).maybePop(),
         title: book.title,
+        backgroundColor: chromePalette.chromeBackground,
+        foregroundColor: chromePalette.chromeForeground,
+        borderColor: chromePalette.chromeBorder,
         actions: [
           IconButton(
             tooltip: l10n.search,
@@ -798,26 +942,46 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               await context.push(RoutePaths.searchInBook(book.uid));
               await _enterImmersiveMode();
             },
-            icon: const Icon(Icons.search, color: Colors.white),
+            icon: Icon(Icons.search, color: chromePalette.chromeForeground),
           ),
           IconButton(
             tooltip: l10n.switchThemeQuick,
             onPressed: _toggleTheme,
             icon: Icon(
               _rendererTheme == 'day' ? Icons.dark_mode : Icons.light_mode,
-              color: Colors.white,
+              color: chromePalette.chromeForeground,
             ),
           ),
         ],
+      ),
+      immersiveOverlayPadding: EdgeInsets.fromLTRB(
+        immersiveOverlayHorizontalPadding,
+        0,
+        immersiveOverlayHorizontalPadding,
+        12,
+      ),
+      immersiveOverlay: ReaderImmersiveHud(
+        timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
+        batteryLevel: _batteryLevel,
+        progress: _sliderProgress,
+        progressText: _buildImmersiveProgressText(),
+        darkMode: chromePalette.isDark,
       ),
       body: _session!.buildView(),
       floatingActionButton: FloatingActionButton.small(
         heroTag: 'selectionTools',
         onPressed: _openSelectionTools,
+        backgroundColor: chromePalette.fabBackground,
+        foregroundColor: chromePalette.fabForeground,
         child: const Icon(Icons.auto_awesome),
       ),
       bottomBar: ReaderBottomBar(
         progress: _sliderProgress,
+        backgroundColor: chromePalette.chromeBackground,
+        foregroundColor: chromePalette.chromeForeground,
+        borderColor: chromePalette.chromeBorder,
+        progressActiveColor: chromePalette.sliderActive,
+        progressInactiveColor: chromePalette.sliderInactive,
         onProgressChangeStart: _handleProgressChangeStart,
         onProgressChanged: (value) {
           setState(() {
@@ -846,4 +1010,72 @@ class _ReaderSheetAction {
   final String value;
   final IconData icon;
   final String label;
+}
+
+class _ReaderChromePalette {
+  const _ReaderChromePalette({
+    required this.pageBackground,
+    required this.chromeBackground,
+    required this.chromeForeground,
+    required this.chromeBorder,
+    required this.sliderActive,
+    required this.sliderInactive,
+    required this.fabBackground,
+    required this.fabForeground,
+    required this.isDark,
+  });
+
+  final Color pageBackground;
+  final Color chromeBackground;
+  final Color chromeForeground;
+  final Color chromeBorder;
+  final Color sliderActive;
+  final Color sliderInactive;
+  final Color fabBackground;
+  final Color fabForeground;
+  final bool isDark;
+
+  static _ReaderChromePalette resolve(String theme) {
+    final normalized = theme.toLowerCase();
+    if (normalized == 'night' || normalized == 'dark') {
+      const foreground = Color(0xFFE7EAF0);
+      return _ReaderChromePalette(
+        pageBackground: const Color(0xFF0F1115),
+        chromeBackground: const Color(0xE60F1115),
+        chromeForeground: foreground,
+        chromeBorder: const Color(0x26FFFFFF),
+        sliderActive: foreground,
+        sliderInactive: const Color(0x33E7EAF0),
+        fabBackground: const Color(0xFF1A1E26),
+        fabForeground: foreground,
+        isDark: true,
+      );
+    }
+    if (normalized == 'sepia' || normalized == 'tea') {
+      const foreground = Color(0xFF3B2F24);
+      return _ReaderChromePalette(
+        pageBackground: const Color(0xFFF4ECD8),
+        chromeBackground: const Color(0xEEF4ECD8),
+        chromeForeground: foreground,
+        chromeBorder: const Color(0x1F000000),
+        sliderActive: foreground,
+        sliderInactive: const Color(0x333B2F24),
+        fabBackground: const Color(0xFFE8DCC0),
+        fabForeground: foreground,
+        isDark: false,
+      );
+    }
+    const foreground = Color(0xFF111318);
+    return _ReaderChromePalette(
+      pageBackground: Colors.white,
+      chromeBackground: const Color(0xEEFFFFFF),
+      chromeForeground: foreground,
+      chromeBorder: const Color(0x16000000),
+      sliderActive: foreground,
+      sliderInactive: const Color(0x33111318),
+      fabBackground: const Color(0xFFF3F5F8),
+      fabForeground: foreground,
+      isDark: false,
+    );
+  }
 }

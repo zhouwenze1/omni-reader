@@ -51,19 +51,29 @@ class LibraryIndexDao {
       case LibraryProgressBucket.all:
         break;
       case LibraryProgressBucket.notStarted:
-        where.add('COALESCE(cachedProgress, 0) <= 0.0001');
+        where.add(
+          'COALESCE(cachedProgress, 0) <= $libraryProgressStartedThreshold',
+        );
         break;
       case LibraryProgressBucket.inProgress:
-        where.add('COALESCE(cachedProgress, 0) > 0.0001');
-        where.add('COALESCE(cachedProgress, 0) < 0.9999');
+        where.add(
+          'COALESCE(cachedProgress, 0) > $libraryProgressStartedThreshold',
+        );
+        where.add(
+          'COALESCE(cachedProgress, 0) < $libraryProgressCompletedThreshold',
+        );
         break;
       case LibraryProgressBucket.completed:
-        where.add('COALESCE(cachedProgress, 0) >= 0.9999');
+        where.add(
+          'COALESCE(cachedProgress, 0) >= $libraryProgressCompletedThreshold',
+        );
         break;
     }
 
     final orderBy = switch (sortMode) {
-      LibrarySortMode.recentRead => 'COALESCE(lastOpenedAt, updatedAt) DESC',
+      LibrarySortMode.recentRead =>
+        'CASE WHEN lastOpenedAt IS NULL THEN 1 ELSE 0 END ASC, '
+            'COALESCE(lastOpenedAt, updatedAt) DESC',
       LibrarySortMode.importedAt => 'importedAt DESC',
       LibrarySortMode.name => 'LOWER(title) ASC',
     };
@@ -122,10 +132,30 @@ class LibraryIndexDao {
     );
   }
 
-  Future<void> updateCachedProgress(String bookUid, double progression) async {
+  Future<void> updateCachedProgress(
+    String bookUid,
+    double progression, {
+    required DateTime updatedAt,
+    DateTime? lastOpenedAt,
+  }) async {
+    if (lastOpenedAt == null) {
+      await _db.customStatement(
+        'UPDATE library_index SET cachedProgress = ?, updatedAt = ? WHERE bookUid = ?',
+        [progression, updatedAt.millisecondsSinceEpoch, bookUid],
+      );
+      return;
+    }
+
     await _db.customStatement(
-      'UPDATE library_index SET cachedProgress = ?, updatedAt = ? WHERE bookUid = ?',
-      [progression, DateTime.now().millisecondsSinceEpoch, bookUid],
+      'UPDATE library_index '
+      'SET cachedProgress = ?, updatedAt = ?, lastOpenedAt = ? '
+      'WHERE bookUid = ?',
+      [
+        progression,
+        updatedAt.millisecondsSinceEpoch,
+        lastOpenedAt.millisecondsSinceEpoch,
+        bookUid,
+      ],
     );
   }
 

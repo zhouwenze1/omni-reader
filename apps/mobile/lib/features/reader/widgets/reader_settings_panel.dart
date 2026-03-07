@@ -3,7 +3,7 @@ import 'package:foundation_domain/domain.dart';
 
 import '../../../l10n/l10n.dart';
 
-class ReaderSettingsPanel extends StatelessWidget {
+class ReaderSettingsPanel extends StatefulWidget {
   const ReaderSettingsPanel({
     super.key,
     required this.settings,
@@ -12,6 +12,34 @@ class ReaderSettingsPanel extends StatelessWidget {
 
   final ReaderSettings settings;
   final ValueChanged<ReaderSettings> onChanged;
+
+  @override
+  State<ReaderSettingsPanel> createState() => _ReaderSettingsPanelState();
+}
+
+class _ReaderSettingsPanelState extends State<ReaderSettingsPanel> {
+  late ReaderSettings _settings;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = widget.settings;
+  }
+
+  @override
+  void didUpdateWidget(covariant ReaderSettingsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settings != widget.settings) {
+      _settings = widget.settings;
+    }
+  }
+
+  void _updateSettings(ReaderSettings next) {
+    setState(() {
+      _settings = next;
+    });
+    widget.onChanged(next);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,31 +70,32 @@ class ReaderSettingsPanel extends StatelessWidget {
               const SizedBox(height: 12),
               _slider(
                 title: l10n.fontSize,
-                value: settings.fontSize,
+                value: _settings.fontSize,
                 min: 12,
                 max: 42,
                 onChanged: (value) =>
-                    onChanged(settings.copyWith(fontSize: value)),
+                    _updateSettings(_settings.copyWith(fontSize: value)),
               ),
               _slider(
                 title: l10n.lineHeight,
-                value: settings.lineHeight,
+                value: _settings.lineHeight,
                 min: 1.1,
                 max: 2.4,
                 onChanged: (value) =>
-                    onChanged(settings.copyWith(lineHeight: value)),
+                    _updateSettings(_settings.copyWith(lineHeight: value)),
               ),
               _slider(
                 title: l10n.pageGap,
-                value: settings.pageGap,
+                value: _settings.pageGap,
                 min: 0,
                 max: 80,
                 onChanged: (value) =>
-                    onChanged(settings.copyWith(pageGap: value)),
+                    _updateSettings(_settings.copyWith(pageGap: value)),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: settings.rendererTheme,
+                key: ValueKey('theme-${_settings.rendererTheme}'),
+                initialValue: _settings.rendererTheme,
                 decoration: InputDecoration(labelText: l10n.theme),
                 items: [
                   DropdownMenuItem(value: 'day', child: Text(l10n.dayTheme)),
@@ -81,13 +110,14 @@ class ReaderSettingsPanel extends StatelessWidget {
                 ],
                 onChanged: (value) {
                   if (value != null) {
-                    onChanged(settings.copyWith(rendererTheme: value));
+                    _updateSettings(_settings.copyWith(rendererTheme: value));
                   }
                 },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: settings.layoutMode,
+                key: ValueKey('layout-${_settings.layoutMode}'),
+                initialValue: _settings.layoutMode,
                 decoration: InputDecoration(labelText: l10n.layoutMode),
                 items: [
                   DropdownMenuItem(
@@ -113,7 +143,7 @@ class ReaderSettingsPanel extends StatelessWidget {
                 ],
                 onChanged: (value) {
                   if (value != null) {
-                    onChanged(settings.copyWith(layoutMode: value));
+                    _updateSettings(_settings.copyWith(layoutMode: value));
                   }
                 },
               ),
@@ -126,9 +156,9 @@ class ReaderSettingsPanel extends StatelessWidget {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(l10n.enableTextIndent),
-                value: settings.textIndentEnabled,
-                onChanged: (value) => onChanged(
-                  settings.copyWith(textIndentEnabled: value),
+                value: _settings.textIndentEnabled,
+                onChanged: (value) => _updateSettings(
+                  _settings.copyWith(textIndentEnabled: value),
                 ),
               ),
             ],

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation_domain/domain.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../di/providers.dart';
 import '../../../routes/route_paths.dart';
+import '../../../shared_ui/widgets/empty_view.dart';
 import '../../../utils/formatters.dart';
 
 class ReadingHistoryPage extends ConsumerWidget {
@@ -19,13 +21,17 @@ class ReadingHistoryPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('加载失败: $error')),
         data: (items) {
-          final sorted = [...items]..sort(
+          final activeItems = items.where(_hasReadingActivity).toList();
+          final sorted = [...activeItems]..sort(
               (a, b) => (b.lastOpenedAt ?? b.updatedAt).compareTo(
                 a.lastOpenedAt ?? a.updatedAt,
               ),
             );
           if (sorted.isEmpty) {
-            return const Center(child: Text('暂无历史记录'));
+            return const EmptyView(
+              title: '暂无历史记录',
+              message: '开始阅读后，这里会按最近打开时间整理记录。',
+            );
           }
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -46,5 +52,11 @@ class ReadingHistoryPage extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  bool _hasReadingActivity(LibraryIndexEntry entry) {
+    final progress = (entry.cachedProgress ?? 0).clamp(0.0, 1.0);
+    return entry.lastOpenedAt != null ||
+        progress > libraryProgressStartedThreshold;
   }
 }

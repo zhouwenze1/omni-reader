@@ -4,12 +4,16 @@ class ReaderProgressSlider extends StatelessWidget {
   const ReaderProgressSlider({
     super.key,
     required this.value,
+    required this.activeColor,
+    required this.inactiveColor,
     this.onChangeStart,
     required this.onChanged,
     required this.onChangeEnd,
   });
 
   final double value;
+  final Color activeColor;
+  final Color inactiveColor;
   final ValueChanged<double>? onChangeStart;
   final ValueChanged<double> onChanged;
   final ValueChanged<double> onChangeEnd;
@@ -20,6 +24,10 @@ class ReaderProgressSlider extends StatelessWidget {
     return SliderTheme(
       data: theme.copyWith(
         trackHeight: 6,
+        activeTrackColor: activeColor,
+        inactiveTrackColor: inactiveColor,
+        thumbColor: activeColor,
+        overlayColor: activeColor.withValues(alpha: 0.12),
         overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
       ),
