@@ -406,6 +406,14 @@ class LibraryPageActions {
     if (paths.isEmpty) {
       return;
     }
+    if (!context.mounted) {
+      return;
+    }
+
+    final options = await _showImportOptionsDialog(context, paths);
+    if (options == null) {
+      return;
+    }
 
     final appSettings = ref.read(settingsControllerProvider).app;
     final controller = ref.read(desktopLibraryControllerProvider.notifier);
@@ -422,6 +430,7 @@ class LibraryPageActions {
           await ref.read(importRepositoryProvider).importBookFromFile(
                 path,
                 debugMode: appSettings.debugImport,
+                options: options,
               );
       if (result.alreadyImported) {
         alreadyCount += 1;
@@ -453,5 +462,78 @@ class LibraryPageActions {
         '${l10n.imported}: $importedCount, ${l10n.alreadyImported}: $alreadyCount, ${l10n.importFailed}: $failedCount';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static Future<ImportBookOptions?> _showImportOptionsDialog(
+    BuildContext context,
+    List<String> paths,
+  ) async {
+    if (!_containsEpub(paths)) {
+      return const ImportBookOptions();
+    }
+
+    final l10n = context.l10n;
+    final isZh =
+        Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
+              'zh',
+            );
+    var enableSmartToc = true;
+
+    return showDialog<ImportBookOptions>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(isZh ? 'EPUB 导入选项' : 'EPUB Import Options'),
+            content: SizedBox(
+              width: 420,
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: enableSmartToc,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  isZh ? '智能修复目录结构' : 'Smart TOC reconciliation',
+                ),
+                subtitle: Text(
+                  isZh
+                      ? '自动补齐缺失的章节目录，并尽量挂到正确父级下。'
+                      : 'Fill missing spine chapters and attach them to likely section parents.',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    enableSmartToc = value ?? true;
+                  });
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.cancel),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    ImportBookOptions(
+                      enableSmartTocReconciliation: enableSmartToc,
+                    ),
+                  );
+                },
+                child: Text(l10n.importBook),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static bool _containsEpub(List<String> paths) {
+    for (final path in paths) {
+      if (path.toLowerCase().endsWith('.epub')) {
+        return true;
+      }
+    }
+    return false;
   }
 }

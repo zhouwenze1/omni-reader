@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation_domain/domain.dart';
 
 import '../../../di/providers.dart';
 import '../../library/controller/library_controller.dart';
@@ -17,7 +18,18 @@ class ImportCenterPage extends ConsumerWidget {
     final controller = ref.read(importControllerProvider.notifier);
 
     Future<void> importAndRefresh() async {
-      await controller.pickAndImport();
+      final paths = await controller.pickFiles();
+      if (paths.isEmpty) {
+        return;
+      }
+      if (!context.mounted) {
+        return;
+      }
+      final options = await _showImportOptionsDialog(context, paths);
+      if (options == null) {
+        return;
+      }
+      await controller.importPathsWithOptions(paths, options: options);
       ref.invalidate(libraryIndexProvider);
       await ref.read(mobileLibraryControllerProvider.notifier).refresh();
       await ref.read(meControllerProvider.notifier).refresh();
@@ -52,7 +64,8 @@ class ImportCenterPage extends ConsumerWidget {
                   children: [
                     CircularProgressIndicator(),
                     SizedBox(width: 12),
-                    Expanded(child: Text('\u6b63\u5728\u5bfc\u5165\u6587\u4ef6...')),
+                    Expanded(
+                        child: Text('\u6b63\u5728\u5bfc\u5165\u6587\u4ef6...')),
                   ],
                 ),
               ),
@@ -78,5 +91,79 @@ class ImportCenterPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<ImportBookOptions?> _showImportOptionsDialog(
+    BuildContext context,
+    List<String> paths,
+  ) async {
+    if (!_containsEpub(paths)) {
+      return const ImportBookOptions();
+    }
+
+    final isZh =
+        (Localizations.localeOf(context).languageCode).toLowerCase().startsWith(
+              'zh',
+            );
+    var enableSmartToc = true;
+
+    return showDialog<ImportBookOptions>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(isZh ? 'EPUB 导入选项' : 'EPUB Import Options'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: enableSmartToc,
+                  title: Text(
+                    isZh ? '智能修复目录结构' : 'Smart TOC reconciliation',
+                  ),
+                  subtitle: Text(
+                    isZh
+                        ? '自动补齐缺失的章节目录，并尽量挂到正确父级下。'
+                        : 'Fill missing spine chapters and attach them to likely section parents.',
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      enableSmartToc = value;
+                    });
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(isZh ? '取消' : 'Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    ImportBookOptions(
+                      enableSmartTocReconciliation: enableSmartToc,
+                    ),
+                  );
+                },
+                child: Text(isZh ? '开始导入' : 'Import'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  bool _containsEpub(List<String> paths) {
+    for (final path in paths) {
+      if (path.toLowerCase().endsWith('.epub')) {
+        return true;
+      }
+    }
+    return false;
   }
 }

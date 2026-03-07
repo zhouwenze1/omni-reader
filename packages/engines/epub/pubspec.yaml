@@ -15,19 +15,24 @@ dependencies:
     path: ../kernel
   foundation_domain:
     path: ../../foundation/domain
+  reader_parser_epub:
+    path: ../../../../reader_parser_next/packages/reader_parser_epub
   archive: ^3.6.1
   flutter_inappwebview: ^6.1.5
   mime: ^1.0.6
   path: ^1.9.1
   path_provider: ^2.1.5
   shelf: ^1.4.1
-  xml: ^6.5.0
 
 flutter:
   assets:
     - assets/renderer/index.html
     - assets/renderer/assets/index-D_I9wk7v.js
     - assets/renderer/assets/index-DNsThFnT.css
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 
 
 

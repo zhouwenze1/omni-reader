@@ -47,6 +47,7 @@ class ImportRepositoryImpl implements ImportRepository {
   Future<ImportResult> importBookFromFile(
     String filePath, {
     bool debugMode = false,
+    ImportBookOptions options = const ImportBookOptions(),
   }) async {
     final startedAt = DateTime.now();
     final taskId = sha256
@@ -105,6 +106,7 @@ class ImportRepositoryImpl implements ImportRepository {
         epubPackage = await _epubImportService.importEpub(
           epubFilePath: filePath,
           bookUuid: bookUid,
+          enableSmartTocReconciliation: options.enableSmartTocReconciliation,
         );
         importedEpubPackage = true;
       }
@@ -137,7 +139,8 @@ class ImportRepositoryImpl implements ImportRepository {
       final now = DateTime.now();
       String? coverRelPath;
       if (format == 'epub' && epubPackage != null) {
-        coverRelPath = await _coverExtractionService.extractEpubCoverToLibraryTemp(
+        coverRelPath =
+            await _coverExtractionService.extractEpubCoverToLibraryTemp(
           bookUid: bookUid,
           opfPath: epubPackage.opfPath,
           tempBookDir: tmpDir,
@@ -147,10 +150,21 @@ class ImportRepositoryImpl implements ImportRepository {
       final book = Book(
         uid: bookUid,
         format: format,
-        title: p.basenameWithoutExtension(originalName),
-        authors: const [],
-        description: null,
-        language: null,
+        title: format == 'epub'
+            ? _preferredText(
+                epubPackage?.title,
+                p.basenameWithoutExtension(originalName),
+              )!
+            : p.basenameWithoutExtension(originalName),
+        authors: format == 'epub'
+            ? List<String>.from(epubPackage?.authors ?? const <String>[])
+            : const <String>[],
+        description: format == 'epub'
+            ? _preferredText(epubPackage?.description, null)
+            : null,
+        language: format == 'epub'
+            ? _preferredText(epubPackage?.language, null)
+            : null,
         rootDir: format == 'epub'
             ? _bookStorageService.bookDirPath(bookUid)
             : finalBookDir,
@@ -209,6 +223,9 @@ class ImportRepositoryImpl implements ImportRepository {
             'epubOpfPath': epubPackage?.opfPath,
             'epubContentRoot': epubPackage?.contentRoot,
             'epubSpineCount': epubPackage?.spineItems.length,
+            'epubTitle': epubPackage?.title,
+            'epubAuthors': epubPackage?.authors,
+            'epubSmartTocReconciliation': options.enableSmartTocReconciliation,
           },
         );
       }
@@ -291,5 +308,17 @@ class ImportRepositoryImpl implements ImportRepository {
   String _deriveBookUid(String hash) {
     final digest = sha256.convert(utf8.encode(hash)).toString();
     return digest.substring(0, 32);
+  }
+
+  String? _preferredText(String? primary, String? fallback) {
+    final first = primary?.trim();
+    if (first != null && first.isNotEmpty) {
+      return first;
+    }
+    final second = fallback?.trim();
+    if (second != null && second.isNotEmpty) {
+      return second;
+    }
+    return null;
   }
 }

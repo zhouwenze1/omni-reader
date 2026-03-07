@@ -1,5 +1,22 @@
 enum ImportTaskStatus { pending, success, failed, alreadyImported }
 
+class ImportBookOptions {
+  const ImportBookOptions({
+    this.enableSmartTocReconciliation = true,
+  });
+
+  final bool enableSmartTocReconciliation;
+
+  ImportBookOptions copyWith({
+    bool? enableSmartTocReconciliation,
+  }) {
+    return ImportBookOptions(
+      enableSmartTocReconciliation:
+          enableSmartTocReconciliation ?? this.enableSmartTocReconciliation,
+    );
+  }
+}
+
 class ImportTask {
   const ImportTask({
     required this.id,

@@ -52,6 +52,13 @@ class ImportController extends StateNotifier<ImportState> {
   }
 
   Future<void> importPaths(List<String> paths) async {
+    return importPathsWithOptions(paths);
+  }
+
+  Future<void> importPathsWithOptions(
+    List<String> paths, {
+    ImportBookOptions options = const ImportBookOptions(),
+  }) async {
     if (paths.isEmpty || state.isImporting) {
       return;
     }
@@ -64,6 +71,7 @@ class ImportController extends StateNotifier<ImportState> {
         final result = await _importRepository.importBookFromFile(
           path,
           debugMode: appSettings.debugImport,
+          options: options,
         );
         nextTasks.insert(0, result.task);
         state = state.copyWith(tasks: List<ImportTask>.from(nextTasks));
@@ -77,9 +85,11 @@ class ImportController extends StateNotifier<ImportState> {
     }
   }
 
-  Future<void> pickAndImport() async {
+  Future<void> pickAndImport({
+    ImportBookOptions options = const ImportBookOptions(),
+  }) async {
     final paths = await pickFiles();
-    await importPaths(paths);
+    await importPathsWithOptions(paths, options: options);
   }
 
   void clearTasks() {

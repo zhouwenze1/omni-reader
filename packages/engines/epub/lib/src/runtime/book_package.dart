@@ -89,6 +89,10 @@ class BookPackage {
     required this.contentRoot,
     required this.spineItems,
     this.toc = const <BookTocItem>[],
+    this.title,
+    this.authors = const <String>[],
+    this.description,
+    this.language,
   });
 
   final String bookUuid;
@@ -96,6 +100,10 @@ class BookPackage {
   final String contentRoot;
   final List<BookSpineItem> spineItems;
   final List<BookTocItem> toc;
+  final String? title;
+  final List<String> authors;
+  final String? description;
+  final String? language;
 
   String get normalizedContentRoot => _normalizeRelative(contentRoot);
 

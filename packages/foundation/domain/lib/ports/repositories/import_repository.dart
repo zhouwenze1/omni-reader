@@ -4,5 +4,6 @@ abstract class ImportRepository {
   Future<ImportResult> importBookFromFile(
     String filePath, {
     bool debugMode = false,
+    ImportBookOptions options = const ImportBookOptions(),
   });
 }

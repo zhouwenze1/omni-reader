@@ -5,8 +5,16 @@ class ImportBookUseCase {
 
   final ImportRepository _importRepository;
 
-  Future<ImportResult> call(String filePath, {bool debugMode = false}) {
-    return _importRepository.importBookFromFile(filePath, debugMode: debugMode);
+  Future<ImportResult> call(
+    String filePath, {
+    bool debugMode = false,
+    ImportBookOptions options = const ImportBookOptions(),
+  }) {
+    return _importRepository.importBookFromFile(
+      filePath,
+      debugMode: debugMode,
+      options: options,
+    );
   }
 }
 

@@ -55,6 +55,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
   Timer? _deviceStatusTimer;
+  ProviderContainer? _providerContainer;
   ProgressRepository? _progressRepository;
   Book? _book;
   ReadingProgress? _progress;
@@ -109,6 +110,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _providerContainer ??= ProviderScope.containerOf(context, listen: false);
     _restoreOverlayStyle =
         _overlayStyleForBrightness(Theme.of(context).brightness);
   }
@@ -125,6 +127,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       final registry = ref.read(engineRegistryProvider);
 
       final book = await bookRepository.getBook(widget.bookUid);
+      if (!mounted) {
+        return;
+      }
       if (book == null) {
         setState(() {
           _error = 'Book not found: ${widget.bookUid}';
@@ -134,6 +139,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       }
 
       final progress = await progressRepository.getProgress(widget.bookUid);
+      if (!mounted) {
+        return;
+      }
       final engine = registry.findByFormat(book.format);
       if (engine == null) {
         setState(() {
@@ -887,9 +895,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _deviceStatusTimer?.cancel();
-    ref.invalidate(libraryIndexProvider);
-    ref.invalidate(mobileLibraryControllerProvider);
-    ref.invalidate(meControllerProvider);
+    final providerContainer = _providerContainer;
+    if (providerContainer != null) {
+      providerContainer.invalidate(libraryIndexProvider);
+      providerContainer.invalidate(mobileLibraryControllerProvider);
+      providerContainer.invalidate(meControllerProvider);
+    }
     unawaited(_progressWriteQueue.close());
     final subscription = _subscription;
     if (subscription != null) {
