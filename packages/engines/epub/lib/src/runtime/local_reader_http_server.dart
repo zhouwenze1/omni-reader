@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:reader_parser_core/reader_parser_core.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 
@@ -25,7 +26,7 @@ class LocalReaderHttpServer {
   String? get rendererDebugUrl =>
       _server == null ? null : '$origin/render/index.html';
 
-  String? get mountedBookRootPath => _activeBookMount?.mountRoot.path;
+  String? get mountedBookRootPath => _activeBookMount?.debugMountPath;
 
   Future<void> ensureStarted({
     required String booksRootPath,
@@ -63,16 +64,25 @@ class LocalReaderHttpServer {
       }
     }
 
-    _activeBookMount = await _resolveActiveBookMount(
-      activeBookUuid: activeBookUuid,
-      activeContentRoot: activeContentRoot,
+    final nextMount = await _resolveBookMount(
+      bookUuid: activeBookUuid,
+      contentRootOverride: activeContentRoot,
     );
+    final previousMount = _activeBookMount;
+    _activeBookMount = nextMount;
+    if (previousMount != null && !identical(previousMount, nextMount)) {
+      await previousMount.close();
+    }
   }
 
   Future<void> stop() async {
     final server = _server;
+    final activeBookMount = _activeBookMount;
     _server = null;
     _activeBookMount = null;
+    if (activeBookMount != null) {
+      await activeBookMount.close();
+    }
     if (server != null) {
       await server.close(force: true);
     }
@@ -90,7 +100,7 @@ class LocalReaderHttpServer {
             'port': port,
             'activeBookUuid': mount?.bookUuid,
             'activeContentRoot': mount?.contentRoot ?? '',
-            'activeMountPath': mount?.mountRoot.path,
+            'activeMountPath': mount?.debugMountPath,
           },
         ),
         headers: <String, String>{
@@ -148,39 +158,54 @@ class LocalReaderHttpServer {
     if (mount == null) {
       return Response.notFound('No active mounted book');
     }
-
-    final filePath = _safeJoin(mount.mountRoot.path, subPath);
-    if (filePath == null) {
-      return Response.forbidden('Invalid active book resource path');
-    }
-
-    final file = File(filePath);
-    if (!await file.exists()) {
-      return Response.notFound('Book resource not found');
-    }
-    return _serveFile(file);
+    return _serveMountedBookFile(mount: mount, subPath: subPath);
   }
 
   Future<Response> _serveBookFile({
     required String uuid,
     required String subPath,
   }) async {
-    final booksRoot = _booksRoot;
-    if (booksRoot == null) {
-      return Response.internalServerError(body: 'Books root unavailable');
+    final activeMount = _activeBookMount;
+    if (activeMount != null && activeMount.bookUuid == uuid) {
+      return _serveMountedBookFile(mount: activeMount, subPath: subPath);
     }
 
-    final rawRoot = p.join(booksRoot.path, uuid, 'raw');
-    final filePath = _safeJoin(rawRoot, subPath);
-    if (filePath == null) {
-      return Response.forbidden('Invalid book path');
+    final mount = await _resolveBookMount(bookUuid: uuid);
+    try {
+      return await _serveMountedBookFile(mount: mount, subPath: subPath);
+    } finally {
+      await mount.close();
+    }
+  }
+
+  Future<Response> _serveMountedBookFile({
+    required _ActiveBookMount mount,
+    required String subPath,
+  }) async {
+    final resourcePath = _resolveResourcePath(
+      contentRoot: mount.contentRoot,
+      subPath: subPath,
+    );
+    if (resourcePath == null || resourcePath.isEmpty) {
+      return Response.forbidden('Invalid active book resource path');
     }
 
-    final file = File(filePath);
-    if (!await file.exists()) {
+    final bytes = await mount.source.readBytes(resourcePath);
+    if (bytes == null) {
       return Response.notFound('Book resource not found');
     }
-    return _serveFile(file);
+
+    final mimeType = mount.source.contentTypeFor(resourcePath) ??
+        _contentTypeForExt(p.extension(resourcePath).toLowerCase()) ??
+        lookupMimeType(resourcePath);
+    final headers = <String, String>{
+      HttpHeaders.cacheControlHeader: 'no-cache',
+    };
+    if (mimeType != null && mimeType.isNotEmpty) {
+      headers[HttpHeaders.contentTypeHeader] = mimeType;
+    }
+
+    return Response.ok(bytes, headers: headers);
   }
 
   Future<Response> _serveFile(File file) async {
@@ -250,44 +275,104 @@ class LocalReaderHttpServer {
     return null;
   }
 
-  Future<_ActiveBookMount> _resolveActiveBookMount({
-    required String activeBookUuid,
-    required String activeContentRoot,
+  Future<_ActiveBookMount> _resolveBookMount({
+    required String bookUuid,
+    String? contentRootOverride,
   }) async {
     final booksRoot = _booksRoot;
     if (booksRoot == null) {
       throw StateError('Books root unavailable');
     }
 
-    final rawRoot = Directory(p.join(booksRoot.path, activeBookUuid, 'raw'));
-    if (!await rawRoot.exists()) {
-      throw StateError('Book raw directory not found: ${rawRoot.path}');
-    }
-
-    final cleanContentRoot = _normalizeRelative(activeContentRoot);
-    final mountPath = cleanContentRoot.isEmpty
-        ? rawRoot.path
-        : p.joinAll(<String>[rawRoot.path, ...cleanContentRoot.split('/')]);
-
-    final mountRoot = Directory(p.normalize(mountPath));
-    if (!p.isWithin(rawRoot.path, mountRoot.path) &&
-        rawRoot.path != mountRoot.path) {
-      throw StateError(
-          'Invalid contentRoot outside raw dir: $activeContentRoot');
-    }
-    if (!await mountRoot.exists()) {
-      throw StateError(
-        'Book content root not found: ${mountRoot.path} '
-        '(contentRoot="$activeContentRoot")',
+    final cleanContentRoot = _normalizeRelative(
+      contentRootOverride ?? await _readStoredContentRoot(bookUuid),
+    );
+    final bookRootPath = p.join(booksRoot.path, bookUuid);
+    final archivePath = p.join(bookRootPath, 'book.epub');
+    final archiveFile = File(archivePath);
+    if (await archiveFile.exists()) {
+      final source = await LazyZipResourceSource.open(archivePath);
+      return _ActiveBookMount(
+        bookUuid: bookUuid,
+        contentRoot: cleanContentRoot,
+        debugMountPath: archivePath,
+        source: source,
       );
     }
 
+    final rawRootPath = p.join(bookRootPath, 'raw');
+    final rawRoot = Directory(rawRootPath);
+    if (!await rawRoot.exists()) {
+      throw StateError(
+        'No readable EPUB resources found for $bookUuid. '
+        'Expected ${archiveFile.path} or ${rawRoot.path}.',
+      );
+    }
+
+    final debugMountPath = cleanContentRoot.isEmpty
+        ? rawRoot.path
+        : p.joinAll(<String>[rawRoot.path, ...cleanContentRoot.split('/')]);
+
     return _ActiveBookMount(
-      bookUuid: activeBookUuid,
+      bookUuid: bookUuid,
       contentRoot: cleanContentRoot,
-      mountRoot: mountRoot,
-      rawRoot: rawRoot,
+      debugMountPath: debugMountPath,
+      source: DirectoryResourceSource(
+        sourceId: rawRoot.path,
+        rootDirectory: rawRoot.path,
+      ),
     );
+  }
+
+  Future<String> _readStoredContentRoot(String bookUuid) async {
+    final booksRoot = _booksRoot;
+    if (booksRoot == null) {
+      throw StateError('Books root unavailable');
+    }
+
+    final metadataFile = File(p.join(booksRoot.path, bookUuid, 'meta.json'));
+    if (!await metadataFile.exists()) {
+      throw StateError('Book metadata not found: ${metadataFile.path}');
+    }
+
+    final decoded = jsonDecode(await metadataFile.readAsString());
+    if (decoded is Map<String, dynamic>) {
+      return (decoded['contentRoot'] as String?) ?? '';
+    }
+    if (decoded is Map) {
+      return decoded['contentRoot']?.toString() ?? '';
+    }
+    return '';
+  }
+
+  String? _resolveResourcePath({
+    required String contentRoot,
+    required String subPath,
+  }) {
+    final cleanContentRoot = _normalizeRelative(contentRoot);
+    final rawSubPath = subPath.trim().replaceAll('\\', '/');
+    if (rawSubPath.isEmpty) {
+      return null;
+    }
+
+    final normalizedSubPath = p.posix.normalize(rawSubPath);
+    if (normalizedSubPath == '..' || normalizedSubPath.startsWith('../')) {
+      return null;
+    }
+
+    final cleanSubPath = normalizedSubPath.replaceFirst(RegExp(r'^/+'), '');
+    if (cleanSubPath.isEmpty) {
+      return null;
+    }
+
+    final combined = cleanContentRoot.isEmpty
+        ? cleanSubPath
+        : p.posix.join(cleanContentRoot, cleanSubPath);
+    final normalizedCombined = p.posix.normalize(combined);
+    if (normalizedCombined == '..' || normalizedCombined.startsWith('../')) {
+      return null;
+    }
+    return normalizedCombined.replaceFirst(RegExp(r'^/+'), '');
   }
 
   String _normalizeRelative(String value) {
@@ -312,6 +397,11 @@ class LocalReaderHttpServer {
 
   Future<Directory?> _tryWorkspaceRendererDir() async {
     final candidates = <String>[
+      p.join(
+        Directory.current.path,
+        'assets',
+        'renderer',
+      ),
       p.join(
         Directory.current.path,
         'packages',
@@ -428,14 +518,18 @@ class _ActiveBookMount {
   const _ActiveBookMount({
     required this.bookUuid,
     required this.contentRoot,
-    required this.mountRoot,
-    required this.rawRoot,
+    required this.debugMountPath,
+    required this.source,
   });
 
   final String bookUuid;
   final String contentRoot;
-  final Directory mountRoot;
-  final Directory rawRoot;
+  final String debugMountPath;
+  final BookResourceSource source;
+
+  Future<void> close() {
+    return source.close();
+  }
 }
 
 extension on List<String> {

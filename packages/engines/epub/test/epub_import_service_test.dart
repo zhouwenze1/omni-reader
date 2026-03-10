@@ -46,8 +46,16 @@ void main() {
         isTrue,
       );
       expect(
-        File(storage.contentFilePath('smart_on')).existsSync(),
+        File(storage.artifactFilePath('smart_on', 'content.json')).existsSync(),
+        isFalse,
+      );
+      expect(
+        File(storage.archiveFilePath('smart_on')).existsSync(),
         isTrue,
+      );
+      expect(
+        Directory(storage.rawDirPath('smart_on')).existsSync(),
+        isFalse,
       );
 
       expect(smartPackage.toc.map((item) => item.title), <String>[
@@ -71,6 +79,23 @@ void main() {
         'Part 2',
       ]);
       expect(plainPackage.toc.map((item) => item.level), <int>[0, 0]);
+
+      final manifestJson = await storage.readArtifactJson(
+        'smart_on',
+        'manifest.json',
+      );
+      final links = (manifestJson?['links'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((item) => item.map((key, value) => MapEntry('$key', value)))
+          .toList(growable: false);
+      expect(
+        links.any(
+          (link) =>
+              '${link['rel'] ?? ''}'.toLowerCase() == 'search' ||
+              '${link['href'] ?? ''}'.toLowerCase() == 'content.json',
+        ),
+        isFalse,
+      );
     });
   });
 }

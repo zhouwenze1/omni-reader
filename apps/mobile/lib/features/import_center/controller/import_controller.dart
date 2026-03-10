@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
+import 'package:infrastructure_data/data.dart';
 
 import '../../../di/repositories_providers.dart';
 import 'import_state.dart';
@@ -17,6 +19,9 @@ final importControllerProvider =
 });
 
 class ImportController extends StateNotifier<ImportState> {
+  static const MethodChannel _folderImportChannel =
+      MethodChannel('reader_mobile/folder_import');
+
   ImportController({
     required ImportRepository importRepository,
     required SettingsRepository settingsRepository,
@@ -58,24 +63,80 @@ class ImportController extends StateNotifier<ImportState> {
     );
   }
 
-  Future<List<String>> collectEpubFilesRecursively(String directoryPath) async {
-    final directory = Directory(directoryPath);
-    if (!await directory.exists()) {
-      return const <String>[];
+  Future<FolderImportSelection?> pickFolderImportSelection() async {
+    if (Platform.isAndroid) {
+      final result = await _folderImportChannel.invokeMethod<Object?>(
+        'pickEpubFilesFromDirectory',
+      );
+      if (result == null) {
+        return null;
+      }
+      if (result is! Map) {
+        throw StateError('Unexpected folder import result type: $result');
+      }
+
+      final rawPaths = result['paths'];
+      final paths = rawPaths is List
+          ? rawPaths
+              .map((value) => '$value'.trim())
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false)
+          : const <String>[];
+      final rawCleanupRoots = result['cleanupRoots'];
+      final cleanupRoots = rawCleanupRoots is List
+          ? rawCleanupRoots
+              .map((value) => '$value'.trim())
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false)
+          : const <String>[];
+      final collectionName = '${result['directoryName'] ?? ''}'.trim();
+      return FolderImportSelection(
+        paths: paths,
+        collectionName: collectionName.isEmpty
+            ? CollectionPresets.uncategorizedName
+            : collectionName,
+        transientPaths: paths,
+        cleanupRoots: cleanupRoots,
+      );
     }
 
-    final paths = <String>[];
-    await for (final entity
-        in directory.list(recursive: true, followLinks: false)) {
-      if (entity is! File) {
-        continue;
-      }
-      if (entity.path.toLowerCase().endsWith('.epub')) {
-        paths.add(entity.path);
-      }
+    final directoryPath = await pickDirectory();
+    if (directoryPath == null || directoryPath.trim().isEmpty) {
+      return null;
     }
-    paths.sort();
-    return paths;
+
+    final paths = await collectEpubFilesRecursively(directoryPath);
+    return FolderImportSelection(
+      paths: paths,
+      collectionName: _folderCollectionName(directoryPath),
+      transientPaths: const <String>[],
+      cleanupRoots: const <String>[],
+    );
+  }
+
+  Future<List<String>> collectEpubFilesRecursively(String directoryPath) async {
+    return EpubFileScanner.collectRecursively(directoryPath);
+  }
+
+  Future<void> cleanupFolderImportSelection(
+    FolderImportSelection selection,
+  ) async {
+    for (final root in selection.cleanupRoots) {
+      try {
+        final dir = Directory(root);
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+        }
+      } catch (_) {}
+    }
+    for (final path in selection.transientPaths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+    }
   }
 
   Future<List<ImportResult>> importPaths(List<String> paths) {
@@ -126,4 +187,30 @@ class ImportController extends StateNotifier<ImportState> {
   void clearTasks() {
     state = state.copyWith(tasks: const <ImportTask>[], clearError: true);
   }
+
+  String _folderCollectionName(String directoryPath) {
+    final normalized = directoryPath.replaceAll('\\', '/');
+    final segments =
+        normalized.split('/').where((segment) => segment.isNotEmpty);
+    if (segments.isEmpty) {
+      return CollectionPresets.uncategorizedName;
+    }
+    return segments.last.trim().isEmpty
+        ? CollectionPresets.uncategorizedName
+        : segments.last.trim();
+  }
+}
+
+class FolderImportSelection {
+  const FolderImportSelection({
+    required this.paths,
+    required this.collectionName,
+    required this.transientPaths,
+    required this.cleanupRoots,
+  });
+
+  final List<String> paths;
+  final String collectionName;
+  final List<String> transientPaths;
+  final List<String> cleanupRoots;
 }

@@ -29,6 +29,10 @@ class BookStorageService {
     return p.join(bookDirPath(bookUuid), 'raw');
   }
 
+  String archiveFilePath(String bookUuid) {
+    return p.join(bookDirPath(bookUuid), 'book.epub');
+  }
+
   String metaFilePath(String bookUuid) {
     return p.join(bookDirPath(bookUuid), 'meta.json');
   }
@@ -45,10 +49,6 @@ class BookStorageService {
     return artifactFilePath(bookUuid, 'positions.json');
   }
 
-  String contentFilePath(String bookUuid) {
-    return artifactFilePath(bookUuid, 'content.json');
-  }
-
   Future<void> ensureBooksRoot() async {
     if (!await _booksRoot.exists()) {
       await _booksRoot.create(recursive: true);
@@ -60,10 +60,6 @@ class BookStorageService {
     final bookDir = Directory(bookDirPath(bookUuid));
     if (!await bookDir.exists()) {
       await bookDir.create(recursive: true);
-    }
-    final rawDir = Directory(rawDirPath(bookUuid));
-    if (!await rawDir.exists()) {
-      await rawDir.create(recursive: true);
     }
   }
 
@@ -80,6 +76,30 @@ class BookStorageService {
       await dir.delete(recursive: true);
     }
     await dir.create(recursive: true);
+  }
+
+  Future<void> saveArchive(
+    String bookUuid, {
+    required String sourceFilePath,
+  }) async {
+    await prepareBookDirs(bookUuid);
+
+    final sourceFile = File(sourceFilePath);
+    if (!await sourceFile.exists()) {
+      throw StateError('EPUB archive not found: $sourceFilePath');
+    }
+
+    final targetPath = archiveFilePath(bookUuid);
+    final targetFile = File(targetPath);
+    final parent = targetFile.parent;
+    if (!await parent.exists()) {
+      await parent.create(recursive: true);
+    }
+
+    if (await targetFile.exists()) {
+      await targetFile.delete();
+    }
+    await sourceFile.copy(targetPath);
   }
 
   Future<void> savePackage(BookPackage package) async {
@@ -164,6 +184,13 @@ class BookStorageService {
 
   Future<Map<String, dynamic>?> readPositionsDocument(String bookUuid) {
     return readArtifactJson(bookUuid, 'positions.json');
+  }
+
+  Future<void> deleteArtifactIfExists(String bookUuid, String fileName) async {
+    final file = File(artifactFilePath(bookUuid, fileName));
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   Future<void> _writeJsonAtomic(String filePath, Map<String, dynamic> json) {

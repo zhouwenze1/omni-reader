@@ -1,8 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:archive/archive.dart';
-import 'package:path/path.dart' as p;
 import 'package:reader_parser_epub/reader_parser_epub.dart';
 
 import 'book_package.dart';
@@ -30,6 +25,7 @@ class EpubImportService {
       final enrichedPackage = await EpubArtifactGenerator().generateArtifacts(
         parsedPackage,
       );
+      final artifactFiles = _buildPersistedArtifactFiles(enrichedPackage);
       final package = _toBookPackage(
         bookUuid: bookUuid,
         parsedPackage: enrichedPackage,
@@ -37,15 +33,15 @@ class EpubImportService {
 
       await _storageService.prepareBookDirs(bookUuid);
       try {
-        await _storageService.clearRaw(bookUuid);
-        await _extractEpubToRaw(
-          epubFilePath: epubFilePath,
-          rawDirPath: _storageService.rawDirPath(bookUuid),
+        await _storageService.saveArchive(
+          bookUuid,
+          sourceFilePath: epubFilePath,
         );
         await _storageService.savePackage(package);
+        await _storageService.deleteArtifactIfExists(bookUuid, 'content.json');
         await _storageService.saveArtifactFileMap(
           bookUuid,
-          enrichedPackage.artifacts.toFileMap(),
+          artifactFiles,
         );
       } catch (_) {
         await _storageService.clearBook(bookUuid);
@@ -101,81 +97,53 @@ class EpubImportService {
     );
   }
 
-  Future<void> _extractEpubToRaw({
-    required String epubFilePath,
-    required String rawDirPath,
-  }) async {
-    final sourceFile = File(epubFilePath);
-    if (!await sourceFile.exists()) {
-      throw StateError('EPUB file not found: $epubFilePath');
-    }
-
-    final bytes = await sourceFile.readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes, verify: true);
-
-    final normalizedRawRoot = p.normalize(rawDirPath);
-    for (final entry in archive.files) {
-      final relative = _sanitizeArchivePath(entry.name);
-      if (relative == null || relative.isEmpty) {
-        continue;
-      }
-
-      final outputPath = p.normalize(
-        p.joinAll(
-          <String>[
-            normalizedRawRoot,
-            ...relative.split('/').where((segment) => segment.isNotEmpty),
-          ],
-        ),
-      );
-
-      if (!_isInside(normalizedRawRoot, outputPath)) {
-        continue;
-      }
-
-      if (entry.isFile) {
-        await Directory(p.dirname(outputPath)).create(recursive: true);
-        final file = File(outputPath);
-        final content = entry.content;
-        if (content is List<int>) {
-          await file.writeAsBytes(content, flush: true);
-        } else if (content is String) {
-          await file.writeAsString(content, encoding: utf8, flush: true);
-        } else {
-          throw StateError('Unsupported archive entry type: ${entry.name}');
-        }
-      } else {
-        await Directory(outputPath).create(recursive: true);
-      }
-    }
-  }
-
-  bool _isInside(String root, String candidatePath) {
-    if (p.equals(root, candidatePath)) {
-      return true;
-    }
-    return p.isWithin(root, candidatePath);
-  }
-
-  String? _sanitizeArchivePath(String path) {
-    final unified = path.replaceAll('\\', '/').trim();
-    if (unified.isEmpty) {
-      return null;
-    }
-    final normalized = p.posix.normalize(unified);
-    if (normalized.isEmpty ||
-        normalized == '.' ||
-        normalized.startsWith('../')) {
-      return null;
-    }
-    return normalized.replaceFirst(RegExp(r'^/+'), '');
-  }
-
   String? _nullableText(String? value) {
     if (value == null) {
       return null;
     }
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  Map<String, Map<String, Object?>> _buildPersistedArtifactFiles(
+    EpubBookPackage package,
+  ) {
+    final files = <String, Map<String, Object?>>{};
+    final artifactEntries = package.artifacts.toFileMap().entries;
+    for (final entry in artifactEntries) {
+      if (entry.key == 'content.json') {
+        continue;
+      }
+
+      final json = Map<String, Object?>.from(entry.value);
+      if (entry.key == 'manifest.json') {
+        _removeContentSearchLink(json);
+      }
+      files[entry.key] = json;
+    }
+    return files;
+  }
+
+  void _removeContentSearchLink(Map<String, Object?> manifestJson) {
+    final rawLinks = manifestJson['links'];
+    if (rawLinks is! List) {
+      return;
+    }
+
+    final filteredLinks = rawLinks
+        .whereType<Map>()
+        .map((link) => link.map((key, value) => MapEntry('$key', value)))
+        .where((link) {
+          final rel = '${link['rel'] ?? ''}'.trim().toLowerCase();
+          final href = '${link['href'] ?? ''}'.trim().toLowerCase();
+          return rel != 'search' && href != 'content.json';
+        })
+        .toList(growable: false);
+
+    if (filteredLinks.isEmpty) {
+      manifestJson.remove('links');
+      return;
+    }
+    manifestJson['links'] = filteredLinks;
   }
 }

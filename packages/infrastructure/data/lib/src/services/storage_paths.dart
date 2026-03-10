@@ -10,6 +10,27 @@ class StoragePaths {
     required this.tempRoot,
   });
 
+  factory StoragePaths.forTesting({
+    required Directory baseDir,
+    Directory? cacheRoot,
+    Directory? tempRoot,
+  }) {
+    final resolvedCacheRoot =
+        cacheRoot ?? Directory(p.join(baseDir.path, '.cache'));
+    final resolvedTempRoot =
+        tempRoot ?? Directory(p.join(baseDir.path, '.temp'));
+    _ensureScaffold(
+      baseDir: baseDir,
+      cacheRoot: resolvedCacheRoot,
+      tempRoot: resolvedTempRoot,
+    );
+    return StoragePaths._(
+      baseDir: baseDir,
+      cacheRoot: resolvedCacheRoot,
+      tempRoot: resolvedTempRoot,
+    );
+  }
+
   final Directory baseDir;
   final Directory cacheRoot;
   final Directory tempRoot;
@@ -24,7 +45,24 @@ class StoragePaths {
     final baseDir = Directory(p.join(appSupportDir.path, 'full_reader'));
     final cacheRoot = Directory(p.join(tempDir.path, 'full_reader_cache'));
     final tempRoot = Directory(p.join(tempDir.path, 'full_reader_temp'));
+    _ensureScaffold(
+      baseDir: baseDir,
+      cacheRoot: cacheRoot,
+      tempRoot: tempRoot,
+    );
 
+    return StoragePaths._(
+      baseDir: baseDir,
+      cacheRoot: cacheRoot,
+      tempRoot: tempRoot,
+    );
+  }
+
+  static void _ensureScaffold({
+    required Directory baseDir,
+    required Directory cacheRoot,
+    required Directory tempRoot,
+  }) {
     if (!baseDir.existsSync()) {
       baseDir.createSync(recursive: true);
     }
@@ -48,11 +86,5 @@ class StoragePaths {
     if (!tmpRoot.existsSync()) {
       tmpRoot.createSync(recursive: true);
     }
-
-    return StoragePaths._(
-      baseDir: baseDir,
-      cacheRoot: cacheRoot,
-      tempRoot: tempRoot,
-    );
   }
 }

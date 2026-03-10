@@ -95,7 +95,6 @@ class DataModule {
     );
     final coverExtractionService = CoverExtractionService(
       storagePaths: storagePaths,
-      fileService: fileService,
     );
 
     final importRepository = ImportRepositoryImpl(

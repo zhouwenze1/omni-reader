@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -402,6 +400,10 @@ class LibraryPageActions {
     }
 
     final l10n = context.l10n;
+    final isZh =
+        Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
+              'zh',
+            );
     List<String> paths = <String>[];
     Collection? folderCollection;
     if (importKind == _LibraryImportKind.files) {
@@ -429,7 +431,7 @@ class LibraryPageActions {
           <String>[];
     } else {
       final directoryPath = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Select EPUB Folder',
+        dialogTitle: isZh ? '选择 EPUB 文件夹' : 'Select EPUB Folder',
       );
       if (directoryPath == null || directoryPath.trim().isEmpty) {
         return;
@@ -438,7 +440,13 @@ class LibraryPageActions {
       if (paths.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No EPUB files found in folder.')),
+            SnackBar(
+              content: Text(
+                isZh
+                    ? '选中的文件夹中没有找到 EPUB 文件'
+                    : 'No EPUB files found in the selected folder.',
+              ),
+            ),
           );
         }
         return;
@@ -516,12 +524,19 @@ class LibraryPageActions {
     BuildContext context,
   ) {
     final l10n = context.l10n;
+    final isZh =
+        Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
+              'zh',
+            );
     return showDialog<_LibraryImportKind>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.importBook),
-        content:
-            const Text('Choose file import or recursive EPUB folder import.'),
+        content: Text(
+          isZh
+              ? '选择导入本地文件，或递归扫描整个 EPUB 文件夹。'
+              : 'Choose file import or recursive EPUB folder import.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -530,12 +545,12 @@ class LibraryPageActions {
           FilledButton.tonal(
             onPressed: () =>
                 Navigator.of(context).pop(_LibraryImportKind.folder),
-            child: const Text('Import Folder'),
+            child: Text(isZh ? '导入文件夹' : 'Import Folder'),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.of(context).pop(_LibraryImportKind.files),
-            child: const Text('Import Files'),
+            child: Text(isZh ? '导入文件' : 'Import Files'),
           ),
         ],
       ),
@@ -608,7 +623,7 @@ class LibraryPageActions {
 
   static bool _containsEpub(List<String> paths) {
     for (final path in paths) {
-      if (path.toLowerCase().endsWith('.epub')) {
+      if (EpubFileScanner.isEpubPath(path)) {
         return true;
       }
     }
@@ -618,24 +633,7 @@ class LibraryPageActions {
   static Future<List<String>> _collectEpubFilesRecursively(
     String directoryPath,
   ) async {
-    final directory = Directory(directoryPath);
-    if (!await directory.exists()) {
-      return const <String>[];
-    }
-
-    final paths = <String>[];
-    await for (final entity
-        in directory.list(recursive: true, followLinks: false)) {
-      if (entity is! File) {
-        continue;
-      }
-      final path = entity.path;
-      if (path.toLowerCase().endsWith('.epub')) {
-        paths.add(path);
-      }
-    }
-    paths.sort();
-    return paths;
+    return EpubFileScanner.collectRecursively(directoryPath);
   }
 
   static String _folderCollectionName(String directoryPath) {
