@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'runtime/book_package.dart';
+import 'runtime/book_position_index.dart';
 import 'runtime/book_storage_service.dart';
 import 'runtime/book_uri_mapper.dart';
 import 'runtime/local_reader_http_server.dart';
@@ -105,7 +106,7 @@ class EpubReaderSession extends ReaderSession {
               storageService: runtime.bookStorageService,
               locatorNormalizer: _locatorNormalizer,
               uriMapper: runtime.uriMapper,
-              emitEvent: _emitEvent,
+              emitEvent: (event) => _handleRuntimeEvent(runtime, event),
             );
             receiver.registerAll();
 
@@ -283,10 +284,36 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
+    final href = normalized['href'] as String?;
+    if (href != null && href.isNotEmpty) {
+      normalized['href'] = runtime.uriMapper.toPublicHref(href);
+      final url = runtime.uriMapper.hrefToHttp(href: href);
+      await bridge.open(url: url, locator: normalized);
+      return;
+    }
+
     final progression = (normalized['locations'] is Map)
         ? (normalized['locations'] as Map)['progression']
         : null;
     if (progression is num) {
+      final mappedLocator =
+          runtime.positionIndex?.resolveLocatorForTotalProgression(
+        progression.toDouble(),
+      );
+      if (mappedLocator != null) {
+        final mappedNormalized = _locatorNormalizer.normalizeMap(
+          mappedLocator.toJson(),
+          uriMapper: runtime.uriMapper,
+          bookUuid: _book.uid,
+        );
+        final mappedHref = mappedNormalized['href'] as String?;
+        if (mappedHref != null && mappedHref.isNotEmpty) {
+          mappedNormalized['href'] = runtime.uriMapper.toPublicHref(mappedHref);
+          final url = runtime.uriMapper.hrefToHttp(href: mappedHref);
+          await bridge.open(url: url, locator: mappedNormalized);
+          return;
+        }
+      }
       await bridge.navigate(<String, dynamic>{
         'kind': 'progression',
         'value': progression.toDouble(),
@@ -294,9 +321,8 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
-    final href =
-        (normalized['href'] as String?) ?? runtime.metadata.firstSpineHref;
-    if (href == null || href.isEmpty) {
+    final fallbackHref = runtime.metadata.firstSpineHref;
+    if (fallbackHref == null || fallbackHref.isEmpty) {
       _emitEvent(
         const ReaderEvent(
           type: ReaderEventType.error,
@@ -306,8 +332,8 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
-    normalized['href'] = runtime.uriMapper.toPublicHref(href);
-    final url = runtime.uriMapper.hrefToHttp(href: href);
+    normalized['href'] = runtime.uriMapper.toPublicHref(fallbackHref);
+    final url = runtime.uriMapper.hrefToHttp(href: fallbackHref);
     await bridge.open(url: url, locator: normalized);
   }
 
@@ -380,11 +406,18 @@ class EpubReaderSession extends ReaderSession {
 
   Future<Locator> _resolveStartLocator(_SessionRuntime runtime) async {
     if (initialProgress != null) {
-      return _locatorNormalizer.normalizeLocator(
+      final normalized = _locatorNormalizer.normalizeLocator(
         initialProgress!.locator,
         uriMapper: runtime.uriMapper,
         bookUuid: _book.uid,
       );
+      final href = normalized.href?.trim();
+      if ((href == null || href.isEmpty) && runtime.positionIndex != null) {
+        return runtime.positionIndex!.resolveLocatorForTotalProgression(
+                initialProgress!.progression) ??
+            normalized;
+      }
+      return normalized;
     }
 
     final savedLocator = await runtime.bookStorageService.readLastLocator(
@@ -545,6 +578,39 @@ class EpubReaderSession extends ReaderSession {
     _eventsController.add(event);
   }
 
+  void _handleRuntimeEvent(_SessionRuntime runtime, ReaderEvent event) {
+    if (event.type != ReaderEventType.relocated || event.locator == null) {
+      _emitEvent(event);
+      return;
+    }
+
+    final totalProgression =
+        runtime.positionIndex?.resolveTotalProgressionForLocator(
+      event.locator!,
+    );
+    if (totalProgression == null) {
+      _emitEvent(event);
+      return;
+    }
+
+    final nextPayload = Map<String, dynamic>.from(
+      event.payload ?? const <String, dynamic>{},
+    )..['totalProgression'] = totalProgression;
+
+    final nextLocations = Map<String, dynamic>.from(
+      event.locator!.locations ?? const <String, dynamic>{},
+    )..['totalProgression'] = totalProgression;
+
+    _emitEvent(
+      ReaderEvent.fromRaw(
+        type: event.type,
+        payload: nextPayload,
+        locator: event.locator!.copyWith(locations: nextLocations),
+        message: event.message,
+      ),
+    );
+  }
+
   static Future<_SessionRuntime> _prepareRuntime(String bookUid) async {
     final appSupportDir = await getApplicationSupportDirectory();
     final baseDir = Directory(p.join(appSupportDir.path, 'full_reader'));
@@ -562,6 +628,10 @@ class EpubReaderSession extends ReaderSession {
         'Book metadata missing. Re-import EPUB first. bookUid=$bookUid',
       );
     }
+    final positionIndex = await BookPositionIndex.load(
+      storageService: bookStorageService,
+      bookUuid: bookUid,
+    );
 
     final debugConfig = _EpubDebugConfig.resolve();
     final webViewDebugEnvironment = await _createWebViewEnvironment(
@@ -592,6 +662,7 @@ class EpubReaderSession extends ReaderSession {
       mountedBookRootPath: LocalReaderHttpServer.instance.mountedBookRootPath,
       uriMapper: mapper,
       metadata: metadata,
+      positionIndex: positionIndex,
       bookStorageService: bookStorageService,
       debugConfig: debugConfig,
       webViewEnvironment: webViewDebugEnvironment.environment,
@@ -655,6 +726,7 @@ class _SessionRuntime {
     required this.mountedBookRootPath,
     required this.uriMapper,
     required this.metadata,
+    required this.positionIndex,
     required this.bookStorageService,
     required this.debugConfig,
     required this.webViewEnvironment,
@@ -669,6 +741,7 @@ class _SessionRuntime {
   final String? mountedBookRootPath;
   final BookUriMapper uriMapper;
   final BookPackageMetadata metadata;
+  final BookPositionIndex? positionIndex;
   final BookStorageService bookStorageService;
   final _EpubDebugConfig debugConfig;
   final WebViewEnvironment? webViewEnvironment;

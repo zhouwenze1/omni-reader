@@ -27,9 +27,12 @@ class EpubImportService {
     final parsedPackage = await parser.parseFromFile(epubFilePath);
 
     try {
+      final enrichedPackage = await EpubArtifactGenerator().generateArtifacts(
+        parsedPackage,
+      );
       final package = _toBookPackage(
         bookUuid: bookUuid,
-        parsedPackage: parsedPackage,
+        parsedPackage: enrichedPackage,
       );
 
       await _storageService.prepareBookDirs(bookUuid);
@@ -40,6 +43,10 @@ class EpubImportService {
           rawDirPath: _storageService.rawDirPath(bookUuid),
         );
         await _storageService.savePackage(package);
+        await _storageService.saveArtifactFileMap(
+          bookUuid,
+          enrichedPackage.artifacts.toFileMap(),
+        );
       } catch (_) {
         await _storageService.clearBook(bookUuid);
         rethrow;

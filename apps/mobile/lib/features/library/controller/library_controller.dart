@@ -10,17 +10,22 @@ final mobileLibraryControllerProvider =
     StateNotifierProvider<MobileLibraryController, MobileLibraryState>((ref) {
   final controller = MobileLibraryController(
     bookRepository: ref.watch(bookRepositoryProvider),
+    collectionRepository: ref.watch(collectionRepositoryProvider),
   );
   unawaited(controller.load());
   return controller;
 });
 
 class MobileLibraryController extends StateNotifier<MobileLibraryState> {
-  MobileLibraryController({required BookRepository bookRepository})
-      : _bookRepository = bookRepository,
+  MobileLibraryController({
+    required BookRepository bookRepository,
+    required CollectionRepository collectionRepository,
+  })  : _bookRepository = bookRepository,
+        _collectionRepository = collectionRepository,
         super(const MobileLibraryState.initial());
 
   final BookRepository _bookRepository;
+  final CollectionRepository _collectionRepository;
   int _requestId = 0;
 
   Future<void> load() async {
@@ -92,8 +97,117 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
     await _reload();
   }
 
+  Future<void> setCollectionFilter(int? collectionId) async {
+    state = state.copyWith(selectedCollectionId: collectionId);
+    await _reload();
+  }
+
+  void enterSelectionMode({String? seedBookUid}) {
+    final selected = <String>{...state.selectedBookUids};
+    if (seedBookUid != null) {
+      selected.add(seedBookUid);
+    }
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: selected,
+    );
+  }
+
+  void exitSelectionMode() {
+    state = state.copyWith(
+      isSelectionMode: false,
+      selectedBookUids: <String>{},
+    );
+  }
+
+  void toggleSelectedBook(String bookUid) {
+    final selected = <String>{...state.selectedBookUids};
+    if (selected.contains(bookUid)) {
+      selected.remove(bookUid);
+    } else {
+      selected.add(bookUid);
+    }
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: selected,
+    );
+  }
+
+  void selectAllVisible() {
+    state = state.copyWith(
+      isSelectionMode: true,
+      selectedBookUids: state.items.map((item) => item.bookUid).toSet(),
+    );
+  }
+
+  void clearSelectedBooks() {
+    state = state.copyWith(selectedBookUids: <String>{});
+  }
+
+  Future<Collection> ensureCollection(String name) async {
+    final collection = await _collectionRepository.ensureCollection(name);
+    await _reload();
+    return collection;
+  }
+
+  Future<void> createCollection(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    await _collectionRepository.ensureCollection(trimmed);
+    await _reload();
+  }
+
+  Future<void> addBookToCollection(int collectionId, String bookUid) async {
+    await _collectionRepository.removeBookFromAllCollections(bookUid);
+    await _collectionRepository.addBookToCollection(collectionId, bookUid);
+    await _reload();
+  }
+
+  Future<void> addBooksToCollection(
+    int collectionId,
+    Iterable<String> bookUids,
+  ) async {
+    for (final uid in bookUids.toSet()) {
+      await _collectionRepository.removeBookFromAllCollections(uid);
+      await _collectionRepository.addBookToCollection(collectionId, uid);
+    }
+    await _reload();
+  }
+
   Future<void> deleteBook(String bookUid) async {
+    await _collectionRepository.removeBookFromAllCollections(bookUid);
     await _bookRepository.deleteBook(bookUid);
+    await _reload();
+  }
+
+  Future<void> deleteBooks(Iterable<String> bookUids) async {
+    final ids = bookUids.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    for (final uid in ids) {
+      await _collectionRepository.removeBookFromAllCollections(uid);
+      await _bookRepository.deleteBook(uid);
+    }
+    state = state.copyWith(selectedBookUids: <String>{});
+    await _reload();
+  }
+
+  Future<void> moveBooksToCollection({
+    required Iterable<String> bookUids,
+    required int collectionId,
+  }) async {
+    final ids = bookUids.toSet();
+    if (ids.isEmpty) {
+      return;
+    }
+    for (final uid in ids) {
+      await _collectionRepository.removeBookFromAllCollections(uid);
+      await _collectionRepository.addBookToCollection(collectionId, uid);
+    }
+    state = state.copyWith(selectedBookUids: <String>{});
     await _reload();
   }
 
@@ -126,28 +240,92 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
     required LibraryFilters filters,
   }) async {
     final allItems = await _bookRepository.listLibraryIndex(sortMode: sortMode);
-    final items = await _bookRepository.listLibraryIndex(
+    final defaultCollection = await _collectionRepository.ensureCollection(
+      CollectionPresets.uncategorizedName,
+    );
+    var collectionBookUids =
+        await _collectionRepository.listCollectionBookUids();
+    final uncategorizedBookUids =
+        collectionBookUids[defaultCollection.id] ?? const <String>{};
+    final assignedBookUids = <String>{
+      for (final entry in collectionBookUids.values) ...entry,
+    };
+    final missingBookUids = allItems
+        .map((item) => item.bookUid)
+        .where(
+          (bookUid) =>
+              !assignedBookUids.contains(bookUid) &&
+              !uncategorizedBookUids.contains(bookUid),
+        )
+        .toSet();
+    if (missingBookUids.isNotEmpty) {
+      for (final bookUid in missingBookUids) {
+        await _collectionRepository.addBookToCollection(
+          defaultCollection.id,
+          bookUid,
+        );
+      }
+      collectionBookUids = await _collectionRepository.listCollectionBookUids();
+    }
+
+    final filteredItems = await _bookRepository.listLibraryIndex(
       sortMode: sortMode,
       filters: filters,
     );
-    return _buildState(items, allItems);
+    final collections = await _collectionRepository.listCollections();
+    return _buildState(
+      allItems: allItems,
+      filteredItems: filteredItems,
+      collections: collections,
+      collectionBookUids: collectionBookUids,
+      defaultCollectionId: defaultCollection.id,
+    );
   }
 
-  MobileLibraryState _buildState(
-    List<LibraryIndexEntry> items,
-    List<LibraryIndexEntry> allItems,
-  ) {
-    final formats = allItems.map((e) => e.format).toSet();
-    final categories = allItems
-        .map((e) => e.categoryId ?? '')
-        .where((e) => e.isNotEmpty)
+  MobileLibraryState _buildState({
+    required List<LibraryIndexEntry> allItems,
+    required List<LibraryIndexEntry> filteredItems,
+    required List<Collection> collections,
+    required Map<int, Set<String>> collectionBookUids,
+    required int defaultCollectionId,
+  }) {
+    final collectionIds =
+        collections.map((collection) => collection.id).toSet();
+    final selectedCollectionId =
+        collectionIds.contains(state.selectedCollectionId)
+            ? state.selectedCollectionId
+            : defaultCollectionId;
+
+    final visibleItems = selectedCollectionId == null
+        ? filteredItems
+        : filteredItems
+            .where(
+              (item) => (collectionBookUids[selectedCollectionId] ?? const {})
+                  .contains(item.bookUid),
+            )
+            .toList();
+
+    final formats = visibleItems.map((entry) => entry.format).toSet();
+    final categories = visibleItems
+        .map((entry) => entry.categoryId ?? '')
+        .where((value) => value.isNotEmpty)
         .toSet();
+    final filteredSelection = state.selectedBookUids
+        .where((uid) => visibleItems.any((item) => item.bookUid == uid))
+        .toSet();
+
     return state.copyWith(
       status:
           allItems.isEmpty ? LibraryPageStatus.empty : LibraryPageStatus.normal,
-      items: items,
+      items: visibleItems,
       availableFormats: formats,
       availableCategories: categories,
+      selectedCollectionId: selectedCollectionId,
+      defaultCollectionId: defaultCollectionId,
+      collections: collections,
+      collectionBookUids: collectionBookUids,
+      selectedBookUids: filteredSelection,
+      isSelectionMode: state.isSelectionMode && filteredSelection.isNotEmpty,
       clearError: true,
     );
   }

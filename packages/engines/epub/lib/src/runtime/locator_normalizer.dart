@@ -34,7 +34,10 @@ class LocatorNormalizer {
     );
 
     final cfi = _asNonEmptyString(source['cfi']);
-    final progression = _extractProgression(source['locations']);
+    final progression =
+        _extractLocationDouble(source['locations'], 'progression');
+    final totalProgression =
+        _extractLocationDouble(source['locations'], 'totalProgression');
     final anchor = _normalizeAnchor(source['anchor']);
 
     final result = <String, dynamic>{};
@@ -44,8 +47,11 @@ class LocatorNormalizer {
     if (cfi != null && cfi.isNotEmpty) {
       result['cfi'] = cfi;
     }
-    if (progression != null) {
-      result['locations'] = <String, dynamic>{'progression': progression};
+    if (progression != null || totalProgression != null) {
+      result['locations'] = <String, dynamic>{
+        if (progression != null) 'progression': progression,
+        if (totalProgression != null) 'totalProgression': totalProgression,
+      };
     }
     if (anchor != null && anchor.isNotEmpty) {
       result['anchor'] = anchor;
@@ -102,17 +108,17 @@ class LocatorNormalizer {
     return result.isEmpty ? null : result;
   }
 
-  double? _extractProgression(dynamic rawLocations) {
+  double? _extractLocationDouble(dynamic rawLocations, String key) {
     final map = _toMap(rawLocations);
     if (map == null) {
       return null;
     }
-    final progression = map['progression'];
-    if (progression is num) {
-      return progression.toDouble();
+    final value = map[key];
+    if (value is num) {
+      return value.toDouble();
     }
-    if (progression is String) {
-      return double.tryParse(progression);
+    if (value is String) {
+      return double.tryParse(value);
     }
     return null;
   }

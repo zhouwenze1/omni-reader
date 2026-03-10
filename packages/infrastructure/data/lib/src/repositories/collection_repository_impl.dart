@@ -13,6 +13,11 @@ class CollectionRepositoryImpl implements CollectionRepository {
   }
 
   @override
+  Future<Collection> ensureCollection(String name) {
+    return _dao.ensureCollection(name);
+  }
+
+  @override
   Future<Collection> createCollection(String name) {
     return _dao.createCollection(name);
   }

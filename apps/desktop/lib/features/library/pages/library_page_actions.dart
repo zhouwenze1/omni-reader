@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,6 +134,8 @@ class LibraryPageActions {
                       separatorBuilder: (_, __) => const SizedBox(height: 6),
                       itemBuilder: (context, index) {
                         final collection = state.collections[index];
+                        final isDefault =
+                            collection.id == state.defaultCollectionId;
                         final count =
                             state.collectionBookUids[collection.id]?.length ??
                                 0;
@@ -144,19 +148,23 @@ class LibraryPageActions {
                             children: [
                               IconButton(
                                 tooltip: l10n.renameCollection,
-                                onPressed: () => _showRenameCollectionDialog(
-                                  context,
-                                  controller,
-                                  collection,
-                                ),
+                                onPressed: isDefault
+                                    ? null
+                                    : () => _showRenameCollectionDialog(
+                                          context,
+                                          controller,
+                                          collection,
+                                        ),
                                 icon: const Icon(Icons.edit_outlined),
                               ),
                               IconButton(
                                 tooltip: l10n.delete,
-                                onPressed: () async {
-                                  await controller
-                                      .deleteCollection(collection.id);
-                                },
+                                onPressed: isDefault
+                                    ? null
+                                    : () async {
+                                        await controller
+                                            .deleteCollection(collection.id);
+                                      },
                                 icon: const Icon(Icons.delete_outline),
                               ),
                             ],
@@ -188,8 +196,14 @@ class LibraryPageActions {
     LibraryIndexEntry entry,
     DesktopLibraryState state,
   ) async {
+    if (state.collections.isEmpty) {
+      return;
+    }
+
     final l10n = context.l10n;
-    final localSelected = {...state.collectionsOfBook(entry.bookUid)};
+    int? selectedCollectionId = state.collectionsOfBook(entry.bookUid).isEmpty
+        ? state.defaultCollectionId
+        : state.collectionsOfBook(entry.bookUid).first;
 
     await showDialog<void>(
       context: context,
@@ -199,34 +213,23 @@ class LibraryPageActions {
             title: Text(l10n.collectionsForBookTitle(entry.title)),
             content: SizedBox(
               width: 380,
-              child: state.collections.isEmpty
-                  ? Text(l10n.noCollectionCreateFirst)
-                  : ListView(
-                      shrinkWrap: true,
-                      children: state.collections.map((collection) {
-                        final selected = localSelected.contains(collection.id);
-                        return CheckboxListTile(
-                          value: selected,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: Text(collection.name),
-                          onChanged: (value) async {
-                            final shouldContain = value ?? false;
-                            setDialogState(() {
-                              if (shouldContain) {
-                                localSelected.add(collection.id);
-                              } else {
-                                localSelected.remove(collection.id);
-                              }
-                            });
-                            await controller.toggleBookInCollection(
-                              collectionId: collection.id,
-                              bookUid: entry.bookUid,
-                              shouldContain: shouldContain,
-                            );
-                          },
-                        );
-                      }).toList(),
-                    ),
+              child: RadioGroup<int>(
+                groupValue: selectedCollectionId,
+                onChanged: (value) {
+                  setDialogState(() {
+                    selectedCollectionId = value;
+                  });
+                },
+                child: ListView(
+                  shrinkWrap: true,
+                  children: state.collections.map((collection) {
+                    return RadioListTile<int>(
+                      value: collection.id,
+                      title: Text(collection.name),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
             actions: [
               TextButton(
@@ -235,8 +238,18 @@ class LibraryPageActions {
                 child: Text(l10n.newCollection),
               ),
               FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(l10n.done),
+                onPressed: selectedCollectionId == null
+                    ? null
+                    : () async {
+                        await controller.moveBooksToCollection(
+                          bookUids: <String>{entry.bookUid},
+                          collectionId: selectedCollectionId!,
+                        );
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                child: Text(l10n.move),
               ),
             ],
           );
@@ -380,32 +393,65 @@ class LibraryPageActions {
   }
 
   static Future<void> importBooks(BuildContext context, WidgetRef ref) async {
-    final l10n = context.l10n;
-    final picked = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: const [
-        'epub',
-        'pdf',
-        'ldf',
-        'zip',
-        'cbz',
-        'webpub',
-        'lpf',
-        'mp3',
-        'm4b',
-      ],
-    );
+    final importKind = await _showImportModeDialog(context);
+    if (importKind == null) {
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
 
-    final paths = picked?.files
-            .map((file) => file.path)
-            .whereType<String>()
-            .where((path) => path.isNotEmpty)
-            .toList() ??
-        <String>[];
+    final l10n = context.l10n;
+    List<String> paths = <String>[];
+    Collection? folderCollection;
+    if (importKind == _LibraryImportKind.files) {
+      final picked = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: const [
+          'epub',
+          'pdf',
+          'ldf',
+          'zip',
+          'cbz',
+          'webpub',
+          'lpf',
+          'mp3',
+          'm4b',
+        ],
+      );
+
+      paths = picked?.files
+              .map((file) => file.path)
+              .whereType<String>()
+              .where((path) => path.isNotEmpty)
+              .toList() ??
+          <String>[];
+    } else {
+      final directoryPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select EPUB Folder',
+      );
+      if (directoryPath == null || directoryPath.trim().isEmpty) {
+        return;
+      }
+      paths = await _collectEpubFilesRecursively(directoryPath);
+      if (paths.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No EPUB files found in folder.')),
+          );
+        }
+        return;
+      }
+      folderCollection = await ref
+          .read(collectionRepositoryProvider)
+          .ensureCollection(_folderCollectionName(directoryPath));
+    }
+
     if (paths.isEmpty) {
       return;
     }
+
     if (!context.mounted) {
       return;
     }
@@ -417,13 +463,15 @@ class LibraryPageActions {
 
     final appSettings = ref.read(settingsControllerProvider).app;
     final controller = ref.read(desktopLibraryControllerProvider.notifier);
-    final currentCollectionId =
-        ref.read(desktopLibraryControllerProvider).selectedCollectionId;
+    final currentState = ref.read(desktopLibraryControllerProvider);
+    final currentCollectionId = folderCollection?.id ??
+        currentState.selectedCollectionId ??
+        currentState.defaultCollectionId;
 
     var importedCount = 0;
     var alreadyCount = 0;
     var failedCount = 0;
-    final importedOrExistingBookUids = <String>{};
+    final importedBookUids = <String>{};
 
     for (final path in paths) {
       final result =
@@ -436,20 +484,20 @@ class LibraryPageActions {
         alreadyCount += 1;
       } else if (result.task.status == ImportTaskStatus.success) {
         importedCount += 1;
+        if (result.bookUid != null) {
+          importedBookUids.add(result.bookUid!);
+        }
       } else {
         failedCount += 1;
       }
-      final uid = result.bookUid;
-      if (uid != null) {
-        importedOrExistingBookUids.add(uid);
-      }
     }
 
-    if (currentCollectionId != null && importedOrExistingBookUids.isNotEmpty) {
+    if (currentCollectionId != null && importedBookUids.isNotEmpty) {
       await controller.addBooksToCollection(
         currentCollectionId,
-        importedOrExistingBookUids,
+        importedBookUids,
       );
+      await controller.setCollectionFilter(currentCollectionId);
     } else {
       await controller.refresh();
     }
@@ -462,6 +510,36 @@ class LibraryPageActions {
         '${l10n.imported}: $importedCount, ${l10n.alreadyImported}: $alreadyCount, ${l10n.importFailed}: $failedCount';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static Future<_LibraryImportKind?> _showImportModeDialog(
+    BuildContext context,
+  ) {
+    final l10n = context.l10n;
+    return showDialog<_LibraryImportKind>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.importBook),
+        content:
+            const Text('Choose file import or recursive EPUB folder import.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton.tonal(
+            onPressed: () =>
+                Navigator.of(context).pop(_LibraryImportKind.folder),
+            child: const Text('Import Folder'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(_LibraryImportKind.files),
+            child: const Text('Import Files'),
+          ),
+        ],
+      ),
+    );
   }
 
   static Future<ImportBookOptions?> _showImportOptionsDialog(
@@ -536,4 +614,41 @@ class LibraryPageActions {
     }
     return false;
   }
+
+  static Future<List<String>> _collectEpubFilesRecursively(
+    String directoryPath,
+  ) async {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      return const <String>[];
+    }
+
+    final paths = <String>[];
+    await for (final entity
+        in directory.list(recursive: true, followLinks: false)) {
+      if (entity is! File) {
+        continue;
+      }
+      final path = entity.path;
+      if (path.toLowerCase().endsWith('.epub')) {
+        paths.add(path);
+      }
+    }
+    paths.sort();
+    return paths;
+  }
+
+  static String _folderCollectionName(String directoryPath) {
+    final normalized = directoryPath.replaceAll('\\', '/');
+    final segments =
+        normalized.split('/').where((segment) => segment.isNotEmpty);
+    if (segments.isEmpty) {
+      return CollectionPresets.uncategorizedName;
+    }
+    return segments.last.trim().isEmpty
+        ? CollectionPresets.uncategorizedName
+        : segments.last.trim();
+  }
 }
+
+enum _LibraryImportKind { files, folder }

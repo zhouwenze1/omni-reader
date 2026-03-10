@@ -33,25 +33,55 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('书架'),
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const LibrarySearchPage(),
-              ),
-            ),
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
-            onPressed: () => _openImportCenter(context),
-            icon: const Icon(Icons.file_upload_outlined),
-          ),
-          IconButton(
-            onPressed: () => context.push(RoutePaths.settingsHome),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
+        title: Text(
+          state.isSelectionMode
+              ? '\u5df2\u9009 ${state.selectedBookUids.length} \u672c'
+              : _buildLibraryTitle(state),
+        ),
+        actions: state.isSelectionMode
+            ? <Widget>[
+                IconButton(
+                  tooltip: '\u5168\u9009',
+                  onPressed:
+                      state.items.isEmpty ? null : controller.selectAllVisible,
+                  icon: const Icon(Icons.select_all_rounded),
+                ),
+                IconButton(
+                  tooltip: '\u79fb\u52a8\u5230\u5408\u96c6',
+                  onPressed: state.selectedBookUids.isEmpty
+                      ? null
+                      : () =>
+                          _showMoveSelectedSheet(context, state, controller),
+                  icon: const Icon(Icons.drive_file_move_outline),
+                ),
+                IconButton(
+                  tooltip: '\u5220\u9664',
+                  onPressed: state.selectedBookUids.isEmpty
+                      ? null
+                      : () =>
+                          _confirmDeleteSelected(context, state, controller),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+                IconButton(
+                  tooltip: '\u9000\u51fa',
+                  onPressed: controller.exitSelectionMode,
+                  icon: const Icon(Icons.close),
+                ),
+              ]
+            : <Widget>[
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LibrarySearchPage(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.search),
+                ),
+                IconButton(
+                  onPressed: () => _openImportCenter(context),
+                  icon: const Icon(Icons.file_upload_outlined),
+                ),
+              ],
       ),
       body: DecoratedBox(
         decoration: BoxDecoration(
@@ -68,12 +98,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           LibraryPageStatus.loading =>
             const Center(child: CircularProgressIndicator()),
           LibraryPageStatus.error =>
-            Center(child: Text(state.errorMessage ?? '加载失败')),
-          LibraryPageStatus.empty => const Center(child: Text('暂无书籍，先导入一本书。')),
+            Center(child: Text(state.errorMessage ?? 'Load failed')),
+          LibraryPageStatus.empty => _buildEmptyState(context, controller),
           LibraryPageStatus.normal => Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
               child: Column(
                 children: [
+                  _buildCollectionStrip(context, state, controller),
+                  const SizedBox(height: 10),
                   ShelfToolbar(
                     sortMode: state.sortMode,
                     viewMode: state.viewMode,
@@ -102,8 +134,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   Expanded(
                     child: state.items.isEmpty
                         ? EmptyView(
-                            title: '当前筛选下没有书籍',
-                            message: '试试切换排序，或者展开筛选后恢复为全部。',
+                            title:
+                                '\u5f53\u524d\u5408\u96c6\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u4e66',
+                            message:
+                                '\u53ef\u4ee5\u5207\u6362\u5408\u96c6\uff0c\u6216\u6e05\u7a7a\u5f53\u524d\u7b5b\u9009\u6761\u4ef6\u3002',
                             action: TextButton(
                               onPressed: () async {
                                 await controller.setFormats(const <String>{});
@@ -114,7 +148,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                   const <String>{},
                                 );
                               },
-                              child: const Text('清除筛选'),
+                              child: const Text('\u6e05\u7a7a\u7b5b\u9009'),
                             ),
                           )
                         : state.viewMode == LibraryViewMode.grid
@@ -133,8 +167,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                   return BookGridItem(
                                     entry: entry,
                                     coverPath: _coverPath(dataModule, entry),
-                                    onTap: () => context.push(
-                                      RoutePaths.reader(entry.bookUid),
+                                    selectionMode: state.isSelectionMode,
+                                    multiSelected: state.selectedBookUids
+                                        .contains(entry.bookUid),
+                                    onTap: () {
+                                      if (state.isSelectionMode) {
+                                        controller.toggleSelectedBook(
+                                          entry.bookUid,
+                                        );
+                                        return;
+                                      }
+                                      context.push(
+                                        RoutePaths.reader(entry.bookUid),
+                                      );
+                                    },
+                                    onLongPress: () =>
+                                        controller.enterSelectionMode(
+                                      seedBookUid: entry.bookUid,
                                     ),
                                   );
                                 },
@@ -149,8 +198,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                   return BookListItem(
                                     entry: entry,
                                     coverPath: _coverPath(dataModule, entry),
-                                    onTap: () => context.push(
-                                      RoutePaths.reader(entry.bookUid),
+                                    selectionMode: state.isSelectionMode,
+                                    multiSelected: state.selectedBookUids
+                                        .contains(entry.bookUid),
+                                    onTap: () {
+                                      if (state.isSelectionMode) {
+                                        controller.toggleSelectedBook(
+                                          entry.bookUid,
+                                        );
+                                        return;
+                                      }
+                                      context.push(
+                                        RoutePaths.reader(entry.bookUid),
+                                      );
+                                    },
+                                    onLongPress: () =>
+                                        controller.enterSelectionMode(
+                                      seedBookUid: entry.bookUid,
                                     ),
                                   );
                                 },
@@ -160,6 +224,77 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               ),
             ),
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(
+    BuildContext context,
+    MobileLibraryController controller,
+  ) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+              '\u6682\u65e0\u4e66\u7c4d\uff0c\u5148\u5bfc\u5165\u4e00\u672c\u4e66\u5427\u3002'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => _openImportCenter(context),
+            icon: const Icon(Icons.file_upload_outlined),
+            label: const Text('\u5bfc\u5165\u4e66\u7c4d'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => _showCreateCollectionDialog(context, controller),
+            child: const Text('\u65b0\u5efa\u5408\u96c6'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollectionStrip(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.28),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ...state.collections.map((collection) {
+              final selected = collection.id == state.selectedCollectionId;
+              final count =
+                  state.collectionBookUids[collection.id]?.length ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text('${collection.name} ($count)'),
+                  selected: selected,
+                  onSelected: (_) =>
+                      controller.setCollectionFilter(collection.id),
+                ),
+              );
+            }),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 18),
+              label: const Text('\u65b0\u5efa'),
+              onPressed: () => _showCreateCollectionDialog(context, controller),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -190,7 +325,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           Row(
             children: [
               Text(
-                '筛选',
+                '\u7b5b\u9009',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -204,15 +339,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                         .setProgressBucket(LibraryProgressBucket.all);
                     await controller.setCategories(const <String>{});
                   },
-                  child: const Text('清除'),
+                  child: const Text('\u6e05\u7a7a'),
                 ),
             ],
           ),
           _FilterGroup(
-            title: '格式',
+            title: '\u683c\u5f0f',
             children: [
               ChoiceChip(
-                label: const Text('全部'),
+                label: const Text('\u5168\u90e8'),
                 selected: !state.filters.hasFormatFilter,
                 onSelected: (_) => controller.setFormats(const <String>{}),
               ),
@@ -228,7 +363,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           ),
           const SizedBox(height: 12),
           _FilterGroup(
-            title: '进度',
+            title: '\u8fdb\u5ea6',
             children: LibraryProgressBucket.values.map((bucket) {
               return ChoiceChip(
                 label: Text(_progressLabel(bucket)),
@@ -240,10 +375,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
           if (categories.isNotEmpty) ...[
             const SizedBox(height: 12),
             _FilterGroup(
-              title: '分类',
+              title: '\u5206\u7c7b',
               children: [
                 ChoiceChip(
-                  label: const Text('全部'),
+                  label: const Text('\u5168\u90e8'),
                   selected: !state.filters.hasCategoryFilter,
                   onSelected: (_) => controller.setCategories(const <String>{}),
                 ),
@@ -266,19 +401,35 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
   int _activeFilterCount(LibraryFilters filters) {
     var count = 0;
-    if (filters.hasFormatFilter) count += 1;
-    if (filters.hasProgressFilter) count += 1;
-    if (filters.hasCategoryFilter) count += 1;
+    if (filters.hasFormatFilter) {
+      count += 1;
+    }
+    if (filters.hasProgressFilter) {
+      count += 1;
+    }
+    if (filters.hasCategoryFilter) {
+      count += 1;
+    }
     return count;
   }
 
   String _progressLabel(LibraryProgressBucket bucket) {
     return switch (bucket) {
-      LibraryProgressBucket.all => '全部进度',
-      LibraryProgressBucket.notStarted => '未开始',
-      LibraryProgressBucket.inProgress => '阅读中',
-      LibraryProgressBucket.completed => '已读完',
+      LibraryProgressBucket.all => '\u5168\u90e8\u8fdb\u5ea6',
+      LibraryProgressBucket.notStarted => '\u672a\u5f00\u59cb',
+      LibraryProgressBucket.inProgress => '\u9605\u8bfb\u4e2d',
+      LibraryProgressBucket.completed => '\u5df2\u8bfb\u5b8c',
     };
+  }
+
+  String _buildLibraryTitle(MobileLibraryState state) {
+    final selectedId = state.selectedCollectionId;
+    for (final collection in state.collections) {
+      if (collection.id == selectedId) {
+        return '\u4e66\u67b6 \u00b7 ${collection.name}';
+      }
+    }
+    return '\u4e66\u67b6';
   }
 
   String? _coverPath(DataModule dataModule, LibraryIndexEntry entry) {
@@ -287,6 +438,133 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       return null;
     }
     return '${dataModule.storagePaths.libraryRoot.path}/${entry.bookUid}/$rel';
+  }
+
+  Future<void> _showCreateCollectionDialog(
+    BuildContext context,
+    MobileLibraryController controller,
+  ) async {
+    final input = TextEditingController();
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('\u65b0\u5efa\u5408\u96c6'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '\u8f93\u5165\u5408\u96c6\u540d\u79f0',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('\u53d6\u6d88'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('\u521b\u5efa'),
+          ),
+        ],
+      ),
+    );
+    if (created == true) {
+      final name = input.text.trim();
+      if (name.isEmpty) {
+        return;
+      }
+      final collection = await controller.ensureCollection(name);
+      await controller.setCollectionFilter(collection.id);
+    }
+  }
+
+  Future<void> _showMoveSelectedSheet(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) async {
+    if (state.selectedBookUids.isEmpty || state.collections.isEmpty) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text('\u79fb\u52a8\u5230\u5408\u96c6'),
+                subtitle: Text('\u9009\u62e9\u76ee\u6807\u5408\u96c6'),
+              ),
+              ...state.collections.map((collection) {
+                return ListTile(
+                  leading: const Icon(Icons.folder_copy_outlined),
+                  title: Text(collection.name),
+                  trailing: collection.id == state.selectedCollectionId
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () async {
+                    await controller.moveBooksToCollection(
+                      bookUids: state.selectedBookUids,
+                      collectionId: collection.id,
+                    );
+                    controller.exitSelectionMode();
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                );
+              }),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline),
+                title: const Text('\u65b0\u5efa\u5408\u96c6'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _showCreateCollectionDialog(context, controller);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteSelected(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) async {
+    if (state.selectedBookUids.isEmpty) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('\u786e\u8ba4\u5220\u9664'),
+        content: Text(
+          '\u786e\u5b9a\u5220\u9664 ${state.selectedBookUids.length} \u672c\u4e66\u5417\uff1f\n\u8fd9\u4f1a\u540c\u65f6\u5220\u9664\u672c\u5730\u6587\u4ef6\u548c\u89e3\u6790\u7f13\u5b58\u3002',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('\u53d6\u6d88'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('\u5220\u9664'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.deleteBooks(state.selectedBookUids);
+      controller.exitSelectionMode();
+    }
   }
 
   Future<void> _openImportCenter(BuildContext context) async {

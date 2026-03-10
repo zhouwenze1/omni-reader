@@ -138,7 +138,7 @@ class LibraryDetailPanel extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () => onShowBookCollections(entry),
               icon: const Icon(Icons.playlist_add),
-              label: Text(l10n.addOrRemoveCollection),
+              label: Text(l10n.moveToCollection),
             ),
           ),
           const Spacer(),
@@ -187,9 +187,12 @@ class LibraryDetailPanel extends StatelessWidget {
         .map(
           (collection) => InputChip(
             label: Text(collection.name),
-            onDeleted: () async {
-              await onRemoveBookFromCollection(collection.id, entry.bookUid);
-            },
+            onDeleted: collection.id == state.defaultCollectionId
+                ? null
+                : () async {
+                    await onRemoveBookFromCollection(
+                        collection.id, entry.bookUid);
+                  },
           ),
         )
         .toList();

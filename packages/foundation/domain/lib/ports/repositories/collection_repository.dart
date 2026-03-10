@@ -3,6 +3,8 @@ import '../../models/collection.dart';
 abstract class CollectionRepository {
   Future<List<Collection>> listCollections();
 
+  Future<Collection> ensureCollection(String name);
+
   Future<Collection> createCollection(String name);
 
   Future<void> renameCollection(int collectionId, String name);

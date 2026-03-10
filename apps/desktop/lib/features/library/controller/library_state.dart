@@ -12,6 +12,7 @@ class DesktopLibraryState {
     required this.filters,
     required this.selectedBookUid,
     required this.selectedCollectionId,
+    required this.defaultCollectionId,
     required this.collections,
     required this.collectionBookUids,
     required this.isFilterPanelVisible,
@@ -31,6 +32,7 @@ class DesktopLibraryState {
         filters = const LibraryFilters(),
         selectedBookUid = null,
         selectedCollectionId = null,
+        defaultCollectionId = null,
         collections = const <Collection>[],
         collectionBookUids = const <int, Set<String>>{},
         isFilterPanelVisible = true,
@@ -48,6 +50,7 @@ class DesktopLibraryState {
   final LibraryFilters filters;
   final String? selectedBookUid;
   final int? selectedCollectionId;
+  final int? defaultCollectionId;
   final List<Collection> collections;
   final Map<int, Set<String>> collectionBookUids;
   final bool isFilterPanelVisible;
@@ -89,6 +92,7 @@ class DesktopLibraryState {
     LibraryFilters? filters,
     String? selectedBookUid,
     int? selectedCollectionId,
+    int? defaultCollectionId,
     List<Collection>? collections,
     Map<int, Set<String>>? collectionBookUids,
     bool? isFilterPanelVisible,
@@ -111,6 +115,7 @@ class DesktopLibraryState {
       selectedCollectionId: clearSelectedCollection
           ? null
           : (selectedCollectionId ?? this.selectedCollectionId),
+      defaultCollectionId: defaultCollectionId ?? this.defaultCollectionId,
       collections: collections ?? this.collections,
       collectionBookUids: collectionBookUids ?? this.collectionBookUids,
       isFilterPanelVisible: isFilterPanelVisible ?? this.isFilterPanelVisible,

@@ -15,6 +15,8 @@ dependencies:
     path: ../kernel
   foundation_domain:
     path: ../../foundation/domain
+  reader_parser_core:
+    path: ../../../../reader_parser_next/packages/reader_parser_core
   reader_parser_epub:
     path: ../../../../reader_parser_next/packages/reader_parser_epub
   archive: ^3.6.1

@@ -9,12 +9,18 @@ class BookListItem extends StatelessWidget {
     super.key,
     required this.entry,
     required this.coverPath,
+    required this.selectionMode,
+    required this.multiSelected,
     required this.onTap,
+    this.onLongPress,
   });
 
   final LibraryIndexEntry entry;
   final String? coverPath;
+  final bool selectionMode;
+  final bool multiSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -27,19 +33,36 @@ class BookListItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(22),
       child: Ink(
         decoration: BoxDecoration(
-          color: colorScheme.surface,
+          color: multiSelected
+              ? colorScheme.primaryContainer
+              : colorScheme.surface,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.22),
+            color: multiSelected
+                ? colorScheme.primary.withValues(alpha: 0.4)
+                : colorScheme.outlineVariant.withValues(alpha: 0.22),
           ),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
+              if (selectionMode) ...[
+                Icon(
+                  multiSelected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: multiSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+              ],
               BookCover(
                 filePath: coverPath,
                 width: 62,

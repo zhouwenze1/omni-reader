@@ -9,12 +9,18 @@ class BookGridItem extends StatelessWidget {
     super.key,
     required this.entry,
     required this.coverPath,
+    required this.selectionMode,
+    required this.multiSelected,
     required this.onTap,
+    this.onLongPress,
   });
 
   final LibraryIndexEntry entry;
   final String? coverPath;
+  final bool selectionMode;
+  final bool multiSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -27,13 +33,18 @@ class BookGridItem extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(24),
       child: Ink(
         decoration: BoxDecoration(
-          color: colorScheme.surface,
+          color: multiSelected
+              ? colorScheme.primaryContainer
+              : colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.24),
+            color: multiSelected
+                ? colorScheme.primary.withValues(alpha: 0.45)
+                : colorScheme.outlineVariant.withValues(alpha: 0.24),
           ),
           boxShadow: [
             BoxShadow(
@@ -80,6 +91,29 @@ class BookGridItem extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (selectionMode)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface.withValues(alpha: 0.94),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              multiSelected
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                              size: 22,
+                              color: multiSelected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

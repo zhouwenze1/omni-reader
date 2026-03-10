@@ -37,6 +37,18 @@ void main() {
       expect(plainPackage.spineItems.length, 5);
       expect(smartPackage.title, 'Sample Book');
       expect(smartPackage.authors, isEmpty);
+      expect(
+        File(storage.positionsFilePath('smart_on')).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(storage.manifestFilePath('smart_on')).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(storage.contentFilePath('smart_on')).existsSync(),
+        isTrue,
+      );
 
       expect(smartPackage.toc.map((item) => item.title), <String>[
         'Part 1',

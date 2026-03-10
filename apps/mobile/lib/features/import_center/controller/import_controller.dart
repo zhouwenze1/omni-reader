@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,19 +52,46 @@ class ImportController extends StateNotifier<ImportState> {
         <String>[];
   }
 
-  Future<void> importPaths(List<String> paths) async {
+  Future<String?> pickDirectory() {
+    return FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select EPUB Folder',
+    );
+  }
+
+  Future<List<String>> collectEpubFilesRecursively(String directoryPath) async {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      return const <String>[];
+    }
+
+    final paths = <String>[];
+    await for (final entity
+        in directory.list(recursive: true, followLinks: false)) {
+      if (entity is! File) {
+        continue;
+      }
+      if (entity.path.toLowerCase().endsWith('.epub')) {
+        paths.add(entity.path);
+      }
+    }
+    paths.sort();
+    return paths;
+  }
+
+  Future<List<ImportResult>> importPaths(List<String> paths) {
     return importPathsWithOptions(paths);
   }
 
-  Future<void> importPathsWithOptions(
+  Future<List<ImportResult>> importPathsWithOptions(
     List<String> paths, {
     ImportBookOptions options = const ImportBookOptions(),
   }) async {
     if (paths.isEmpty || state.isImporting) {
-      return;
+      return const <ImportResult>[];
     }
 
     state = state.copyWith(isImporting: true, clearError: true);
+    final results = <ImportResult>[];
     try {
       final appSettings = await _settingsRepository.getAppSettings();
       final nextTasks = <ImportTask>[...state.tasks];
@@ -73,15 +101,18 @@ class ImportController extends StateNotifier<ImportState> {
           debugMode: appSettings.debugImport,
           options: options,
         );
+        results.add(result);
         nextTasks.insert(0, result.task);
         state = state.copyWith(tasks: List<ImportTask>.from(nextTasks));
       }
       state = state.copyWith(isImporting: false, clearError: true);
+      return results;
     } catch (error) {
       state = state.copyWith(
         isImporting: false,
-        errorMessage: '导入失败: $error',
+        errorMessage: 'Import failed: $error',
       );
+      return results;
     }
   }
 

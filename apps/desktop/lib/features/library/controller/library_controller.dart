@@ -151,7 +151,7 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     if (trimmed.isEmpty) {
       return;
     }
-    await _collectionRepository.createCollection(trimmed);
+    await _collectionRepository.ensureCollection(trimmed);
     await _reloadByCurrentQuery();
   }
 
@@ -165,14 +165,18 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
   }
 
   Future<void> deleteCollection(int collectionId) async {
+    if (collectionId == state.defaultCollectionId) {
+      return;
+    }
     await _collectionRepository.deleteCollection(collectionId);
     if (state.selectedCollectionId == collectionId) {
-      state = state.copyWith(clearSelectedCollection: true);
+      state = state.copyWith(selectedCollectionId: state.defaultCollectionId);
     }
     await _reloadByCurrentQuery();
   }
 
   Future<void> addBookToCollection(int collectionId, String bookUid) async {
+    await _collectionRepository.removeBookFromAllCollections(bookUid);
     await _collectionRepository.addBookToCollection(collectionId, bookUid);
     await _reloadByCurrentQuery();
   }
@@ -182,6 +186,7 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     Iterable<String> bookUids,
   ) async {
     for (final uid in bookUids.toSet()) {
+      await _collectionRepository.removeBookFromAllCollections(uid);
       await _collectionRepository.addBookToCollection(collectionId, uid);
     }
     await _reloadByCurrentQuery();
@@ -199,6 +204,7 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
     required bool shouldContain,
   }) async {
     if (shouldContain) {
+      await _collectionRepository.removeBookFromAllCollections(bookUid);
       await _collectionRepository.addBookToCollection(collectionId, bookUid);
     } else {
       await _collectionRepository.removeBookFromCollection(
@@ -276,31 +282,65 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
   }
 
   Future<_LibrarySnapshot> _loadSnapshot() async {
+    final allItems = await _bookRepository.listLibraryIndex(
+      sortMode: state.sortMode,
+    );
+    final defaultCollection = await _collectionRepository.ensureCollection(
+      CollectionPresets.uncategorizedName,
+    );
+    var collectionBookUids =
+        await _collectionRepository.listCollectionBookUids();
+    final uncategorizedBookUids =
+        collectionBookUids[defaultCollection.id] ?? const <String>{};
+    final assignedBookUids = <String>{
+      for (final entry in collectionBookUids.values) ...entry,
+    };
+    final missingBookUids = allItems
+        .map((item) => item.bookUid)
+        .where(
+          (bookUid) =>
+              !assignedBookUids.contains(bookUid) &&
+              !uncategorizedBookUids.contains(bookUid),
+        )
+        .toSet();
+    if (missingBookUids.isNotEmpty) {
+      for (final bookUid in missingBookUids) {
+        await _collectionRepository.addBookToCollection(
+          defaultCollection.id,
+          bookUid,
+        );
+      }
+      collectionBookUids = await _collectionRepository.listCollectionBookUids();
+    }
+
     final items = await _bookRepository.listLibraryIndex(
       sortMode: state.sortMode,
       filters: state.filters,
     );
     final collections = await _collectionRepository.listCollections();
-    final collectionBookUids =
-        await _collectionRepository.listCollectionBookUids();
     return _LibrarySnapshot(
+      allItems: allItems,
       items: items,
       collections: collections,
       collectionBookUids: collectionBookUids,
+      defaultCollectionId: defaultCollection.id,
     );
   }
 
   DesktopLibraryState _buildStateFromSnapshot(_LibrarySnapshot snapshot) {
-    final allItems = snapshot.items;
     final collectionIds = snapshot.collections.map((it) => it.id).toSet();
-    final selectedCollectionId =
-        collectionIds.contains(state.selectedCollectionId)
-            ? state.selectedCollectionId
-            : null;
+    final previousSelectedCollectionId = state.selectedCollectionId;
+    final selectedCollectionId = previousSelectedCollectionId == null
+        ? (state.defaultCollectionId == null
+            ? snapshot.defaultCollectionId
+            : null)
+        : (collectionIds.contains(previousSelectedCollectionId)
+            ? previousSelectedCollectionId
+            : snapshot.defaultCollectionId);
     final collectionBookUids = snapshot.collectionBookUids;
     final visibleItems = selectedCollectionId == null
-        ? allItems
-        : allItems
+        ? snapshot.items
+        : snapshot.items
             .where(
               (item) => (collectionBookUids[selectedCollectionId] ?? const {})
                   .contains(item.bookUid),
@@ -331,6 +371,7 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
       filteredItems: items,
       selectedBookUid: selectedBookUid,
       selectedCollectionId: selectedCollectionId,
+      defaultCollectionId: snapshot.defaultCollectionId,
       collections: snapshot.collections,
       collectionBookUids: collectionBookUids,
       availableFormats: formats,
@@ -344,12 +385,16 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
 
 class _LibrarySnapshot {
   const _LibrarySnapshot({
+    required this.allItems,
     required this.items,
     required this.collections,
     required this.collectionBookUids,
+    required this.defaultCollectionId,
   });
 
+  final List<LibraryIndexEntry> allItems;
   final List<LibraryIndexEntry> items;
   final List<Collection> collections;
   final Map<int, Set<String>> collectionBookUids;
+  final int defaultCollectionId;
 }

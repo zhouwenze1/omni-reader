@@ -28,10 +28,16 @@ class ReaderEventParser {
     required Map<String, dynamic>? locatorLocations,
     double fallback = 0,
   }) {
-    final payloadProgress = (payload?['progression'] as num?)?.toDouble();
-    final locatorProgress =
-        (locatorLocations?['progression'] as num?)?.toDouble();
-    return payloadProgress ?? locatorProgress ?? fallback;
+    final payloadTotalProgress = _asDouble(payload?['totalProgression']);
+    final locatorTotalProgress =
+        _asDouble(locatorLocations?['totalProgression']);
+    final payloadProgress = _asDouble(payload?['progression']);
+    final locatorProgress = _asDouble(locatorLocations?['progression']);
+    return payloadTotalProgress ??
+        locatorTotalProgress ??
+        payloadProgress ??
+        locatorProgress ??
+        fallback;
   }
 
   static ReaderLinkDecision resolveLink(Map<String, dynamic> payload) {
@@ -114,5 +120,15 @@ class ReaderEventParser {
 
   static String _asLowerText(Object? value) {
     return _asText(value)?.toLowerCase() ?? '';
+  }
+
+  static double? _asDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
   }
 }

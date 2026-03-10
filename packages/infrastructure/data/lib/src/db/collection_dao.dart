@@ -29,11 +29,44 @@ class CollectionDao {
         .toList();
   }
 
+  Future<Collection?> findCollectionByName(String name) async {
+    final normalized = _normalizeName(name);
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final rows = await _db.customSelect(
+      '''
+      SELECT * FROM collections
+      WHERE lower(trim(name)) = ?
+      ORDER BY updatedAt DESC, id DESC
+      LIMIT 1
+      ''',
+      variables: [Variable.withString(normalized.toLowerCase())],
+    ).get();
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _mapCollection(rows.first.data);
+  }
+
+  Future<Collection> ensureCollection(String name) async {
+    final existing = await findCollectionByName(name);
+    if (existing != null) {
+      return existing;
+    }
+    return createCollection(name);
+  }
+
   Future<Collection> createCollection(String name) async {
+    final normalized = _normalizeName(name);
+    if (normalized.isEmpty) {
+      throw StateError('Collection name cannot be empty');
+    }
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.customStatement(
       'INSERT INTO collections (name, createdAt, updatedAt) VALUES (?, ?, ?)',
-      [name, now, now],
+      [normalized, now, now],
     );
 
     final idRow =
@@ -42,16 +75,20 @@ class CollectionDao {
 
     return Collection(
       id: id,
-      name: name,
+      name: normalized,
       createdAt: DateTime.fromMillisecondsSinceEpoch(now),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
     );
   }
 
   Future<void> renameCollection(int id, String name) {
+    final normalized = _normalizeName(name);
+    if (normalized.isEmpty) {
+      throw StateError('Collection name cannot be empty');
+    }
     return _db.customStatement(
       'UPDATE collections SET name = ?, updatedAt = ? WHERE id = ?',
-      [name, DateTime.now().millisecondsSinceEpoch, id],
+      [normalized, DateTime.now().millisecondsSinceEpoch, id],
     );
   }
 
@@ -59,28 +96,36 @@ class CollectionDao {
     return _db.customStatement('DELETE FROM collections WHERE id = ?', [id]);
   }
 
-  Future<void> addBookToCollection(int collectionId, String bookUid) {
-    return _db.customStatement(
+  Future<void> addBookToCollection(int collectionId, String bookUid) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _db.customStatement(
       '''
       INSERT OR REPLACE INTO collection_items (collectionId, bookUid, addedAt)
       VALUES (?, ?, ?)
       ''',
-      [collectionId, bookUid, DateTime.now().millisecondsSinceEpoch],
+      [collectionId, bookUid, now],
     );
+    await _touchCollection(collectionId, now);
   }
 
-  Future<void> removeBookFromCollection(int collectionId, String bookUid) {
-    return _db.customStatement(
+  Future<void> removeBookFromCollection(
+      int collectionId, String bookUid) async {
+    await _db.customStatement(
       'DELETE FROM collection_items WHERE collectionId = ? AND bookUid = ?',
       [collectionId, bookUid],
     );
+    await _touchCollection(collectionId);
   }
 
-  Future<void> removeBookFromAllCollections(String bookUid) {
-    return _db.customStatement(
+  Future<void> removeBookFromAllCollections(String bookUid) async {
+    final collectionIds = await listCollectionIdsForBook(bookUid);
+    await _db.customStatement(
       'DELETE FROM collection_items WHERE bookUid = ?',
       [bookUid],
     );
+    for (final collectionId in collectionIds) {
+      await _touchCollection(collectionId);
+    }
   }
 
   Future<List<CollectionItem>> listCollectionItems(int collectionId) async {
@@ -127,5 +172,29 @@ class CollectionDao {
       result.putIfAbsent(collectionId, () => <String>{}).add(bookUid);
     }
     return result;
+  }
+
+  Collection _mapCollection(Map<String, dynamic> data) {
+    return Collection(
+      id: (data['id'] as num).toInt(),
+      name: data['name'] as String,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        (data['createdAt'] as num).toInt(),
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (data['updatedAt'] as num).toInt(),
+      ),
+    );
+  }
+
+  String _normalizeName(String name) {
+    return name.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  Future<void> _touchCollection(int collectionId, [int? now]) {
+    return _db.customStatement(
+      'UPDATE collections SET updatedAt = ? WHERE id = ?',
+      [now ?? DateTime.now().millisecondsSinceEpoch, collectionId],
+    );
   }
 }

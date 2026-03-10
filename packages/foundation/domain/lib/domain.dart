@@ -3,6 +3,7 @@ library foundation_domain;
 export 'models/annotation.dart';
 export 'models/book.dart';
 export 'models/collection.dart';
+export 'models/collection_presets.dart';
 export 'models/import_models.dart';
 export 'models/library_index_entry.dart';
 export 'models/library_query.dart';

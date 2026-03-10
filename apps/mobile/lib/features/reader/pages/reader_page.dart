@@ -63,6 +63,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _loading = true;
   bool _chromeVisible = true;
   bool _isProgressDragging = false;
+  bool _exitInFlight = false;
+  bool _systemUiRestored = false;
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
   int? _batteryLevel;
@@ -364,6 +366,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _enterImmersiveMode() async {
+    _systemUiRestored = false;
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   }
@@ -432,9 +435,35 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         : SystemUiOverlayStyle.dark;
   }
 
-  void _restoreSystemUi() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  Future<void> _restoreSystemUiIfNeeded() async {
+    if (_systemUiRestored) {
+      return;
+    }
+    _systemUiRestored = true;
     SystemChrome.setSystemUIOverlayStyle(_restoreOverlayStyle);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  Future<void> _requestExitReader() async {
+    if (_exitInFlight) {
+      return;
+    }
+    _exitInFlight = true;
+    try {
+      await _restoreSystemUiIfNeeded();
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) {
+        return;
+      }
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) {
+        navigator.pop();
+        return;
+      }
+      await navigator.maybePop();
+    } finally {
+      _exitInFlight = false;
+    }
   }
 
   @override
@@ -659,7 +688,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       await _session?.goTo(
         Locator(
           href: tocItem!.href,
-          locations: _progress?.locator.locations,
         ),
       );
     }
@@ -910,7 +938,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (session != null) {
       unawaited(session.dispose().catchError((_) {}));
     }
-    _restoreSystemUi();
+    unawaited(_restoreSystemUiIfNeeded());
     super.dispose();
   }
 
@@ -937,75 +965,84 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final immersiveOverlayHorizontalPadding =
         _paddingHorizontal.clamp(20, 44).toDouble();
 
-    return ReaderShell(
-      backgroundColor: chromePalette.pageBackground,
-      chromeVisible: _chromeVisible,
-      topBar: ReaderTopBar(
-        onBackPressed: () => Navigator.of(context).maybePop(),
-        title: book.title,
-        backgroundColor: chromePalette.chromeBackground,
-        foregroundColor: chromePalette.chromeForeground,
-        borderColor: chromePalette.chromeBorder,
-        actions: [
-          IconButton(
-            tooltip: l10n.search,
-            onPressed: () async {
-              await context.push(RoutePaths.searchInBook(book.uid));
-              await _enterImmersiveMode();
-            },
-            icon: Icon(Icons.search, color: chromePalette.chromeForeground),
-          ),
-          IconButton(
-            tooltip: l10n.switchThemeQuick,
-            onPressed: _toggleTheme,
-            icon: Icon(
-              _rendererTheme == 'day' ? Icons.dark_mode : Icons.light_mode,
-              color: chromePalette.chromeForeground,
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        unawaited(_requestExitReader());
+      },
+      child: ReaderShell(
+        backgroundColor: chromePalette.pageBackground,
+        chromeVisible: _chromeVisible,
+        topBar: ReaderTopBar(
+          onBackPressed: _requestExitReader,
+          title: book.title,
+          backgroundColor: chromePalette.chromeBackground,
+          foregroundColor: chromePalette.chromeForeground,
+          borderColor: chromePalette.chromeBorder,
+          actions: [
+            IconButton(
+              tooltip: l10n.search,
+              onPressed: () async {
+                await context.push(RoutePaths.searchInBook(book.uid));
+                await _enterImmersiveMode();
+              },
+              icon: Icon(Icons.search, color: chromePalette.chromeForeground),
             ),
-          ),
-        ],
-      ),
-      immersiveOverlayPadding: EdgeInsets.fromLTRB(
-        immersiveOverlayHorizontalPadding,
-        0,
-        immersiveOverlayHorizontalPadding,
-        12,
-      ),
-      immersiveOverlay: ReaderImmersiveHud(
-        timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
-        batteryLevel: _batteryLevel,
-        progress: _sliderProgress,
-        progressText: _buildImmersiveProgressText(),
-        darkMode: chromePalette.isDark,
-      ),
-      body: _session!.buildView(),
-      floatingActionButton: FloatingActionButton.small(
-        heroTag: 'selectionTools',
-        onPressed: _openSelectionTools,
-        backgroundColor: chromePalette.fabBackground,
-        foregroundColor: chromePalette.fabForeground,
-        child: const Icon(Icons.auto_awesome),
-      ),
-      bottomBar: ReaderBottomBar(
-        progress: _sliderProgress,
-        backgroundColor: chromePalette.chromeBackground,
-        foregroundColor: chromePalette.chromeForeground,
-        borderColor: chromePalette.chromeBorder,
-        progressActiveColor: chromePalette.sliderActive,
-        progressInactiveColor: chromePalette.sliderInactive,
-        onProgressChangeStart: _handleProgressChangeStart,
-        onProgressChanged: (value) {
-          setState(() {
-            _sliderProgress = value;
-          });
-        },
-        onProgressChangeEnd: _handleProgressChangeEnd,
-        onPrev: () => _session?.navigatePrev(),
-        onNext: () => _session?.navigateNext(),
-        onOpenToc: _openToc,
-        onOpenAnnotations: _openAnnotationHub,
-        onOpenSettings: _openReaderSettings,
-        onOpenMore: _openMoreActions,
+            IconButton(
+              tooltip: l10n.switchThemeQuick,
+              onPressed: _toggleTheme,
+              icon: Icon(
+                _rendererTheme == 'day' ? Icons.dark_mode : Icons.light_mode,
+                color: chromePalette.chromeForeground,
+              ),
+            ),
+          ],
+        ),
+        immersiveOverlayPadding: EdgeInsets.fromLTRB(
+          immersiveOverlayHorizontalPadding,
+          0,
+          immersiveOverlayHorizontalPadding,
+          12,
+        ),
+        immersiveOverlay: ReaderImmersiveHud(
+          timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
+          batteryLevel: _batteryLevel,
+          progress: _sliderProgress,
+          progressText: _buildImmersiveProgressText(),
+          darkMode: chromePalette.isDark,
+        ),
+        body: _session!.buildView(),
+        floatingActionButton: FloatingActionButton.small(
+          heroTag: 'selectionTools',
+          onPressed: _openSelectionTools,
+          backgroundColor: chromePalette.fabBackground,
+          foregroundColor: chromePalette.fabForeground,
+          child: const Icon(Icons.auto_awesome),
+        ),
+        bottomBar: ReaderBottomBar(
+          progress: _sliderProgress,
+          backgroundColor: chromePalette.chromeBackground,
+          foregroundColor: chromePalette.chromeForeground,
+          borderColor: chromePalette.chromeBorder,
+          progressActiveColor: chromePalette.sliderActive,
+          progressInactiveColor: chromePalette.sliderInactive,
+          onProgressChangeStart: _handleProgressChangeStart,
+          onProgressChanged: (value) {
+            setState(() {
+              _sliderProgress = value;
+            });
+          },
+          onProgressChangeEnd: _handleProgressChangeEnd,
+          onPrev: () => _session?.navigatePrev(),
+          onNext: () => _session?.navigateNext(),
+          onOpenToc: _openToc,
+          onOpenAnnotations: _openAnnotationHub,
+          onOpenSettings: _openReaderSettings,
+          onOpenMore: _openMoreActions,
+        ),
       ),
     );
   }

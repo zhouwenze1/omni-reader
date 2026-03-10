@@ -33,6 +33,22 @@ class BookStorageService {
     return p.join(bookDirPath(bookUuid), 'meta.json');
   }
 
+  String artifactFilePath(String bookUuid, String fileName) {
+    return p.join(bookDirPath(bookUuid), fileName);
+  }
+
+  String manifestFilePath(String bookUuid) {
+    return artifactFilePath(bookUuid, 'manifest.json');
+  }
+
+  String positionsFilePath(String bookUuid) {
+    return artifactFilePath(bookUuid, 'positions.json');
+  }
+
+  String contentFilePath(String bookUuid) {
+    return artifactFilePath(bookUuid, 'content.json');
+  }
+
   Future<void> ensureBooksRoot() async {
     if (!await _booksRoot.exists()) {
       await _booksRoot.create(recursive: true);
@@ -76,6 +92,19 @@ class BookStorageService {
     await _writeJsonAtomic(metaFilePath(package.bookUuid), metadata.toJson());
   }
 
+  Future<void> saveArtifactFileMap(
+    String bookUuid,
+    Map<String, Map<String, Object?>> files,
+  ) async {
+    await prepareBookDirs(bookUuid);
+    for (final entry in files.entries) {
+      final json = entry.value.map(
+        (key, value) => MapEntry(key, value),
+      );
+      await _writeJsonAtomic(artifactFilePath(bookUuid, entry.key), json);
+    }
+  }
+
   Future<BookPackageMetadata?> readMetadata(String bookUuid) async {
     final file = File(metaFilePath(bookUuid));
     if (!await file.exists()) {
@@ -112,6 +141,29 @@ class BookStorageService {
   Future<Map<String, dynamic>?> readLastLocator(String bookUuid) async {
     final metadata = await readMetadata(bookUuid);
     return metadata?.lastLocator;
+  }
+
+  Future<Map<String, dynamic>?> readArtifactJson(
+    String bookUuid,
+    String fileName,
+  ) async {
+    final file = File(artifactFilePath(bookUuid, fileName));
+    if (!await file.exists()) {
+      return null;
+    }
+    final text = await file.readAsString();
+    final decoded = jsonDecode(text);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return decoded.map((key, value) => MapEntry('$key', value));
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> readPositionsDocument(String bookUuid) {
+    return readArtifactJson(bookUuid, 'positions.json');
   }
 
   Future<void> _writeJsonAtomic(String filePath, Map<String, dynamic> json) {
