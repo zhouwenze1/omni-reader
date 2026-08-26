@@ -2,17 +2,12 @@ import 'package:kernel/kernel.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:foundation_domain/domain.dart';
 
-import 'book_storage_service.dart';
 import 'book_uri_mapper.dart';
 import 'locator_normalizer.dart';
+import 'renderer_locator_mapper.dart';
 
 class ReaderSelection {
-  const ReaderSelection({
-    this.href,
-    this.cfi,
-    this.text,
-    this.anchor,
-  });
+  const ReaderSelection({this.href, this.cfi, this.text, this.anchor});
 
   final String? href;
   final String? cfi;
@@ -43,16 +38,14 @@ class ReaderEventReceiver {
   ReaderEventReceiver({
     required InAppWebViewController controller,
     required String bookUuid,
-    required BookStorageService storageService,
     required LocatorNormalizer locatorNormalizer,
     required BookUriMapper uriMapper,
     required void Function(ReaderEvent event) emitEvent,
-  })  : _controller = controller,
-        _bookUuid = bookUuid,
-        _storageService = storageService,
-        _locatorNormalizer = locatorNormalizer,
-        _uriMapper = uriMapper,
-        _emitEvent = emitEvent;
+  }) : _controller = controller,
+       _bookUuid = bookUuid,
+       _locatorNormalizer = locatorNormalizer,
+       _uriMapper = uriMapper,
+       _emitEvent = emitEvent;
 
   static const List<String> eventNames = <String>[
     'load',
@@ -72,8 +65,9 @@ class ReaderEventReceiver {
 
   final InAppWebViewController _controller;
   final String _bookUuid;
-  final BookStorageService _storageService;
   final LocatorNormalizer _locatorNormalizer;
+  final RendererLocatorMapper _rendererLocatorMapper =
+      const RendererLocatorMapper();
   final BookUriMapper _uriMapper;
   final void Function(ReaderEvent event) _emitEvent;
 
@@ -81,9 +75,9 @@ class ReaderEventReceiver {
     for (final name in eventNames) {
       _controller.addJavaScriptHandler(
         handlerName: name,
-        callback: (args) async {
+        callback: (args) {
           final payload = _extractPayload(args);
-          final normalized = await _normalizeEventPayload(name, payload);
+          final normalized = _normalizeEventPayload(name, payload);
           final locator = _extractLocator(normalized);
 
           _emitEvent(
@@ -100,10 +94,10 @@ class ReaderEventReceiver {
     }
   }
 
-  Future<Map<String, dynamic>> _normalizeEventPayload(
+  Map<String, dynamic> _normalizeEventPayload(
     String name,
     Map<String, dynamic> payload,
-  ) async {
+  ) {
     final next = Map<String, dynamic>.from(payload);
     if (name == 'relocated') {
       final rawLocator = _extractLocatorJson(payload);
@@ -114,8 +108,11 @@ class ReaderEventReceiver {
           bookUuid: _bookUuid,
         );
         if (normalizedLocator.isNotEmpty) {
-          next['locator'] = normalizedLocator;
-          await _storageService.saveLastLocator(_bookUuid, normalizedLocator);
+          next['locator'] = _rendererLocatorMapper.toPayload(
+            Locator.fromJson(normalizedLocator),
+            uriMapper: _uriMapper,
+            bookUuid: _bookUuid,
+          );
         }
       }
     }
@@ -128,8 +125,9 @@ class ReaderEventReceiver {
         bookUuid: _bookUuid,
       );
       if (normalizedSelection.isNotEmpty) {
-        next['selectionModel'] =
-            ReaderSelection.fromPayload(normalizedSelection).toJson();
+        next['selectionModel'] = ReaderSelection.fromPayload(
+          normalizedSelection,
+        ).toJson();
       }
     }
     return next;

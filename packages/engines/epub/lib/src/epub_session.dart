@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:kernel/kernel.dart';
@@ -17,6 +18,9 @@ import 'runtime/local_reader_http_server.dart';
 import 'runtime/locator_normalizer.dart';
 import 'runtime/reader_bridge_service.dart';
 import 'runtime/reader_event_receiver.dart';
+import 'runtime/renderer_api_models.dart';
+import 'runtime/renderer_locator_mapper.dart';
+import 'runtime/renderer_style_mapper.dart';
 
 class EpubReaderSession extends ReaderSession {
   EpubReaderSession({
@@ -24,10 +28,10 @@ class EpubReaderSession extends ReaderSession {
     this.initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
     String initialLayoutMode = ReaderLayoutMode.pagedAuto,
-  })  : _book = book,
-        _readerStyle = initialStyle,
-        _layoutMode = ReaderLayoutMode.normalizeRendererMode(initialLayoutMode),
-        _runtimeFuture = _prepareRuntime(book.uid);
+  }) : _book = book,
+       _readerStyle = initialStyle,
+       _layoutMode = ReaderLayoutMode.normalizeRendererMode(initialLayoutMode),
+       _runtimeFuture = _prepareRuntime(book.uid);
 
   final Book _book;
   final ReadingProgress? initialProgress;
@@ -37,6 +41,9 @@ class EpubReaderSession extends ReaderSession {
   final Completer<void> _webViewReady = Completer<void>();
   final Completer<void> _pageLoadStopped = Completer<void>();
   final LocatorNormalizer _locatorNormalizer = const LocatorNormalizer();
+  final RendererLocatorMapper _rendererLocatorMapper =
+      const RendererLocatorMapper();
+  final RendererStyleMapper _rendererStyleMapper = const RendererStyleMapper();
 
   final Future<_SessionRuntime> _runtimeFuture;
 
@@ -47,6 +54,7 @@ class EpubReaderSession extends ReaderSession {
   bool _bootstrapped = false;
   bool _debugInfoPublished = false;
   bool _inAppDevToolsOpened = false;
+  String? _appliedRendererStyleSignature;
 
   String _layoutMode;
   ReaderStyle _readerStyle;
@@ -56,17 +64,17 @@ class EpubReaderSession extends ReaderSession {
 
   @override
   Set<ReaderCapability> get capabilities => const <ReaderCapability>{
-        ReaderCapability.linearNavigation,
-        ReaderCapability.jumpNavigation,
-        ReaderCapability.style,
-        ReaderCapability.theme,
-        ReaderCapability.externalLink,
-        ReaderCapability.mediaTap,
-        ReaderCapability.selection,
-        ReaderCapability.highlights,
-        ReaderCapability.toc,
-        ReaderCapability.inBookSearch,
-      };
+    ReaderCapability.linearNavigation,
+    ReaderCapability.jumpNavigation,
+    ReaderCapability.style,
+    ReaderCapability.theme,
+    ReaderCapability.externalLink,
+    ReaderCapability.mediaTap,
+    ReaderCapability.selection,
+    ReaderCapability.highlights,
+    ReaderCapability.toc,
+    ReaderCapability.inBookSearch,
+  };
 
   @override
   ReaderStyle get style => _readerStyle;
@@ -103,7 +111,6 @@ class EpubReaderSession extends ReaderSession {
             final receiver = ReaderEventReceiver(
               controller: controller,
               bookUuid: _book.uid,
-              storageService: runtime.bookStorageService,
               locatorNormalizer: _locatorNormalizer,
               uriMapper: runtime.uriMapper,
               emitEvent: (event) => _handleRuntimeEvent(runtime, event),
@@ -227,12 +234,18 @@ class EpubReaderSession extends ReaderSession {
   @override
   Future<void> setStyle(ReaderStyle style) async {
     _readerStyle = style;
+    final stylePayload = _rendererStyleMapper.toPayload(_readerStyle);
+    final styleSignature = jsonEncode(stylePayload);
+    if (_bootstrapped && styleSignature == _appliedRendererStyleSignature) {
+      return;
+    }
     await _waitWebViewReady();
     final bridge = _bridge;
     if (bridge == null || !_bootstrapped) {
       return;
     }
-    await bridge.setStyle(_readerStyle.toJson());
+    await bridge.configure(style: stylePayload);
+    _appliedRendererStyleSignature = styleSignature;
   }
 
   @override
@@ -247,17 +260,17 @@ class EpubReaderSession extends ReaderSession {
     if (bridge == null || !_bootstrapped) {
       return;
     }
-    await bridge.setLayoutMode(_layoutMode);
+    await bridge.configure(layoutMode: _layoutMode);
   }
 
   @override
   Future<void> navigateNext() {
-    return _navigate(<String, dynamic>{'kind': 'next'});
+    return _navigate(const RendererNavigatePayload.next());
   }
 
   @override
   Future<void> navigatePrev() {
-    return _navigate(<String, dynamic>{'kind': 'prev'});
+    return _navigate(const RendererNavigatePayload.prev());
   }
 
   @override
@@ -269,18 +282,20 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
-    final normalized = _locatorNormalizer.normalizeMap(
-      locator.toJson(),
+    final normalizedLocator = _locatorNormalizer.normalizeLocator(
+      locator,
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    );
+    final normalized = _rendererLocatorMapper.toPayload(
+      normalizedLocator,
       uriMapper: runtime.uriMapper,
       bookUuid: _book.uid,
     );
 
     final cfi = normalized['cfi'] as String?;
     if (cfi != null && cfi.isNotEmpty) {
-      await bridge.navigate(<String, dynamic>{
-        'kind': 'anchor',
-        'value': cfi,
-      });
+      await bridge.navigate(RendererNavigatePayload.anchor(cfi));
       return;
     }
 
@@ -296,28 +311,29 @@ class EpubReaderSession extends ReaderSession {
         ? (normalized['locations'] as Map)['progression']
         : null;
     if (progression is num) {
-      final mappedLocator =
-          runtime.positionIndex?.resolveLocatorForTotalProgression(
-        progression.toDouble(),
-      );
+      final mappedLocator = runtime.positionIndex
+          ?.resolveLocatorForTotalProgression(progression.toDouble());
       if (mappedLocator != null) {
         final mappedNormalized = _locatorNormalizer.normalizeMap(
           mappedLocator.toJson(),
           uriMapper: runtime.uriMapper,
           bookUuid: _book.uid,
         );
-        final mappedHref = mappedNormalized['href'] as String?;
+        final mappedLocatorPayload = _rendererLocatorMapper.toPayload(
+          Locator.fromJson(mappedNormalized),
+          uriMapper: runtime.uriMapper,
+          bookUuid: _book.uid,
+        );
+        final mappedHref = mappedLocatorPayload['href'] as String?;
         if (mappedHref != null && mappedHref.isNotEmpty) {
-          mappedNormalized['href'] = runtime.uriMapper.toPublicHref(mappedHref);
           final url = runtime.uriMapper.hrefToHttp(href: mappedHref);
-          await bridge.open(url: url, locator: mappedNormalized);
+          await bridge.open(url: url, locator: mappedLocatorPayload);
           return;
         }
       }
-      await bridge.navigate(<String, dynamic>{
-        'kind': 'progression',
-        'value': progression.toDouble(),
-      });
+      await bridge.navigate(
+        RendererNavigatePayload.progression(progression.toDouble()),
+      );
       return;
     }
 
@@ -337,7 +353,7 @@ class EpubReaderSession extends ReaderSession {
     await bridge.open(url: url, locator: normalized);
   }
 
-  Future<void> _navigate(Map<String, dynamic> payload) async {
+  Future<void> _navigate(RendererNavigatePayload payload) async {
     await _waitWebViewReady();
     final bridge = _bridge;
     if (bridge == null) {
@@ -373,14 +389,22 @@ class EpubReaderSession extends ReaderSession {
       await bridge.configure(
         layoutMode: _layoutMode,
         spineManifest: _buildSpineManifest(runtime),
-        style: _readerStyle.toJson(),
+        style: _rendererStyleMapper.toPayload(_readerStyle),
       );
       _bootstrapped = true;
+      _appliedRendererStyleSignature = jsonEncode(
+        _rendererStyleMapper.toPayload(_readerStyle),
+      );
     }
 
     final locator = await _resolveStartLocator(runtime);
-    final normalized = _locatorNormalizer.normalizeMap(
-      locator.toJson(),
+    final normalizedLocator = _locatorNormalizer.normalizeLocator(
+      locator,
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    );
+    final normalized = _rendererLocatorMapper.toPayload(
+      normalizedLocator,
       uriMapper: runtime.uriMapper,
       bookUuid: _book.uid,
     );
@@ -414,7 +438,8 @@ class EpubReaderSession extends ReaderSession {
       final href = normalized.href?.trim();
       if ((href == null || href.isEmpty) && runtime.positionIndex != null) {
         return runtime.positionIndex!.resolveLocatorForTotalProgression(
-                initialProgress!.progression) ??
+              initialProgress!.progression,
+            ) ??
             normalized;
       }
       return normalized;
@@ -472,8 +497,9 @@ class EpubReaderSession extends ReaderSession {
           'contentRoot': runtime.metadata.contentRoot,
           'mountedBookRootPath': runtime.mountedBookRootPath,
           'webViewRemoteDebugPort': runtime.webViewRemoteDebugPort,
-          'webViewRemoteDebugJson':
-              runtime.webViewRemoteDebugJsonEndpoint(runtime.serverOrigin),
+          'webViewRemoteDebugJson': runtime.webViewRemoteDebugJsonEndpoint(
+            runtime.serverOrigin,
+          ),
           'webViewEnvironmentError': runtime.webViewEnvironmentError,
         },
       ),
@@ -483,11 +509,12 @@ class EpubReaderSession extends ReaderSession {
   Future<void> _openExternalBrowser(String url) async {
     try {
       if (Platform.isWindows) {
-        await Process.run(
-          'cmd',
-          <String>['/c', 'start', '', url],
-          runInShell: true,
-        );
+        await Process.run('cmd', <String>[
+          '/c',
+          'start',
+          '',
+          url,
+        ], runInShell: true);
         return;
       }
       if (Platform.isMacOS) {
@@ -561,7 +588,8 @@ class EpubReaderSession extends ReaderSession {
 
     for (final item in metadata.spineItems) {
       final name = p.basename(item.href).toLowerCase();
-      final isCoverLike = name.contains('cover') ||
+      final isCoverLike =
+          name.contains('cover') ||
           name.contains('titlepage') ||
           name.contains('toc');
       if (!isCoverLike) {
@@ -584,10 +612,8 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
-    final totalProgression =
-        runtime.positionIndex?.resolveTotalProgressionForLocator(
-      event.locator!,
-    );
+    final totalProgression = runtime.positionIndex
+        ?.resolveTotalProgressionForLocator(event.locator!);
     if (totalProgression == null) {
       _emitEvent(event);
       return;
@@ -655,7 +681,8 @@ class EpubReaderSession extends ReaderSession {
 
     return _SessionRuntime(
       rendererUrl: '${LocalReaderHttpServer.instance.origin}/render/index.html',
-      rendererDebugUrl: LocalReaderHttpServer.instance.rendererDebugUrl ??
+      rendererDebugUrl:
+          LocalReaderHttpServer.instance.rendererDebugUrl ??
           '${LocalReaderHttpServer.instance.origin}/render/index.html',
       serverOrigin: LocalReaderHttpServer.instance.origin,
       serverPort: LocalReaderHttpServer.instance.port,
@@ -708,7 +735,6 @@ class EpubReaderSession extends ReaderSession {
   Future<void> dispose() async {
     try {
       final runtime = await _runtimeFuture;
-      await runtime.bookStorageService.flushPendingLocator(_book.uid);
       await runtime.webViewEnvironment?.dispose();
     } catch (_) {}
     if (!_eventsController.isClosed) {
@@ -838,9 +864,9 @@ class _WebViewDebugEnvironment {
   });
 
   const _WebViewDebugEnvironment.none()
-      : environment = null,
-        remoteDebugPort = null,
-        errorMessage = null;
+    : environment = null,
+      remoteDebugPort = null,
+      errorMessage = null;
 
   final WebViewEnvironment? environment;
   final int? remoteDebugPort;

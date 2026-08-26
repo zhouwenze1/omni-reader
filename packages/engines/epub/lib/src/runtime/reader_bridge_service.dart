@@ -1,17 +1,22 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:kernel/kernel.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:kernel/kernel.dart';
+
+import 'renderer_api_models.dart';
 
 class ReaderBridgeService {
   ReaderBridgeService({
     required InAppWebViewController Function() controllerProvider,
     required void Function(ReaderEvent event) emitEvent,
-  })  : _controllerProvider = controllerProvider,
-        _emitEvent = emitEvent;
+  }) : _controllerProvider = controllerProvider,
+       _emitEvent = emitEvent;
 
   final InAppWebViewController Function() _controllerProvider;
   final void Function(ReaderEvent event) _emitEvent;
+
+  Future<void> _commandTail = Future<void>.value();
 
   Future<bool> waitUntilReaderAvailable({
     Duration timeout = const Duration(seconds: 12),
@@ -43,37 +48,157 @@ class ReaderBridgeService {
   Future<Map<String, dynamic>?> invokeReader(
     String method, [
     Map<String, dynamic>? payload,
+  ]) {
+    final command = rendererCommandFromWireName(method);
+    if (command == null) {
+      return Future<Map<String, dynamic>?>.error(
+        ArgumentError.value(method, 'method', 'Unsupported renderer command'),
+      );
+    }
+    return _enqueue(() => _invokeCommand(command, payload));
+  }
+
+  Future<void> init({required bool debug}) async {
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.init, <String, dynamic>{
+        'debug': debug,
+      }),
+    );
+  }
+
+  Future<void> configure({
+    String? layoutMode,
+    Map<String, dynamic>? spineManifest,
+    Map<String, dynamic>? style,
+    String? customCss,
+    Object? spineVersion,
+    bool? desktopDragPaging,
+    String? adjacentResolverHandler,
+    Map<String, dynamic>? transitionConfig,
+    bool? debug,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (layoutMode != null) {
+      payload['layoutMode'] = layoutMode;
+    }
+    if (spineManifest != null) {
+      payload['spineManifest'] = spineManifest;
+    }
+    if (style != null) {
+      payload['style'] = style;
+    }
+    if (customCss != null) {
+      payload['customCss'] = customCss;
+    }
+    if (spineVersion != null) {
+      payload['spineVersion'] = spineVersion;
+    }
+    if (desktopDragPaging != null) {
+      payload['desktopDragPaging'] = desktopDragPaging;
+    }
+    if (adjacentResolverHandler != null) {
+      payload['adjacentResolverHandler'] = adjacentResolverHandler;
+    }
+    if (transitionConfig != null) {
+      payload['transitionConfig'] = transitionConfig;
+    }
+    if (debug != null) {
+      payload['debug'] = debug;
+    }
+    if (payload.isEmpty) {
+      return;
+    }
+    await _enqueue(() => _invokeCommand(RendererCommand.configure, payload));
+  }
+
+  Future<void> open({
+    required String url,
+    Map<String, dynamic>? locator,
+    List<Map<String, dynamic>>? highlights,
+  }) async {
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.open, <String, dynamic>{
+        'url': url,
+        if (locator != null) 'locator': locator,
+        if (highlights != null) 'highlights': highlights,
+      }),
+    );
+  }
+
+  Future<void> navigate(RendererNavigatePayload payload) async {
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.navigate, payload.toJson()),
+    );
+  }
+
+  Future<void> clearSelection() async {
+    await _enqueue(() => _invokeCommand(RendererCommand.clearSelection));
+  }
+
+  Future<void> reset() async {
+    await _enqueue(() => _invokeCommand(RendererCommand.reset));
+  }
+
+  Future<Map<String, dynamic>?> getSelectionAnchor([
+    Map<String, dynamic>? payload,
+  ]) {
+    return _enqueue(
+      () => _invokeCommand(RendererCommand.getSelectionAnchor, payload),
+    );
+  }
+
+  Future<Map<String, dynamic>?> applyHighlight(Map<String, dynamic> payload) {
+    return _enqueue(
+      () => _invokeCommand(RendererCommand.applyHighlight, payload),
+    );
+  }
+
+  Future<Map<String, dynamic>?> applyHighlights(Map<String, dynamic> payload) {
+    return _enqueue(
+      () => _invokeCommand(RendererCommand.applyHighlights, payload),
+    );
+  }
+
+  Future<Map<String, dynamic>?> removeHighlight(Map<String, dynamic> payload) {
+    return _enqueue(
+      () => _invokeCommand(RendererCommand.removeHighlight, payload),
+    );
+  }
+
+  Future<Map<String, dynamic>?> updateHighlight(Map<String, dynamic> payload) {
+    return _enqueue(
+      () => _invokeCommand(RendererCommand.updateHighlight, payload),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _invokeCommand(
+    RendererCommand command, [
+    Map<String, dynamic>? payload,
   ]) async {
     final controller = _controllerProvider();
-    final source = payload == null
-        ? '''
-          (async function() {
-            if (!window.reader || !window.reader.$method) {
-              return { ok: false, error: 'missing_method' };
-            }
-            try {
-              return await window.reader.$method();
-            } catch (e) {
-              return { ok: false, error: String(e) };
-            }
-          })();
+    final method = command.wireName;
+    final encodedPayload = payload == null ? null : jsonEncode(payload);
+    final invocation = encodedPayload == null
+        ? 'api[${jsonEncode(method)}]()'
+        : 'api[${jsonEncode(method)}]($encodedPayload)';
+    final source =
         '''
-        : '''
-          (async function() {
-            if (!window.reader || !window.reader.$method) {
-              return { ok: false, error: 'missing_method' };
-            }
-            try {
-              return await window.reader.$method(${jsonEncode(payload)});
-            } catch (e) {
-              return { ok: false, error: String(e) };
-            }
-          })();
-        ''';
+      (async function() {
+        const api = window.reader;
+        const method = ${jsonEncode(method)};
+        if (!api || typeof api[method] !== 'function') {
+          return { ok: false, error: 'missing_method', method };
+        }
+        try {
+          return await $invocation;
+        } catch (e) {
+          return { ok: false, error: String(e), method };
+        }
+      })();
+    ''';
 
     final result = await controller.evaluateJavascript(source: source);
     final normalized = _normalizeResult(result);
-
     _emitEvent(
       ReaderEvent(
         type: ReaderEventType.log,
@@ -107,58 +232,13 @@ class ReaderBridgeService {
     return normalized;
   }
 
-  Future<void> init({required bool debug}) async {
-    await invokeReader('init', <String, dynamic>{'debug': debug});
-  }
-
-  Future<void> configure({
-    String? layoutMode,
-    Map<String, dynamic>? spineManifest,
-    Map<String, dynamic>? style,
-    String? customCss,
-  }) async {
-    final payload = <String, dynamic>{};
-    if (layoutMode != null) {
-      payload['layoutMode'] = layoutMode;
-    }
-    if (spineManifest != null) {
-      payload['spineManifest'] = spineManifest;
-    }
-    if (style != null) {
-      payload['style'] = style;
-    }
-    if (customCss != null) {
-      payload['customCss'] = customCss;
-    }
-    if (payload.isEmpty) {
-      return;
-    }
-    await invokeReader(
-      'configure',
-      payload,
+  Future<T> _enqueue<T>(Future<T> Function() operation) {
+    final task = _commandTail.then((_) => operation());
+    _commandTail = task.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
     );
-  }
-
-  Future<void> setLayoutMode(String layoutMode) async {
-    await configure(layoutMode: layoutMode);
-  }
-
-  Future<void> open({
-    required String url,
-    required Map<String, dynamic> locator,
-  }) async {
-    await invokeReader(
-      'open',
-      <String, dynamic>{'url': url, 'locator': locator},
-    );
-  }
-
-  Future<void> navigate(Map<String, dynamic> payload) async {
-    await invokeReader('navigate', payload);
-  }
-
-  Future<void> setStyle(Map<String, dynamic> style) async {
-    await invokeReader('setStyle', <String, dynamic>{'style': style});
+    return task;
   }
 
   Map<String, dynamic>? _normalizeResult(dynamic result) {

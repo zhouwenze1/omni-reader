@@ -18,24 +18,28 @@ class DebouncedAsyncWriter<T> {
   void schedule(T value) {
     _pending = value;
     _timer?.cancel();
-    _timer = Timer(debounce, flush);
+    _timer = Timer(debounce, () {
+      unawaited(flush());
+    });
   }
 
-  void flush() {
+  Future<void> flush() async {
+    _timer?.cancel();
+    _timer = null;
     final pending = _pending;
-    if (pending == null) {
-      return;
+    if (pending != null) {
+      _pending = null;
+      _writeChain = _writeChain
+          .catchError((_) {})
+          .then((_) => _writer(pending));
     }
 
-    _pending = null;
-    _writeChain = _writeChain.catchError((_) {}).then((_) => _writer(pending));
-  }
-
-  Future<void> close() async {
-    _timer?.cancel();
-    flush();
     try {
       await _writeChain;
     } catch (_) {}
+  }
+
+  Future<void> close() async {
+    await flush();
   }
 }

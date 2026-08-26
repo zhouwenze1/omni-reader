@@ -8,16 +8,9 @@ import 'book_package.dart';
 
 class BookStorageService {
   BookStorageService({required String booksRootPath})
-      : _booksRoot = Directory(booksRootPath);
-
-  static const Duration _locatorDebounceWindow = Duration(milliseconds: 420);
+    : _booksRoot = Directory(booksRootPath);
 
   final Directory _booksRoot;
-  final Map<String, Map<String, dynamic>> _pendingLastLocators =
-      <String, Map<String, dynamic>>{};
-  final Map<String, Timer> _lastLocatorTimers = <String, Timer>{};
-  final Map<String, Future<void>> _lastLocatorWriteChains =
-      <String, Future<void>>{};
 
   String get booksRootPath => _booksRoot.path;
 
@@ -118,9 +111,7 @@ class BookStorageService {
   ) async {
     await prepareBookDirs(bookUuid);
     for (final entry in files.entries) {
-      final json = entry.value.map(
-        (key, value) => MapEntry(key, value),
-      );
+      final json = entry.value.map((key, value) => MapEntry(key, value));
       await _writeJsonAtomic(artifactFilePath(bookUuid, entry.key), json);
     }
   }
@@ -141,21 +132,6 @@ class BookStorageService {
       );
     }
     return null;
-  }
-
-  Future<void> saveLastLocator(
-    String bookUuid,
-    Map<String, dynamic> locator,
-  ) async {
-    _pendingLastLocators[bookUuid] = Map<String, dynamic>.from(locator);
-    _lastLocatorTimers[bookUuid]?.cancel();
-    _lastLocatorTimers[bookUuid] = Timer(_locatorDebounceWindow, () {
-      unawaited(_flushLastLocator(bookUuid));
-    });
-  }
-
-  Future<void> flushPendingLocator(String bookUuid) {
-    return _flushLastLocator(bookUuid);
   }
 
   Future<Map<String, dynamic>?> readLastLocator(String bookUuid) async {
@@ -214,40 +190,5 @@ class BookStorageService {
       await targetFile.delete();
     }
     await tempFile.rename(filePath);
-  }
-
-  Future<void> _flushLastLocator(String bookUuid) async {
-    _lastLocatorTimers.remove(bookUuid)?.cancel();
-    final pending = _pendingLastLocators.remove(bookUuid);
-    if (pending == null || pending.isEmpty) {
-      return;
-    }
-
-    final previous = _lastLocatorWriteChains[bookUuid] ?? Future<void>.value();
-    final next = previous.then((_) => _persistLastLocator(bookUuid, pending));
-    _lastLocatorWriteChains[bookUuid] = next.catchError((_) {});
-
-    try {
-      await next;
-    } finally {
-      if (identical(_lastLocatorWriteChains[bookUuid], next)) {
-        _lastLocatorWriteChains.remove(bookUuid);
-      }
-    }
-  }
-
-  Future<void> _persistLastLocator(
-    String bookUuid,
-    Map<String, dynamic> locator,
-  ) async {
-    final existing = await readMetadata(bookUuid);
-    if (existing == null) {
-      return;
-    }
-    final next = existing.copyWith(
-      lastLocator: locator,
-      updatedAt: DateTime.now(),
-    );
-    await _writeJsonAtomic(metaFilePath(bookUuid), next.toJson());
   }
 }

@@ -22,7 +22,8 @@ class ReaderPage extends ConsumerStatefulWidget {
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends ConsumerState<ReaderPage> {
+class _ReaderPageState extends ConsumerState<ReaderPage>
+    with WidgetsBindingObserver {
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
   ProgressRepository? _progressRepository;
@@ -31,6 +32,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   String? _error;
   bool _loading = true;
   bool _chromeVisible = false;
+  bool _disposed = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
 
@@ -50,6 +52,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _progressWriteQueue = DebouncedAsyncWriter<ReadingProgress>(
       debounce: const Duration(milliseconds: 280),
       writer: (progress) async {
@@ -68,15 +71,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       debounce: const Duration(milliseconds: 420),
       writer: (settings) async {
         try {
-          await ref.read(settingsControllerProvider.notifier).updateReader(
-                settings,
-              );
+          await ref
+              .read(settingsControllerProvider.notifier)
+              .updateReader(settings);
         } catch (error) {
           debugPrint('[desktop-reader][saveReaderSettings.error] $error');
         }
       },
     );
     _init();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_progressWriteQueue.flush());
+      unawaited(_readerSettingsWriteQueue.flush());
+    }
   }
 
   Future<void> _init() async {
@@ -116,6 +130,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       );
 
       _subscription = session.events.listen((event) async {
+        if (_disposed) {
+          return;
+        }
         if (event.type == ReaderEventType.log ||
             event.type == ReaderEventType.error ||
             event.type == ReaderEventType.ready) {
@@ -272,6 +289,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   void dispose() {
+    _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close());
     unawaited(_readerSettingsWriteQueue.close());
     final subscription = _subscription;
@@ -286,6 +305,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _scheduleProgressSave(ReadingProgress progress) {
+    if (_disposed) {
+      return;
+    }
     _progressWriteQueue.schedule(progress);
   }
 
@@ -293,9 +315,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_error != null) {
@@ -441,8 +461,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final l10n = context.l10n;
     final title = _book?.title ?? '';
     final format = _book?.format.toUpperCase() ?? '';
-    final progressPercent =
-        ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
+    final progressPercent = ((_progress?.progression ?? 0) * 100)
+        .clamp(0, 100)
+        .toStringAsFixed(1);
 
     return IgnorePointer(
       ignoring: !_chromeVisible,
@@ -505,8 +526,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   Widget _buildBottomToolbar(BuildContext context) {
     final l10n = context.l10n;
-    final progressPercent =
-        ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
+    final progressPercent = ((_progress?.progression ?? 0) * 100)
+        .clamp(0, 100)
+        .toStringAsFixed(1);
 
     return IgnorePointer(
       ignoring: !_chromeVisible,
@@ -826,15 +848,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         Row(
           children: [
             Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(color: Colors.white70),
-              ),
+              child: Text(label, style: const TextStyle(color: Colors.white70)),
             ),
-            Text(
-              valueLabel,
-              style: const TextStyle(color: Colors.white),
-            ),
+            Text(valueLabel, style: const TextStyle(color: Colors.white)),
           ],
         ),
         Slider(

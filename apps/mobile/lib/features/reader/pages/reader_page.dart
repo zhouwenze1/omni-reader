@@ -64,6 +64,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _chromeVisible = true;
   bool _isProgressDragging = false;
   bool _exitInFlight = false;
+  bool _disposed = false;
   bool _systemUiRestored = false;
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
@@ -113,14 +114,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _providerContainer ??= ProviderScope.containerOf(context, listen: false);
-    _restoreOverlayStyle =
-        _overlayStyleForBrightness(Theme.of(context).brightness);
+    _restoreOverlayStyle = _overlayStyleForBrightness(
+      Theme.of(context).brightness,
+    );
   }
 
   Future<void> _init() async {
     try {
-      final settings =
-          await ref.read(settingsRepositoryProvider).getReaderSettings();
+      final settings = await ref
+          .read(settingsRepositoryProvider)
+          .getReaderSettings();
       _bootstrapReaderStyleFromSettings(settings);
 
       final bookRepository = ref.read(bookRepositoryProvider);
@@ -162,6 +165,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       );
 
       _subscription = session.events.listen((event) async {
+        if (_disposed) {
+          return;
+        }
         if (event.type == ReaderEventType.relocated && event.locator != null) {
           final progression = ReaderEventParser.resolveProgression(
             payload: event.payload,
@@ -468,6 +474,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_progressWriteQueue.flush());
+      return;
+    }
     if (state == AppLifecycleState.resumed) {
       unawaited(_enterImmersiveMode());
       unawaited(_refreshDeviceStatus());
@@ -583,6 +596,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   void _scheduleProgressSave(ReadingProgress progress) {
+    if (_disposed) {
+      return;
+    }
     _progressWriteQueue.schedule(progress);
   }
 
@@ -620,7 +636,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     try {
-      final nextSettings = ref.read(settingsControllerProvider).reader.copyWith(
+      final nextSettings = ref
+          .read(settingsControllerProvider)
+          .reader
+          .copyWith(
             fontSize: _fontSize,
             lineHeight: _lineHeight,
             pageGap: _pageGap,
@@ -650,7 +669,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _openReaderSettings() async {
-    final current = ref.read(settingsControllerProvider).reader.copyWith(
+    final current = ref
+        .read(settingsControllerProvider)
+        .reader
+        .copyWith(
           fontSize: _fontSize,
           lineHeight: _lineHeight,
           pageGap: _pageGap,
@@ -685,11 +707,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
     final tocItem = await context.push<TocItem>(RoutePaths.toc(book.uid));
     if (tocItem?.href != null) {
-      await _session?.goTo(
-        Locator(
-          href: tocItem!.href,
-        ),
-      );
+      await _session?.goTo(Locator(href: tocItem!.href));
     }
     await _enterImmersiveMode();
   }
@@ -817,9 +835,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         return;
       case 'notes':
         await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => NotesPage(bookUid: book.uid),
-          ),
+          MaterialPageRoute<void>(builder: (_) => NotesPage(bookUid: book.uid)),
         );
         await _enterImmersiveMode();
         return;
@@ -921,6 +937,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   @override
   void dispose() {
+    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     _deviceStatusTimer?.cancel();
     final providerContainer = _providerContainer;
@@ -946,9 +963,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_error != null) {
@@ -962,8 +977,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _scheduleViewportLayoutSync();
     _scheduleViewportReaderStyleSync();
     final chromePalette = _ReaderChromePalette.resolve(_rendererTheme);
-    final immersiveOverlayHorizontalPadding =
-        _paddingHorizontal.clamp(20, 44).toDouble();
+    final immersiveOverlayHorizontalPadding = _paddingHorizontal
+        .clamp(20, 44)
+        .toDouble();
 
     return PopScope<Object?>(
       canPop: false,

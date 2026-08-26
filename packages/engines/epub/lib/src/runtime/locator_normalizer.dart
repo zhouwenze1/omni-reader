@@ -34,11 +34,17 @@ class LocatorNormalizer {
     );
 
     final cfi = _asNonEmptyString(source['cfi']);
-    final progression =
-        _extractLocationDouble(source['locations'], 'progression');
-    final totalProgression =
-        _extractLocationDouble(source['locations'], 'totalProgression');
+    final position = _extractLocationInt(source['locations'], 'position');
+    final progression = _extractLocationDouble(
+      source['locations'],
+      'progression',
+    );
+    final totalProgression = _extractLocationDouble(
+      source['locations'],
+      'totalProgression',
+    );
     final anchor = _normalizeAnchor(source['anchor']);
+    final text = _extractTextHighlight(source['text']);
 
     final result = <String, dynamic>{};
     if (href != null && href.isNotEmpty) {
@@ -47,14 +53,18 @@ class LocatorNormalizer {
     if (cfi != null && cfi.isNotEmpty) {
       result['cfi'] = cfi;
     }
-    if (progression != null || totalProgression != null) {
+    if (position != null || progression != null || totalProgression != null) {
       result['locations'] = <String, dynamic>{
+        if (position != null) 'position': position,
         if (progression != null) 'progression': progression,
         if (totalProgression != null) 'totalProgression': totalProgression,
       };
     }
     if (anchor != null && anchor.isNotEmpty) {
       result['anchor'] = anchor;
+    }
+    if (text != null && text.isNotEmpty) {
+      result['text'] = text;
     }
     return result;
   }
@@ -71,18 +81,10 @@ class LocatorNormalizer {
     );
   }
 
-  Locator fromAny(
-    dynamic value, {
-    BookUriMapper? uriMapper,
-    String? bookUuid,
-  }) {
+  Locator fromAny(dynamic value, {BookUriMapper? uriMapper, String? bookUuid}) {
     final map = _toMap(value);
     return Locator.fromJson(
-      normalizeMap(
-        map,
-        uriMapper: uriMapper,
-        bookUuid: bookUuid,
-      ),
+      normalizeMap(map, uriMapper: uriMapper, bookUuid: bookUuid),
     );
   }
 
@@ -121,6 +123,25 @@ class LocatorNormalizer {
       return double.tryParse(value);
     }
     return null;
+  }
+
+  int? _extractLocationInt(dynamic rawLocations, String key) {
+    final map = _toMap(rawLocations);
+    if (map == null) {
+      return null;
+    }
+    return _toInt(map[key]);
+  }
+
+  String? _extractTextHighlight(dynamic rawText) {
+    if (rawText is String) {
+      return _asNonEmptyString(rawText);
+    }
+    final map = _toMap(rawText);
+    if (map == null) {
+      return null;
+    }
+    return _asNonEmptyString(map['highlight']);
   }
 
   String? _normalizeHref(
