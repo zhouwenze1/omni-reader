@@ -190,5 +190,5 @@ List<int> _buildSampleEpubBytes() {
     '<html><head><title>Chapter 3</title></head><body><h1>Chapter 3</h1></body></html>',
   );
 
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encode(archive);
 }

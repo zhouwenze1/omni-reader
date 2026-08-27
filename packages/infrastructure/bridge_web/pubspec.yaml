@@ -1,6 +1,9 @@
-﻿name: infra_bridge_web_legacy
+name: infra_bridge_web_legacy
+description: Legacy, unused WebView bridge model package. Kept for reference only; not part of the EPUB runtime call chain.
 publish_to: none
 version: 0.0.1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
+
+resolution: workspace

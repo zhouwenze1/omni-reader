@@ -1,4 +1,4 @@
-library foundation_domain;
+library;
 
 export 'models/annotation.dart';
 export 'models/book.dart';

@@ -1,4 +1,4 @@
-library kernel;
+library;
 
 export 'src/reader_capability.dart';
 export 'src/reader_engine.dart';

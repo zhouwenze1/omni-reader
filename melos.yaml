@@ -7,11 +7,14 @@ packages:
   - packages/foundation/domain
   - packages/foundation/application
   - packages/infrastructure/data
+  - packages/infrastructure/services_search
+  - packages/infrastructure/bridge_web
   - packages/engines/kernel
   - packages/engines/epub
   - packages/engines/pdf
   - packages/engines/audio
   - packages/engines/ldf
+  - packages/engines/comic_zip
 
 scripts:
   bootstrap: melos bootstrap

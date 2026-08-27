@@ -1,4 +1,4 @@
-library foundation_application;
+library;
 
 export 'src/library_usecases.dart';
 export 'src/persistence/debounced_async_writer.dart';

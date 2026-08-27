@@ -71,7 +71,10 @@ List<int> _buildSampleEpubBytes(Uint8List coverBytes) {
 
   archive.addFile(
     ArchiveFile(
-        'mimetype', 'application/epub+zip'.length, 'application/epub+zip'),
+      'mimetype',
+      'application/epub+zip'.length,
+      Uint8List.fromList('application/epub+zip'.codeUnits),
+    ),
   );
   addText(
     'META-INF/container.xml',
@@ -127,5 +130,5 @@ List<int> _buildSampleEpubBytes(Uint8List coverBytes) {
   archive.addFile(
       ArchiveFile('OEBPS/Images/cover.png', coverBytes.length, coverBytes));
 
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encode(archive);
 }

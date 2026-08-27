@@ -1,3 +1,3 @@
-library engine_audio;
+library;
 
 export 'src/audio_engine.dart';

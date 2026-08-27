@@ -1,4 +1,4 @@
-library services_search;
+library;
 
 export 'src/builder/index_builder.dart';
 export 'src/epub/epub_text_extractor.dart';

@@ -1,6 +1,9 @@
-﻿name: engine_comic_zip_legacy
+name: engine_comic_zip_legacy
+description: Placeholder for the ComicZip reader engine; no implementation yet.
 publish_to: none
 version: 0.0.1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
+
+resolution: workspace

@@ -1,4 +1,4 @@
-library infrastructure_data;
+library;
 
 export 'src/data_module.dart';
 export 'src/db/app_database.dart';

@@ -1,3 +1,3 @@
-library foundation_core;
+library;
 
 export 'src/result.dart';

@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
 class AppDatabase extends GeneratedDatabase {
-  AppDatabase._(QueryExecutor executor) : super(executor);
+  AppDatabase._(super.executor);
 
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
@@ -113,5 +113,6 @@ class AppDatabase extends GeneratedDatabase {
     return false;
   }
 
+  @override
   Future<void> close() => executor.close();
 }

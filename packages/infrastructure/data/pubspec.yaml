@@ -19,7 +19,7 @@ dependencies:
     path: ../../engines/epub
   reader_parser_core:
     path: ../../../../reader_parser_next/packages/reader_parser_core
-  archive: ^3.6.1
+  archive: ^4.0.7
   collection: ^1.18.0
   crypto: ^3.0.6
   drift: ^2.20.3

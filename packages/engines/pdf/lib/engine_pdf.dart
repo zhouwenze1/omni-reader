@@ -1,3 +1,3 @@
-library engine_pdf;
+library;
 
 export 'src/pdf_engine.dart';

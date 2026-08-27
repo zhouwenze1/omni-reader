@@ -19,7 +19,6 @@ dependencies:
     path: ../../../../reader_parser_next/packages/reader_parser_core
   reader_parser_epub:
     path: ../../../../reader_parser_next/packages/reader_parser_epub
-  archive: ^3.6.1
   flutter_inappwebview: ^6.1.5
   mime: ^1.0.6
   path: ^1.9.1
@@ -28,12 +27,13 @@ dependencies:
 
 flutter:
   assets:
+    - assets/renderer/assets/index-CbI81oqu.js
     - assets/renderer/assets/index-DNsThFnT.css
-    - assets/renderer/assets/index-Dlv2s1AA.js
     - assets/renderer/favicon.ico
     - assets/renderer/index.html
     - assets/renderer/renderer-manifest.json
 
 dev_dependencies:
+  archive: ^4.0.7
   flutter_test:
     sdk: flutter

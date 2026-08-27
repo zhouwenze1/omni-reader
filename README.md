@@ -20,15 +20,21 @@ melos bootstrap
 ## Quality Baseline
 
 ```bash
-dart analyze
+dart analyze   # zero-issue baseline; all packages are workspace members
 ```
 
-Current package tests:
+Package tests:
 
 ```bash
-cd packages/infrastructure/services_search
-dart test
+cd packages/infrastructure/services_search && dart test
+flutter test packages/infrastructure/data
+flutter test packages/engines/epub
 ```
+
+All packages under `apps/` and `packages/` are registered in the root
+`pubspec.yaml` workspace and in `melos.yaml` (including the legacy
+`services_search`, `bridge_web`, and `comic_zip` placeholders). The workspace
+resolves a single dependency graph, so `dart pub get` at the root is enough.
 
 ## EPUB Renderer Bridge
 
