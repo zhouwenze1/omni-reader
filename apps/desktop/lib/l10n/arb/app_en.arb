@@ -203,6 +203,14 @@
   "tocLoadFailed": "Failed to load contents",
   "tocEmpty": "No table of contents",
   "tocEmptyMessage": "This book has no cached TOC data.",
+  "searchHint": "Search this book",
+  "searchBodySection": "Book text",
+  "searchInputPrompt": "Type to search the book text",
+  "searchNoMatches": "No matches in the book text",
+  "searchFailed": "Search failed",
+  "searchUnsupportedTitle": "This book cannot be searched",
+  "searchUnsupportedFormat": "Full-text search supports EPUB books only.",
+  "searchUnsupportedFile": "The original EPUB file was not found.",
   "searchInBookComingSoon": "Search page is under development\\nbookUid={bookUid}",
   "@searchInBookComingSoon": {
     "placeholders": {

@@ -203,6 +203,14 @@
   "tocLoadFailed": "目录加载失败",
   "tocEmpty": "暂无目录数据",
   "tocEmptyMessage": "这本书当前还没有缓存目录信息。",
+  "searchHint": "搜索本书",
+  "searchBodySection": "正文",
+  "searchInputPrompt": "输入关键词搜索本书正文",
+  "searchNoMatches": "正文中没有匹配内容",
+  "searchFailed": "搜索失败",
+  "searchUnsupportedTitle": "本书暂不支持全文搜索",
+  "searchUnsupportedFormat": "目前仅支持 EPUB 格式的全文搜索。",
+  "searchUnsupportedFile": "未找到本书的原始 EPUB 文件。",
   "searchInBookComingSoon": "书内搜索开发中\\nbookUid={bookUid}",
   "@searchInBookComingSoon": {
     "placeholders": {

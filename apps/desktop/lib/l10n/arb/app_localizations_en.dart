@@ -511,6 +511,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tocEmptyMessage => 'This book has no cached TOC data.';
 
   @override
+  String get searchHint => 'Search this book';
+
+  @override
+  String get searchBodySection => 'Book text';
+
+  @override
+  String get searchInputPrompt => 'Type to search the book text';
+
+  @override
+  String get searchNoMatches => 'No matches in the book text';
+
+  @override
+  String get searchFailed => 'Search failed';
+
+  @override
+  String get searchUnsupportedTitle => 'This book cannot be searched';
+
+  @override
+  String get searchUnsupportedFormat =>
+      'Full-text search supports EPUB books only.';
+
+  @override
+  String get searchUnsupportedFile => 'The original EPUB file was not found.';
+
+  @override
   String searchInBookComingSoon(Object bookUid) {
     return 'Search page is under development\\nbookUid=$bookUid';
   }

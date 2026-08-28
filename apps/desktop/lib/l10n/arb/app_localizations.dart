@@ -1070,6 +1070,54 @@ abstract class AppLocalizations {
   /// **'This book has no cached TOC data.'**
   String get tocEmptyMessage;
 
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search this book'**
+  String get searchHint;
+
+  /// No description provided for @searchBodySection.
+  ///
+  /// In en, this message translates to:
+  /// **'Book text'**
+  String get searchBodySection;
+
+  /// No description provided for @searchInputPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Type to search the book text'**
+  String get searchInputPrompt;
+
+  /// No description provided for @searchNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches in the book text'**
+  String get searchNoMatches;
+
+  /// No description provided for @searchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Search failed'**
+  String get searchFailed;
+
+  /// No description provided for @searchUnsupportedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'This book cannot be searched'**
+  String get searchUnsupportedTitle;
+
+  /// No description provided for @searchUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Full-text search supports EPUB books only.'**
+  String get searchUnsupportedFormat;
+
+  /// No description provided for @searchUnsupportedFile.
+  ///
+  /// In en, this message translates to:
+  /// **'The original EPUB file was not found.'**
+  String get searchUnsupportedFile;
+
   /// No description provided for @searchInBookComingSoon.
   ///
   /// In en, this message translates to:

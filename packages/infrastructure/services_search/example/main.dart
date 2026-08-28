@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:services_search/services_search.dart';
 
-const kEpubPath = r'C:\Users\Administrator\Desktop\reader\packages\infrastructure\services_search\example\test.epub';
+const kEpubPath =
+    r'C:\Users\Administrator\Desktop\reader\packages\infrastructure\services_search\example\test.epub';
 const kQuery = '男女';
 const kBookId = 'manual11-book';
 

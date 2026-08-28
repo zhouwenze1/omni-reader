@@ -7,7 +7,6 @@ import 'package:services_search/services_search.dart';
 
 import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
-import '../services/book_search_service.dart';
 
 class SearchInBookPage extends ConsumerStatefulWidget {
   const SearchInBookPage({super.key, required this.bookUid});

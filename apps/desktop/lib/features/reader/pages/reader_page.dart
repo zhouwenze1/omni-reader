@@ -12,6 +12,8 @@ import '../../../di/repositories_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/desktop_reader_settings_dialog.dart';
+import 'package:services_search/services_search.dart';
+import '../widgets/desktop_search_panel.dart';
 import '../widgets/desktop_toc_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -34,6 +36,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _loading = true;
   bool _chromeVisible = false;
   bool _tocPanelOpen = false;
+  bool _searchPanelOpen = false;
   bool _disposed = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
@@ -368,6 +371,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               onSelect: _onTocSelect,
               onClose: () => setState(() => _tocPanelOpen = false),
             ),
+          if (_searchPanelOpen)
+            DesktopSearchPanel(
+              bookUid: widget.bookUid,
+              format: _book?.format,
+              onSelect: _onSearchSelect,
+              onClose: () => setState(() => _searchPanelOpen = false),
+            ),
         ],
       ),
     );
@@ -380,6 +390,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     _session!.goTo(Locator(href: href));
+  }
+
+  void _onSearchSelect(SearchHit hit) {
+    setState(() => _searchPanelOpen = false);
+    if (_session == null || hit.href == null) {
+      return;
+    }
+    _session!.goTo(Locator(href: hit.href, cfi: hit.cfi));
   }
 
   void _handleTapIntent(
@@ -544,6 +562,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     tooltip: l10n.readerSettings,
                     onPressed: _openReaderSettings,
                     icon: const Icon(Icons.tune, color: Colors.white),
+                  ),
+                  IconButton(
+                    tooltip: l10n.searchInBookTitle,
+                    onPressed: () => setState(() => _searchPanelOpen = true),
+                    icon: const Icon(Icons.search, color: Colors.white),
                   ),
                   IconButton(
                     tooltip: l10n.tocTitle,

@@ -57,9 +57,25 @@ class EpubTextExtractor implements ChapterTextSource {
   /// contains any of these is recursed into and never emitted itself, so each
   /// text is emitted exactly once from its innermost block leaf.
   static const Set<String> _blockContainers = <String>{
-    'div', 'section', 'article', 'body', 'blockquote', 'li', 'dd', 'dt',
-    'figure', 'main', 'aside', 'header', 'footer', 'nav', 'table', 'tr',
-    'ul', 'ol', 'dl',
+    'div',
+    'section',
+    'article',
+    'body',
+    'blockquote',
+    'li',
+    'dd',
+    'dt',
+    'figure',
+    'main',
+    'aside',
+    'header',
+    'footer',
+    'nav',
+    'table',
+    'tr',
+    'ul',
+    'ol',
+    'dl',
   };
 
   @override

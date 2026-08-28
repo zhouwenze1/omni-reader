@@ -7,3 +7,4 @@ export 'src/index/search_index.dart';
 export 'src/models.dart';
 export 'src/search_service.dart';
 export 'src/segmenter.dart';
+export 'src/book_search_service.dart';

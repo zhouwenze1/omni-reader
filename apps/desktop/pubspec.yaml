@@ -27,6 +27,8 @@ dependencies:
     path: ../../packages/foundation/application
   infrastructure_data:
     path: ../../packages/infrastructure/data
+  services_search:
+    path: ../../packages/infrastructure/services_search
   kernel:
     path: ../../packages/engines/kernel
   engine_epub:

@@ -1,7 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'repositories_providers.dart';
+import 'package:services_search/services_search.dart';
 
-final importServiceProvider = Provider((ref) {
-  return ref.watch(importRepositoryProvider);
+import 'providers.dart';
+
+final bookSearchServiceProvider = Provider<BookSearchService>((ref) {
+  return BookSearchService(
+    booksRootPath: ref.watch(dataModuleProvider).storagePaths.booksRoot.path,
+  );
 });

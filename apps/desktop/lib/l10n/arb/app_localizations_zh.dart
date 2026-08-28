@@ -509,6 +509,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tocEmptyMessage => '这本书当前还没有缓存目录信息。';
 
   @override
+  String get searchHint => '搜索本书';
+
+  @override
+  String get searchBodySection => '正文';
+
+  @override
+  String get searchInputPrompt => '输入关键词搜索本书正文';
+
+  @override
+  String get searchNoMatches => '正文中没有匹配内容';
+
+  @override
+  String get searchFailed => '搜索失败';
+
+  @override
+  String get searchUnsupportedTitle => '本书暂不支持全文搜索';
+
+  @override
+  String get searchUnsupportedFormat => '目前仅支持 EPUB 格式的全文搜索。';
+
+  @override
+  String get searchUnsupportedFile => '未找到本书的原始 EPUB 文件。';
+
+  @override
   String searchInBookComingSoon(Object bookUid) {
     return '书内搜索开发中\\nbookUid=$bookUid';
   }
