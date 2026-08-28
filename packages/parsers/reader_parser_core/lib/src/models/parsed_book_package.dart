@@ -32,4 +32,3 @@ class ParsedBookPackage {
     return resourceSource.close();
   }
 }
-

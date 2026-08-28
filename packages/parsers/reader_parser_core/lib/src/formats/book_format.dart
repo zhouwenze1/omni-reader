@@ -30,4 +30,3 @@ enum BookFormat {
     return BookFormat.unknown;
   }
 }
-

@@ -1,0 +1,29 @@
+name: shared_ui
+description: Widgets, state models, and DI wiring shared by the mobile and desktop apps.
+publish_to: none
+version: 0.1.0
+
+resolution: workspace
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  foundation_application:
+    path: ../foundation/application
+  foundation_domain:
+    path: ../foundation/domain
+  kernel:
+    path: ../engines/kernel
+  engine_epub:
+    path: ../engines/epub
+  engine_pdf:
+    path: ../engines/pdf
+  engine_audio:
+    path: ../engines/audio
+  engine_ldf:
+    path: ../engines/ldf

@@ -4,7 +4,7 @@ import 'package:foundation_domain/domain.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
-import '../widgets/dropdown_tile.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../widgets/settings_group.dart';
 import '../widgets/slider_tile.dart';
 import '../widgets/toggle_tile.dart';

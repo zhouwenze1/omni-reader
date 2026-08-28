@@ -10,7 +10,8 @@ class PdfThumbnailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('PDF 缩略图')),
       body: Center(
-        child: Text('PDF 缩略图功能待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child:
+            Text('PDF 缩略图功能待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
       ),
     );
   }

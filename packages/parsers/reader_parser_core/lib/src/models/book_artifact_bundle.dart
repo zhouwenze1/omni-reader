@@ -3,18 +3,13 @@ import 'book_manifest_document.dart';
 import 'book_position_document.dart';
 
 class BookArtifactBundle {
-  const BookArtifactBundle({
-    this.manifest,
-    this.positions,
-    this.content,
-  });
+  const BookArtifactBundle({this.manifest, this.positions, this.content});
 
   final BookManifestDocument? manifest;
   final BookPositionDocument? positions;
   final BookContentDocument? content;
 
-  bool get isEmpty =>
-      manifest == null && positions == null && content == null;
+  bool get isEmpty => manifest == null && positions == null && content == null;
 
   BookArtifactBundle copyWith({
     BookManifestDocument? manifest,
@@ -36,4 +31,3 @@ class BookArtifactBundle {
     };
   }
 }
-

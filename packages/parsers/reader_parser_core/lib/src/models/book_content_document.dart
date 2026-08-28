@@ -25,10 +25,7 @@ class BookContentBlock {
 }
 
 class BookContentDocument {
-  const BookContentDocument({
-    required this.total,
-    required this.blocks,
-  });
+  const BookContentDocument({required this.total, required this.blocks});
 
   final int total;
   final List<BookContentBlock> blocks;
@@ -40,4 +37,3 @@ class BookContentDocument {
     };
   }
 }
-

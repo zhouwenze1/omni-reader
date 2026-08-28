@@ -76,4 +76,3 @@ class DirectoryResourceSource implements BookResourceSource {
   @override
   Future<void> close() async {}
 }
-

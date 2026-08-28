@@ -10,7 +10,8 @@ class PdfOutlinePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('PDF 大纲')),
       body: Center(
-        child: Text('PDF 大纲功能待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child:
+            Text('PDF 大纲功能待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
       ),
     );
   }

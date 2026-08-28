@@ -9,9 +9,8 @@ import '../models/epub_book_package.dart';
 import 'epub_reader_package_export.dart';
 
 class EpubReaderPackageWriter {
-  EpubReaderPackageWriter({
-    EpubArtifactGenerator? artifactGenerator,
-  }) : _artifactGenerator = artifactGenerator ?? EpubArtifactGenerator();
+  EpubReaderPackageWriter({EpubArtifactGenerator? artifactGenerator})
+    : _artifactGenerator = artifactGenerator ?? EpubArtifactGenerator();
 
   final EpubArtifactGenerator _artifactGenerator;
 

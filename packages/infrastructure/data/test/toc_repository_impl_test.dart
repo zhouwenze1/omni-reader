@@ -6,7 +6,8 @@ import 'package:path/path.dart' as p;
 
 void main() {
   group('TocRepositoryImpl', () {
-    test('reads and flattens toc from manifest.json in books storage', () async {
+    test('reads and flattens toc from manifest.json in books storage',
+        () async {
       final tempRoot = await Directory.systemTemp.createTemp(
         'toc_repository_impl_test_',
       );

@@ -9,8 +9,8 @@ class AnnotationRepositoryImpl implements AnnotationRepository {
   AnnotationRepositoryImpl({
     required StoragePaths storagePaths,
     required FileService fileService,
-  }) : _storagePaths = storagePaths,
-       _fileService = fileService;
+  })  : _storagePaths = storagePaths,
+        _fileService = fileService;
 
   final StoragePaths _storagePaths;
   final FileService _fileService;

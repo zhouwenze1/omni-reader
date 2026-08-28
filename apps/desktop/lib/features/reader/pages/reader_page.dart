@@ -7,11 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../di/engines_providers.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/controller/settings_controller.dart';
-import '../../settings/controller/settings_state.dart';
+import '../widgets/desktop_reader_settings_dialog.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.bookUid});
@@ -48,6 +48,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String _layoutMode = ReaderLayoutMode.pagedAuto;
   String? _appliedRendererLayoutMode;
   bool _layoutSyncScheduled = false;
+  ReaderSettings? _pendingReaderSettings;
+  bool _styleApplyInFlight = false;
 
   @override
   void initState() {
@@ -212,7 +214,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   void _bootstrapReaderStyleFromSettings(SettingsState settingsState) {
-    final reader = settingsState.reader;
+    _setReaderSettingsFields(settingsState.reader);
+  }
+
+  void _setReaderSettingsFields(ReaderSettings reader) {
     _rendererTheme = reader.rendererTheme;
     _fontSize = reader.fontSize;
     _lineHeight = reader.lineHeight;
@@ -225,13 +230,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _layoutMode = ReaderLayoutMode.normalize(reader.layoutMode);
   }
 
+  ReaderSettings _currentReaderSettings() {
+    final current = ref.read(settingsControllerProvider).reader;
+    return current.copyWith(
+      fontSize: _fontSize,
+      lineHeight: _lineHeight,
+      pageGap: _pageGap,
+      paddingHorizontal: _paddingLeftRight,
+      paddingVertical: _paddingTopBottom,
+      textIndentEnabled: _textIndentEnabled,
+      textIndentEm: _textIndentEm,
+      textIndentSkipFirstParagraph: _textIndentSkipFirst,
+      rendererTheme: _rendererTheme,
+      layoutMode: _layoutMode,
+    );
+  }
+
   String _resolveRendererLayoutMode() {
+    return _resolveRendererLayoutModeFor(_layoutMode);
+  }
+
+  String _resolveRendererLayoutModeFor(String layoutMode) {
     final mediaQuery = MediaQuery.maybeOf(context);
     if (mediaQuery == null) {
-      return ReaderLayoutMode.normalizeRendererMode(_layoutMode);
+      return ReaderLayoutMode.normalizeRendererMode(layoutMode);
     }
     return ReaderLayoutMode.resolveAdaptive(
-      _layoutMode,
+      layoutMode,
       shortestSide: mediaQuery.size.shortestSide,
     );
   }
@@ -461,9 +486,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final l10n = context.l10n;
     final title = _book?.title ?? '';
     final format = _book?.format.toUpperCase() ?? '';
-    final progressPercent = ((_progress?.progression ?? 0) * 100)
-        .clamp(0, 100)
-        .toStringAsFixed(1);
+    final progressPercent =
+        ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
 
     return IgnorePointer(
       ignoring: !_chromeVisible,
@@ -526,9 +550,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _buildBottomToolbar(BuildContext context) {
     final l10n = context.l10n;
-    final progressPercent = ((_progress?.progression ?? 0) * 100)
-        .clamp(0, 100)
-        .toStringAsFixed(1);
+    final progressPercent =
+        ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
 
     return IgnorePointer(
       ignoring: !_chromeVisible,
@@ -578,55 +601,77 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Future<void> _toggleTheme() async {
     final next = _rendererTheme == 'day' ? 'night' : 'day';
-    setState(() {
-      _rendererTheme = next;
-    });
-    await _applyReaderStyle();
+    await _commitReaderSettings(
+      _currentReaderSettings().copyWith(rendererTheme: next),
+    );
   }
 
-  ReaderStyle _currentReaderStyle() {
+  ReaderStyle _rendererStyleFor(ReaderSettings settings) {
     return ReaderStyle(
-      theme: _rendererTheme,
+      theme: settings.rendererTheme,
       columnCount: 1,
-      pageGap: _pageGap.round(),
-      fontSize: _fontSize.round(),
-      lineHeight: _lineHeight,
-      paddingTop: _paddingTopBottom.round(),
-      paddingRight: _paddingLeftRight.round(),
-      paddingBottom: _paddingTopBottom.round(),
-      paddingLeft: _paddingLeftRight.round(),
-      textIndentEnabled: _textIndentEnabled,
-      textIndentEm: _textIndentEm,
-      textIndentSkipFirstParagraph: _textIndentSkipFirst,
+      pageGap: settings.pageGap.round(),
+      fontSize: settings.fontSize.round(),
+      lineHeight: settings.lineHeight,
+      paddingTop: settings.paddingVertical.round(),
+      paddingRight: settings.paddingHorizontal.round(),
+      paddingBottom: settings.paddingVertical.round(),
+      paddingLeft: settings.paddingHorizontal.round(),
+      textIndentEnabled: settings.textIndentEnabled,
+      textIndentEm: settings.textIndentEm,
+      textIndentSkipFirstParagraph: settings.textIndentSkipFirstParagraph,
     );
   }
 
   Future<void> _applyReaderStyle() async {
+    await _applyReaderStyleSnapshot(_currentReaderSettings());
+  }
+
+  Future<void> _applyReaderStyleSnapshot(ReaderSettings settings) async {
     final session = _session;
     if (session == null) {
       return;
     }
     try {
-      final nextLayoutMode = _resolveRendererLayoutMode();
+      final nextLayoutMode = _resolveRendererLayoutModeFor(settings.layoutMode);
       await session.setLayoutMode(nextLayoutMode);
       _appliedRendererLayoutMode = nextLayoutMode;
-      await session.setStyle(_currentReaderStyle());
-      final currentSettings = ref.read(settingsControllerProvider).reader;
-      final nextSettings = currentSettings.copyWith(
-        fontSize: _fontSize,
-        lineHeight: _lineHeight,
-        pageGap: _pageGap,
-        paddingHorizontal: _paddingLeftRight,
-        paddingVertical: _paddingTopBottom,
-        textIndentEnabled: _textIndentEnabled,
-        textIndentEm: _textIndentEm,
-        textIndentSkipFirstParagraph: _textIndentSkipFirst,
-        rendererTheme: _rendererTheme,
-        layoutMode: _layoutMode,
-      );
-      _scheduleReaderSettingsSave(nextSettings);
+      await session.setStyle(_rendererStyleFor(settings));
     } catch (error) {
       debugPrint('[desktop-reader][setStyle.error] $error');
+    }
+  }
+
+  Future<void> _commitReaderSettings(ReaderSettings settings) async {
+    if (_disposed || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _setReaderSettingsFields(settings);
+    });
+    _scheduleReaderSettingsSave(settings);
+    _pendingReaderSettings = settings;
+    await _drainReaderStyleApplies();
+  }
+
+  Future<void> _drainReaderStyleApplies() async {
+    if (_styleApplyInFlight || _disposed) {
+      return;
+    }
+
+    _styleApplyInFlight = true;
+    try {
+      while (_pendingReaderSettings != null && !_disposed) {
+        final settings = _pendingReaderSettings!;
+        _pendingReaderSettings = null;
+        await _applyReaderStyleSnapshot(settings);
+      }
+    } finally {
+      _styleApplyInFlight = false;
+      if (_pendingReaderSettings != null && !_disposed) {
+        unawaited(_drainReaderStyleApplies());
+      }
     }
   }
 
@@ -635,231 +680,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _openReaderSettings() async {
-    final hostContext = context;
     await showDialog<void>(
-      context: hostContext,
-      builder: (dialogContext) {
-        final l10n = dialogContext.l10n;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            Future<void> applyFromDialog() async {
-              setState(() {});
-              await _applyReaderStyle();
-            }
-
-            return Dialog(
-              backgroundColor: const Color(0xFF1A1A1A),
-              child: SizedBox(
-                width: 420,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.readerSettings,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildSliderControl(
-                        label: l10n.fontSize,
-                        valueLabel: _fontSize.toStringAsFixed(0),
-                        min: 12,
-                        max: 42,
-                        value: _fontSize,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _fontSize = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      _buildSliderControl(
-                        label: l10n.lineHeight,
-                        valueLabel: _lineHeight.toStringAsFixed(2),
-                        min: 1.1,
-                        max: 2.4,
-                        value: _lineHeight,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _lineHeight = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      _buildSliderControl(
-                        label: l10n.pageGap,
-                        valueLabel: _pageGap.toStringAsFixed(0),
-                        min: 0,
-                        max: 80,
-                        value: _pageGap,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _pageGap = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      DropdownButtonFormField<String>(
-                        initialValue: _layoutMode,
-                        decoration: const InputDecoration(
-                          labelText: 'Layout mode',
-                        ),
-                        dropdownColor: const Color(0xFF1A1A1A),
-                        items: const [
-                          DropdownMenuItem(
-                            value: ReaderLayoutMode.pagedAuto,
-                            child: Text('Auto'),
-                          ),
-                          DropdownMenuItem(
-                            value: ReaderLayoutMode.pagedSingle,
-                            child: Text('Single'),
-                          ),
-                          DropdownMenuItem(
-                            value: ReaderLayoutMode.pagedSpread,
-                            child: Text('Spread'),
-                          ),
-                          DropdownMenuItem(
-                            value: ReaderLayoutMode.scrollBoundary,
-                            child: Text('Boundary'),
-                          ),
-                          DropdownMenuItem(
-                            value: ReaderLayoutMode.scrollContinuous,
-                            child: Text('Continuous'),
-                          ),
-                        ],
-                        onChanged: (value) async {
-                          if (value == null) {
-                            return;
-                          }
-                          setDialogState(() {
-                            _layoutMode = value;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      _buildSliderControl(
-                        label: l10n.horizontalPadding,
-                        valueLabel: _paddingLeftRight.toStringAsFixed(0),
-                        min: 0,
-                        max: 100,
-                        value: _paddingLeftRight,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _paddingLeftRight = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      _buildSliderControl(
-                        label: l10n.verticalPadding,
-                        valueLabel: _paddingTopBottom.toStringAsFixed(0),
-                        min: 0,
-                        max: 80,
-                        value: _paddingTopBottom,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _paddingTopBottom = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      SwitchListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        activeThumbColor: Colors.lightBlueAccent,
-                        title: Text(
-                          l10n.enableTextIndent,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        value: _textIndentEnabled,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _textIndentEnabled = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      _buildSliderControl(
-                        label: l10n.indentSizeEm,
-                        valueLabel: _textIndentEm.toStringAsFixed(1),
-                        min: 0,
-                        max: 4,
-                        value: _textIndentEm,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _textIndentEm = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      SwitchListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        activeThumbColor: Colors.lightBlueAccent,
-                        title: Text(
-                          l10n.skipFirstParagraphIndent,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        value: _textIndentSkipFirst,
-                        onChanged: (v) async {
-                          setDialogState(() {
-                            _textIndentSkipFirst = v;
-                          });
-                          await applyFromDialog();
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(),
-                          child: Text(l10n.close),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSliderControl({
-    required String label,
-    required String valueLabel,
-    required double min,
-    required double max,
-    required double value,
-    required ValueChanged<double> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(label, style: const TextStyle(color: Colors.white70)),
-            ),
-            Text(valueLabel, style: const TextStyle(color: Colors.white)),
-          ],
-        ),
-        Slider(
-          min: min,
-          max: max,
-          value: value.clamp(min, max),
-          onChanged: onChanged,
-        ),
-      ],
+      context: context,
+      builder: (_) => DesktopReaderSettingsDialog(
+        initialSettings: _currentReaderSettings(),
+        onCommit: (settings) {
+          unawaited(_commitReaderSettings(settings));
+        },
+      ),
     );
   }
 }

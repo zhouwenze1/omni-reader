@@ -19,4 +19,3 @@ class PdfParser implements FormatParser<ParsedBookPackage> {
     throw UnimplementedError('PDF parser is not implemented yet.');
   }
 }
-

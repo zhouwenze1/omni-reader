@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../di/providers.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../routes/route_paths.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../shared_ui/widgets/error_view.dart';
-import '../../../shared_ui/widgets/loading_view.dart';
 
 class ReadingNowPage extends ConsumerWidget {
   const ReadingNowPage({super.key});

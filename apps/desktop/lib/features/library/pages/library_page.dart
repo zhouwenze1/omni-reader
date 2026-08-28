@@ -6,7 +6,7 @@ import 'package:infrastructure_data/data.dart';
 
 import '../../../di/providers.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../routes/route_paths.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../controller/library_controller.dart';
 import '../controller/library_state.dart';
 import '../widgets/book_grid_item.dart';
@@ -175,11 +175,11 @@ class LibraryPage extends ConsumerWidget {
   ) {
     return GridView.builder(
       itemCount: state.filteredItems.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        mainAxisExtent: 216,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 210,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        mainAxisExtent: 328,
       ),
       itemBuilder: (context, index) {
         final entry = state.filteredItems[index];

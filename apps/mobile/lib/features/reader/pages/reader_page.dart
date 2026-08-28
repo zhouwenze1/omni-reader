@@ -10,11 +10,10 @@ import 'package:go_router/go_router.dart';
 import 'package:kernel/kernel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../di/engines_providers.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../l10n/l10n.dart';
-import '../../../routes/route_paths.dart';
 import '../../library/controller/library_controller.dart';
 import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
@@ -121,9 +120,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Future<void> _init() async {
     try {
-      final settings = await ref
-          .read(settingsRepositoryProvider)
-          .getReaderSettings();
+      final settings =
+          await ref.read(settingsRepositoryProvider).getReaderSettings();
       _bootstrapReaderStyleFromSettings(settings);
 
       final bookRepository = ref.read(bookRepositoryProvider);
@@ -636,10 +634,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     try {
-      final nextSettings = ref
-          .read(settingsControllerProvider)
-          .reader
-          .copyWith(
+      final nextSettings = ref.read(settingsControllerProvider).reader.copyWith(
             fontSize: _fontSize,
             lineHeight: _lineHeight,
             pageGap: _pageGap,
@@ -669,10 +664,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _openReaderSettings() async {
-    final current = ref
-        .read(settingsControllerProvider)
-        .reader
-        .copyWith(
+    final current = ref.read(settingsControllerProvider).reader.copyWith(
           fontSize: _fontSize,
           lineHeight: _lineHeight,
           pageGap: _pageGap,
@@ -977,9 +969,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _scheduleViewportLayoutSync();
     _scheduleViewportReaderStyleSync();
     final chromePalette = _ReaderChromePalette.resolve(_rendererTheme);
-    final immersiveOverlayHorizontalPadding = _paddingHorizontal
-        .clamp(20, 44)
-        .toDouble();
+    final immersiveOverlayHorizontalPadding =
+        _paddingHorizontal.clamp(20, 44).toDouble();
 
     return PopScope<Object?>(
       canPop: false,

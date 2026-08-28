@@ -28,10 +28,10 @@ class EpubReaderSession extends ReaderSession {
     this.initialProgress,
     ReaderStyle initialStyle = ReaderStyle.defaults,
     String initialLayoutMode = ReaderLayoutMode.pagedAuto,
-  }) : _book = book,
-       _readerStyle = initialStyle,
-       _layoutMode = ReaderLayoutMode.normalizeRendererMode(initialLayoutMode),
-       _runtimeFuture = _prepareRuntime(book.uid);
+  })  : _book = book,
+        _readerStyle = initialStyle,
+        _layoutMode = ReaderLayoutMode.normalizeRendererMode(initialLayoutMode),
+        _runtimeFuture = _prepareRuntime(book.uid);
 
   final Book _book;
   final ReadingProgress? initialProgress;
@@ -64,17 +64,17 @@ class EpubReaderSession extends ReaderSession {
 
   @override
   Set<ReaderCapability> get capabilities => const <ReaderCapability>{
-    ReaderCapability.linearNavigation,
-    ReaderCapability.jumpNavigation,
-    ReaderCapability.style,
-    ReaderCapability.theme,
-    ReaderCapability.externalLink,
-    ReaderCapability.mediaTap,
-    ReaderCapability.selection,
-    ReaderCapability.highlights,
-    ReaderCapability.toc,
-    ReaderCapability.inBookSearch,
-  };
+        ReaderCapability.linearNavigation,
+        ReaderCapability.jumpNavigation,
+        ReaderCapability.style,
+        ReaderCapability.theme,
+        ReaderCapability.externalLink,
+        ReaderCapability.mediaTap,
+        ReaderCapability.selection,
+        ReaderCapability.highlights,
+        ReaderCapability.toc,
+        ReaderCapability.inBookSearch,
+      };
 
   @override
   ReaderStyle get style => _readerStyle;
@@ -509,12 +509,15 @@ class EpubReaderSession extends ReaderSession {
   Future<void> _openExternalBrowser(String url) async {
     try {
       if (Platform.isWindows) {
-        await Process.run('cmd', <String>[
-          '/c',
-          'start',
-          '',
-          url,
-        ], runInShell: true);
+        await Process.run(
+            'cmd',
+            <String>[
+              '/c',
+              'start',
+              '',
+              url,
+            ],
+            runInShell: true);
         return;
       }
       if (Platform.isMacOS) {
@@ -588,8 +591,7 @@ class EpubReaderSession extends ReaderSession {
 
     for (final item in metadata.spineItems) {
       final name = p.basename(item.href).toLowerCase();
-      final isCoverLike =
-          name.contains('cover') ||
+      final isCoverLike = name.contains('cover') ||
           name.contains('titlepage') ||
           name.contains('toc');
       if (!isCoverLike) {
@@ -681,8 +683,7 @@ class EpubReaderSession extends ReaderSession {
 
     return _SessionRuntime(
       rendererUrl: '${LocalReaderHttpServer.instance.origin}/render/index.html',
-      rendererDebugUrl:
-          LocalReaderHttpServer.instance.rendererDebugUrl ??
+      rendererDebugUrl: LocalReaderHttpServer.instance.rendererDebugUrl ??
           '${LocalReaderHttpServer.instance.origin}/render/index.html',
       serverOrigin: LocalReaderHttpServer.instance.origin,
       serverPort: LocalReaderHttpServer.instance.port,
@@ -864,9 +865,9 @@ class _WebViewDebugEnvironment {
   });
 
   const _WebViewDebugEnvironment.none()
-    : environment = null,
-      remoteDebugPort = null,
-      errorMessage = null;
+      : environment = null,
+        remoteDebugPort = null,
+        errorMessage = null;
 
   final WebViewEnvironment? environment;
   final int? remoteDebugPort;

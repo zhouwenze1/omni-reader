@@ -19,4 +19,3 @@ class ComicZipParser implements FormatParser<ParsedBookPackage> {
     throw UnimplementedError('ComicZip parser is not implemented yet.');
   }
 }
-

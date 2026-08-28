@@ -60,7 +60,9 @@ class EpubTextExtractor implements ChapterTextSource {
     }
     if (mediaType.isEmpty) {
       final lower = item.href.toLowerCase();
-      return lower.endsWith('.xhtml') || lower.endsWith('.html') || lower.endsWith('.htm');
+      return lower.endsWith('.xhtml') ||
+          lower.endsWith('.html') ||
+          lower.endsWith('.htm');
     }
     return false;
   }
@@ -90,7 +92,8 @@ class _MemoryZipResourceSource implements BookResourceSource {
   String get sourceId => 'memory:zip';
 
   @override
-  Future<List<String>> listPaths() async => _entries.keys.toList(growable: false);
+  Future<List<String>> listPaths() async =>
+      _entries.keys.toList(growable: false);
 
   @override
   Future<bool> exists(String relativePath) async =>
@@ -115,7 +118,9 @@ class _MemoryZipResourceSource implements BookResourceSource {
   @override
   String? contentTypeFor(String relativePath) {
     final lower = relativePath.toLowerCase();
-    if (lower.endsWith('.xhtml') || lower.endsWith('.html') || lower.endsWith('.htm')) {
+    if (lower.endsWith('.xhtml') ||
+        lower.endsWith('.html') ||
+        lower.endsWith('.htm')) {
       return 'application/xhtml+xml';
     }
     if (lower.endsWith('.opf')) {

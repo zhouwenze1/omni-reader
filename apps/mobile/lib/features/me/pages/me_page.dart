@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../routes/route_paths.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../utils/formatters.dart';
 import '../../import_center/pages/import_center_page.dart';
 import '../controller/me_controller.dart';
-import '../controller/me_state.dart';
 import 'stats_detail_page.dart';
 import '../widgets/settings_entry_tile.dart';
 import '../widgets/weekly_report_card.dart';

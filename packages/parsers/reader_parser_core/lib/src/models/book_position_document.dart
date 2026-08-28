@@ -19,10 +19,7 @@ class BookPositionEntry {
 }
 
 class BookPositionDocument {
-  const BookPositionDocument({
-    required this.total,
-    required this.positions,
-  });
+  const BookPositionDocument({required this.total, required this.positions});
 
   final int total;
   final List<BookPositionEntry> positions;
@@ -34,4 +31,3 @@ class BookPositionDocument {
     };
   }
 }
-

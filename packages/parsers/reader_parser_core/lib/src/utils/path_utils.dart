@@ -53,11 +53,9 @@ class PathUtils {
   }
 
   static String joinNative(String baseDir, String relativePath) {
-    final parts = normalizeRelative(relativePath)
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
+    final parts = normalizeRelative(
+      relativePath,
+    ).split('/').where((segment) => segment.isNotEmpty).toList(growable: false);
     return p.joinAll(<String>[baseDir, ...parts]);
   }
 }
-

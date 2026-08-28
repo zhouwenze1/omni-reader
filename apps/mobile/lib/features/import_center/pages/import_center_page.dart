@@ -103,7 +103,9 @@ class ImportCenterPage extends ConsumerWidget {
     final targetCollectionId =
         libraryState.selectedCollectionId ?? libraryState.defaultCollectionId;
     if (targetCollectionId != null && importedBookUids.isNotEmpty) {
-      await ref.read(mobileLibraryControllerProvider.notifier).addBooksToCollection(
+      await ref
+          .read(mobileLibraryControllerProvider.notifier)
+          .addBooksToCollection(
             targetCollectionId,
             importedBookUids,
           );

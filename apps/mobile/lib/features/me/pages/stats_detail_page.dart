@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../utils/formatters.dart';
-import '../controller/me_state.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class StatsDetailPage extends StatelessWidget {
   const StatsDetailPage({super.key, required this.state});

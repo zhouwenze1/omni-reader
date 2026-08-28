@@ -10,8 +10,8 @@ class ReaderBridgeService {
   ReaderBridgeService({
     required InAppWebViewController Function() controllerProvider,
     required void Function(ReaderEvent event) emitEvent,
-  }) : _controllerProvider = controllerProvider,
-       _emitEvent = emitEvent;
+  })  : _controllerProvider = controllerProvider,
+        _emitEvent = emitEvent;
 
   final InAppWebViewController Function() _controllerProvider;
   final void Function(ReaderEvent event) _emitEvent;
@@ -181,8 +181,7 @@ class ReaderBridgeService {
     final invocation = encodedPayload == null
         ? 'api[${jsonEncode(method)}]()'
         : 'api[${jsonEncode(method)}]($encodedPayload)';
-    final source =
-        '''
+    final source = '''
       (async function() {
         const api = window.reader;
         const method = ${jsonEncode(method)};

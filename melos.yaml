@@ -15,6 +15,7 @@ packages:
   - packages/engines/audio
   - packages/engines/ldf
   - packages/engines/comic_zip
+  - packages/shared_ui
   - packages/parsers/reader_parser_core
   - packages/parsers/reader_parser_epub
   - packages/parsers/reader_parser_pdf

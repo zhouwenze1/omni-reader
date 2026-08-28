@@ -19,6 +19,8 @@ dependencies:
   url_launcher: ^6.3.2
   foundation_domain:
     path: ../../packages/foundation/domain
+  shared_ui:
+    path: ../../packages/shared_ui
   foundation_application:
     path: ../../packages/foundation/application
   infrastructure_data:

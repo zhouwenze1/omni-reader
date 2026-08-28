@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
 import '../../../di/repositories_providers.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class NotesPage extends ConsumerWidget {
   const NotesPage({super.key, required this.bookUid});
@@ -20,9 +20,8 @@ class NotesPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('加载失败: $error')),
         data: (items) {
-          final notes = items
-              .where((item) => item.type == AnnotationType.note)
-              .toList();
+          final notes =
+              items.where((item) => item.type == AnnotationType.note).toList();
           if (notes.isEmpty) {
             return const EmptyView(title: '暂无笔记');
           }

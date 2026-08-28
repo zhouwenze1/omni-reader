@@ -10,13 +10,9 @@ abstract interface class BookResourceSource {
 
   Future<Uint8List?> readBytes(String relativePath);
 
-  Future<String?> readText(
-    String relativePath, {
-    Encoding encoding = utf8,
-  });
+  Future<String?> readText(String relativePath, {Encoding encoding = utf8});
 
   String? contentTypeFor(String relativePath);
 
   Future<void> close();
 }
-

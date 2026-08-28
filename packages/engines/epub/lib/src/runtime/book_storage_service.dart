@@ -9,7 +9,7 @@ import 'book_package.dart';
 
 class BookStorageService implements BookStoragePort {
   BookStorageService({required String booksRootPath})
-    : _booksRoot = Directory(booksRootPath);
+      : _booksRoot = Directory(booksRootPath);
 
   final Directory _booksRoot;
 

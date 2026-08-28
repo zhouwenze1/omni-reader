@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
 import '../../../di/repositories_providers.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../shared_ui/widgets/error_view.dart';
-import '../../../shared_ui/widgets/loading_view.dart';
 
 class TocDrawerPage extends ConsumerWidget {
   const TocDrawerPage({super.key, required this.bookUid});
@@ -43,9 +42,8 @@ class TocDrawerPage extends ConsumerWidget {
                   right: 16,
                 ),
                 title: Text(item.title),
-                trailing: item.href == null
-                    ? null
-                    : const Icon(Icons.chevron_right),
+                trailing:
+                    item.href == null ? null : const Icon(Icons.chevron_right),
                 onTap: item.href == null
                     ? null
                     : () => Navigator.of(context).pop(item),

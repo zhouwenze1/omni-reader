@@ -4,9 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../routes/route_paths.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../controller/me_controller.dart';
-import '../controller/me_state.dart';
 import '../widgets/settings_entry_tile.dart';
 import '../widgets/weekly_report_card.dart';
 

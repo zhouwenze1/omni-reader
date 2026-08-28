@@ -125,15 +125,15 @@ class ReaderSettings {
             json['paddingHorizontal'] ?? json['paddingRight'],
           ) ??
           36,
-      paddingVertical: _asDouble(json['paddingVertical'] ?? json['paddingTop']) ??
-          16,
+      paddingVertical:
+          _asDouble(json['paddingVertical'] ?? json['paddingTop']) ?? 16,
       textIndentEnabled: _asBool(json['textIndentEnabled']) ?? true,
       textIndentEm: _asDouble(json['textIndentEm']) ?? 2,
       textIndentSkipFirstParagraph:
           _asBool(json['textIndentSkipFirstParagraph']) ?? false,
       rendererTheme:
           (json['rendererTheme'] as String? ?? json['theme'] as String?) ??
-          'day',
+              'day',
       layoutMode: ReaderLayoutMode.normalize(json['layoutMode'] as String?),
       progressDisplay: (json['progressDisplay'] as String?) ?? 'percentage',
     );

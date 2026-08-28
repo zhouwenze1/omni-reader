@@ -7,8 +7,8 @@ class TocRepositoryImpl implements TocRepository {
   TocRepositoryImpl({
     required StoragePaths storagePaths,
     required FileService fileService,
-  }) : _storagePaths = storagePaths,
-       _fileService = fileService;
+  })  : _storagePaths = storagePaths,
+        _fileService = fileService;
 
   final StoragePaths _storagePaths;
   final FileService _fileService;
@@ -31,10 +31,11 @@ class TocRepositoryImpl implements TocRepository {
       return metadataToc;
     }
 
-    final legacy = await _fileService.readJson(_bookArtifactPath(bookUid, 'toc.json')) ??
-        await _fileService.readJson(
-          p.join(_storagePaths.libraryRoot.path, bookUid, 'toc.json'),
-        );
+    final legacy =
+        await _fileService.readJson(_bookArtifactPath(bookUid, 'toc.json')) ??
+            await _fileService.readJson(
+              p.join(_storagePaths.libraryRoot.path, bookUid, 'toc.json'),
+            );
     if (legacy == null) {
       return const [];
     }

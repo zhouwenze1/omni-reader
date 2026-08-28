@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../utils/formatters.dart';
-import '../controller/me_state.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class WeeklyReportCard extends StatelessWidget {
   const WeeklyReportCard({
@@ -39,8 +39,11 @@ class WeeklyReportCard extends StatelessWidget {
                 _StatChip(label: '已完成', value: '${state.completedBooks}'),
                 _StatChip(label: '未开始', value: '${state.notStartedBooks}'),
                 _StatChip(label: '平均进度', value: '$averageProgress%'),
-                _StatChip(label: '近 7 天打开', value: '${state.booksOpenedInLast7Days}'),
-                _StatChip(label: '近 7 天导入', value: '${state.booksImportedInLast7Days}'),
+                _StatChip(
+                    label: '近 7 天打开', value: '${state.booksOpenedInLast7Days}'),
+                _StatChip(
+                    label: '近 7 天导入',
+                    value: '${state.booksImportedInLast7Days}'),
                 _StatChip(label: '标注总数', value: '${state.annotationsCount}'),
               ],
             ),

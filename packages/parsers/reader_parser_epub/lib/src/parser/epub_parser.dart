@@ -6,9 +6,7 @@ import 'epub_toc_reconciler.dart';
 import 'epub_parser_options.dart';
 
 class EpubParser implements FormatParser<EpubBookPackage> {
-  EpubParser({
-    this.options = const EpubParserOptions(),
-  });
+  EpubParser({this.options = const EpubParserOptions()});
 
   static const _containerPath = 'META-INF/container.xml';
   static const EpubTocReconciler _tocReconciler = EpubTocReconciler();
@@ -249,8 +247,10 @@ class EpubParser implements FormatParser<EpubBookPackage> {
       final properties = _splitProperties(item.getAttribute('properties'));
       manifest[id] = BookAssetItem(
         id: id,
-        href: PathUtils.joinRelative(contentRoot, href)
-            .replaceFirst(RegExp('^${RegExp.escape(contentRoot)}/?'), ''),
+        href: PathUtils.joinRelative(
+          contentRoot,
+          href,
+        ).replaceFirst(RegExp('^${RegExp.escape(contentRoot)}/?'), ''),
         mediaType: mediaType,
         properties: properties,
         linear: true,
@@ -282,8 +282,8 @@ class EpubParser implements FormatParser<EpubBookPackage> {
         continue;
       }
       spineIds.add(idRef);
-      final linear = (itemRef.getAttribute('linear')?.trim().toLowerCase() ??
-              'yes') !=
+      final linear =
+          (itemRef.getAttribute('linear')?.trim().toLowerCase() ?? 'yes') !=
           'no';
       readingOrder.add(
         BookAssetItem(
@@ -396,11 +396,7 @@ class EpubParser implements FormatParser<EpubBookPackage> {
         order += 1;
         final childList = _findChildrenByLocalName(li, 'ol');
         if (childList.isNotEmpty) {
-          visitList(
-            childList.first,
-            level: level + 1,
-            parentId: itemId,
-          );
+          visitList(childList.first, level: level + 1, parentId: itemId);
         }
       }
     }
@@ -481,14 +477,20 @@ class EpubParser implements FormatParser<EpubBookPackage> {
   }
 
   List<XmlElement> _findAllByLocalName(XmlNode node, String localName) {
-    return node.descendants.whereType<XmlElement>().where((element) {
-      return element.name.local.toLowerCase() == localName.toLowerCase();
-    }).toList(growable: false);
+    return node.descendants
+        .whereType<XmlElement>()
+        .where((element) {
+          return element.name.local.toLowerCase() == localName.toLowerCase();
+        })
+        .toList(growable: false);
   }
 
   List<XmlElement> _findChildrenByLocalName(XmlElement node, String localName) {
-    return node.children.whereType<XmlElement>().where((element) {
-      return element.name.local.toLowerCase() == localName.toLowerCase();
-    }).toList(growable: false);
+    return node.children
+        .whereType<XmlElement>()
+        .where((element) {
+          return element.name.local.toLowerCase() == localName.toLowerCase();
+        })
+        .toList(growable: false);
   }
 }

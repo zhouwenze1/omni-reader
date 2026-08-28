@@ -10,7 +10,8 @@ class ComicReaderPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('漫画阅读')),
       body: Center(
-        child: Text('漫画阅读增强模式待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child:
+            Text('漫画阅读增强模式待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
       ),
     );
   }

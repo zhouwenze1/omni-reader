@@ -11,8 +11,7 @@ class ReadingAssistSettingsPage extends StatefulWidget {
       _ReadingAssistSettingsPageState();
 }
 
-class _ReadingAssistSettingsPageState
-    extends State<ReadingAssistSettingsPage> {
+class _ReadingAssistSettingsPageState extends State<ReadingAssistSettingsPage> {
   bool _dictionary = true;
   bool _translation = false;
   bool _tts = false;

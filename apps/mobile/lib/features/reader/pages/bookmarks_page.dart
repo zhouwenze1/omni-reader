@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
 import '../../../di/repositories_providers.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class BookmarksPage extends ConsumerWidget {
   const BookmarksPage({super.key, required this.bookUid});

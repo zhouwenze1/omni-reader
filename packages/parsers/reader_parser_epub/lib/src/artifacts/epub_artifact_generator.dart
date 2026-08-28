@@ -7,25 +7,25 @@ import 'package:xml/xml.dart';
 import '../models/epub_book_package.dart';
 import '../models/epub_node_locator.dart';
 
-class EpubArtifactGenerator
-    implements DerivativeGenerator<EpubBookPackage> {
+class EpubArtifactGenerator implements DerivativeGenerator<EpubBookPackage> {
   EpubArtifactGenerator({
     this.positionTextStep = 1024,
     this.contentBlockMaxLength = 2000,
     Set<String>? locatableTags,
-  }) : locatableTags = locatableTags ??
-            const <String>{
-              'p',
-              'h1',
-              'h2',
-              'h3',
-              'h4',
-              'h5',
-              'h6',
-              'li',
-              'blockquote',
-              'img',
-            };
+  }) : locatableTags =
+           locatableTags ??
+           const <String>{
+             'p',
+             'h1',
+             'h2',
+             'h3',
+             'h4',
+             'h5',
+             'h6',
+             'li',
+             'blockquote',
+             'img',
+           };
 
   final int positionTextStep;
   final int contentBlockMaxLength;
@@ -51,22 +51,26 @@ class EpubArtifactGenerator
   BookManifestDocument _buildManifest(EpubBookPackage package) {
     final readingOrder = package.readingOrder
         .where((item) => item.linear)
-        .map((item) => <String, Object?>{
-              'href': item.href,
-              'type': item.mediaType,
-              if (item.properties.isNotEmpty)
-                'properties': item.properties.join(' '),
-              'title': item.title,
-            })
+        .map(
+          (item) => <String, Object?>{
+            'href': item.href,
+            'type': item.mediaType,
+            if (item.properties.isNotEmpty)
+              'properties': item.properties.join(' '),
+            'title': item.title,
+          },
+        )
         .toList(growable: false);
 
     final resources = package.resources
-        .map((item) => <String, Object?>{
-              'href': item.href,
-              'type': item.mediaType,
-              if (item.properties.isNotEmpty)
-                'properties': item.properties.join(' '),
-            })
+        .map(
+          (item) => <String, Object?>{
+            'href': item.href,
+            'type': item.mediaType,
+            if (item.properties.isNotEmpty)
+              'properties': item.properties.join(' '),
+          },
+        )
         .toList(growable: false);
 
     return BookManifestDocument(
@@ -116,12 +120,18 @@ class EpubArtifactGenerator
       final fullPath = PathUtils.joinRelative(package.contentRoot, item.href);
       final xhtml = await package.resourceSource.readText(fullPath) ?? '';
       final plainText = _extractPlainText(xhtml);
-      countsByHref[item.href] = max(1, (plainText.length / positionTextStep).ceil());
+      countsByHref[item.href] = max(
+        1,
+        (plainText.length / positionTextStep).ceil(),
+      );
     }
 
     final total = countsByHref.values.fold<int>(0, (sum, value) => sum + value);
     if (total == 0) {
-      return const BookPositionDocument(total: 0, positions: <BookPositionEntry>[]);
+      return const BookPositionDocument(
+        total: 0,
+        positions: <BookPositionEntry>[],
+      );
     }
 
     final entries = <BookPositionEntry>[];
@@ -132,8 +142,9 @@ class EpubArtifactGenerator
       for (var index = 0; index < count; index += 1) {
         globalPosition += 1;
         final progression = count == 1 ? 0.0 : index / (count - 1);
-        final totalProgression =
-            total == 1 ? 0.0 : (globalPosition - 1) / (total - 1);
+        final totalProgression = total == 1
+            ? 0.0
+            : (globalPosition - 1) / (total - 1);
         final locator = _nearestLocator(locators, progression);
         entries.add(
           BookPositionEntry(
@@ -143,7 +154,8 @@ class EpubArtifactGenerator
               'position': globalPosition,
               'progression': _round6(progression),
               'totalProgression': _round6(totalProgression),
-              if (locator != null) 'cfi': _buildLegacyLocator(item.href, locator),
+              if (locator != null)
+                'cfi': _buildLegacyLocator(item.href, locator),
               if (locator != null) 'uid': locator.uid,
               if (locator != null) 'xpath': locator.xpath,
             },
@@ -168,7 +180,9 @@ class EpubArtifactGenerator
     }
 
     final blocks = <BookContentBlock>[];
-    for (final item in package.readingOrder.where((entry) => entry.linear && entry.isHtmlLike)) {
+    for (final item in package.readingOrder.where(
+      (entry) => entry.linear && entry.isHtmlLike,
+    )) {
       final fullPath = PathUtils.joinRelative(package.contentRoot, item.href);
       final xhtml = await package.resourceSource.readText(fullPath);
       if (xhtml == null || xhtml.trim().isEmpty) {
@@ -226,7 +240,9 @@ class EpubArtifactGenerator
     EpubBookPackage package,
   ) async {
     final results = <String, List<EpubNodeLocator>>{};
-    for (final item in package.readingOrder.where((entry) => entry.linear && entry.isHtmlLike)) {
+    for (final item in package.readingOrder.where(
+      (entry) => entry.linear && entry.isHtmlLike,
+    )) {
       final fullPath = PathUtils.joinRelative(package.contentRoot, item.href);
       final xhtml = await package.resourceSource.readText(fullPath);
       if (xhtml == null || xhtml.trim().isEmpty) {
@@ -254,10 +270,7 @@ class EpubArtifactGenerator
           tag: tag,
           textStart: runningTextOffset,
           textLength: textLength,
-          preview: normalizedText.substring(
-            0,
-            min(80, normalizedText.length),
-          ),
+          preview: normalizedText.substring(0, min(80, normalizedText.length)),
         );
         locators.add(locator);
         runningTextOffset += textLength;
@@ -400,7 +413,10 @@ class EpubArtifactGenerator
   }
 
   String _normalizeWhitespace(String input) {
-    return input.replaceAll('\u00A0', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    return input
+        .replaceAll('\u00A0', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   double _round6(double value) {
@@ -461,8 +477,9 @@ class EpubArtifactGenerator
     }
     XmlElement current = body;
     for (var index = 1; index < parts.length; index += 1) {
-      final match =
-          RegExp(r'^([a-zA-Z0-9:_-]+)\[(\d+)\]$').firstMatch(parts[index]);
+      final match = RegExp(
+        r'^([a-zA-Z0-9:_-]+)\[(\d+)\]$',
+      ).firstMatch(parts[index]);
       if (match == null) {
         return null;
       }
@@ -480,4 +497,3 @@ class EpubArtifactGenerator
     return current;
   }
 }
-

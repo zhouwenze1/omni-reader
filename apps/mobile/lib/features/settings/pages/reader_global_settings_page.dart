@@ -4,7 +4,7 @@ import 'package:foundation_domain/domain.dart';
 
 import '../../../l10n/l10n.dart';
 import '../controller/settings_controller.dart';
-import '../widgets/dropdown_tile.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../widgets/settings_group.dart';
 import '../widgets/slider_tile.dart';
 import '../widgets/toggle_tile.dart';
@@ -132,8 +132,8 @@ class ReaderGlobalSettingsPage extends ConsumerWidget {
                 divisions: 20,
                 value: reader.textIndentEm,
                 valueText: '${reader.textIndentEm.toStringAsFixed(1)}em',
-                onChanged: (value) =>
-                    controller.updateReader(reader.copyWith(textIndentEm: value)),
+                onChanged: (value) => controller
+                    .updateReader(reader.copyWith(textIndentEm: value)),
               ),
               ToggleTile(
                 title: l10n.skipFirstParagraphIndent,

@@ -41,11 +41,11 @@ class ReaderEventReceiver {
     required LocatorNormalizer locatorNormalizer,
     required BookUriMapper uriMapper,
     required void Function(ReaderEvent event) emitEvent,
-  }) : _controller = controller,
-       _bookUuid = bookUuid,
-       _locatorNormalizer = locatorNormalizer,
-       _uriMapper = uriMapper,
-       _emitEvent = emitEvent;
+  })  : _controller = controller,
+        _bookUuid = bookUuid,
+        _locatorNormalizer = locatorNormalizer,
+        _uriMapper = uriMapper,
+        _emitEvent = emitEvent;
 
   static const List<String> eventNames = <String>[
     'load',

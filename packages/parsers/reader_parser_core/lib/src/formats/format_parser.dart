@@ -11,4 +11,3 @@ abstract interface class FormatParser<TPackage extends ParsedBookPackage> {
 
   Future<BookMetadata> parseInfo(String filePath);
 }
-

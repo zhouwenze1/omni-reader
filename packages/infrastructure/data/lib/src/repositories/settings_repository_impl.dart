@@ -37,8 +37,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
       final legacyJson = legacyRaw.map((k, v) => MapEntry('$k', v));
       final legacySettings = ReaderSettings.fromJson(legacyJson);
       final legacyLayoutMode = legacyJson['layoutMode']?.toString().trim();
-      final migratedLayoutMode =
-          legacyLayoutMode == null ||
+      final migratedLayoutMode = legacyLayoutMode == null ||
               legacyLayoutMode.isEmpty ||
               legacyLayoutMode.toLowerCase() == 'paged_spread'
           ? ReaderLayoutMode.pagedAuto

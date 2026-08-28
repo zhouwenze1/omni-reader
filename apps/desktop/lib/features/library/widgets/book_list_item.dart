@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
 
 import 'book_cover.dart';
-import 'progress_badge.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class BookListItem extends StatelessWidget {
   const BookListItem({
@@ -41,7 +41,7 @@ class BookListItem extends StatelessWidget {
                   : null,
           borderRadius: BorderRadius.circular(8),
         ),
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(
           children: [
             if (selectionMode) ...[
@@ -56,8 +56,8 @@ class BookListItem extends StatelessWidget {
               ),
               const SizedBox(width: 8),
             ],
-            BookCover(filePath: coverPath, width: 54, height: 76, radius: 8),
-            const SizedBox(width: 10),
+            BookCover(filePath: coverPath, width: 72, height: 102, radius: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -10,7 +10,8 @@ class AudioPlayerPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('音频播放器')),
       body: Center(
-        child: Text('音频增强播放器待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
+        child:
+            Text('音频增强播放器待接入\nbookUid=$bookUid', textAlign: TextAlign.center),
       ),
     );
   }

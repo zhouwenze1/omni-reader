@@ -5,10 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:infrastructure_data/data.dart';
 
 import '../../../di/providers.dart';
-import '../../../routes/route_paths.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../shared_ui/widgets/error_view.dart';
-import '../../../shared_ui/widgets/loading_view.dart';
 import 'reading_history_page.dart';
 import '../widgets/reading_now_card.dart';
 import '../widgets/recent_item_tile.dart';

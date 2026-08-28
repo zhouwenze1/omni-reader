@@ -60,7 +60,7 @@ class RendererNavigatePayload {
   const RendererNavigatePayload.prev() : this._('prev');
 
   const RendererNavigatePayload.progression(double value)
-    : this._('progression', value);
+      : this._('progression', value);
 
   const RendererNavigatePayload.anchor(String value) : this._('anchor', value);
 

@@ -14,8 +14,8 @@ class LazyZipResourceSource implements BookResourceSource {
     required Map<String, _LazyZipEntry> entries,
     required this.maxCacheBytes,
     required this.maxCachedEntryBytes,
-  })  : _archivePath = archivePath,
-        _entries = entries;
+  }) : _archivePath = archivePath,
+       _entries = entries;
 
   static Future<LazyZipResourceSource> open(
     String archivePath, {
@@ -89,7 +89,10 @@ class LazyZipResourceSource implements BookResourceSource {
           'Unexpected EOF while reading ZIP entry: ${entry.path}',
         );
       }
-      final decoded = _decompress(entry: entry, compressedBytes: compressedBytes);
+      final decoded = _decompress(
+        entry: entry,
+        compressedBytes: compressedBytes,
+      );
       _writeCache(normalized, decoded);
       return decoded;
     } finally {
@@ -189,10 +192,7 @@ class LazyZipResourceSource implements BookResourceSource {
 }
 
 class _LazyZipIndexReader {
-  _LazyZipIndexReader({
-    required this.archivePath,
-    required this.fileSize,
-  });
+  _LazyZipIndexReader({required this.archivePath, required this.fileSize});
 
   final String archivePath;
   final int fileSize;
@@ -249,22 +249,10 @@ class _LazyZipIndexReader {
 
     final eocdOffset = start + eocdOffsetInTail;
     final data = ByteData.sublistView(tail);
-    final diskNumber = data.getUint16(
-      eocdOffsetInTail + 4,
-      Endian.little,
-    );
-    final startDisk = data.getUint16(
-      eocdOffsetInTail + 6,
-      Endian.little,
-    );
-    var entriesOnDisk = data.getUint16(
-      eocdOffsetInTail + 8,
-      Endian.little,
-    );
-    var totalEntries = data.getUint16(
-      eocdOffsetInTail + 10,
-      Endian.little,
-    );
+    final diskNumber = data.getUint16(eocdOffsetInTail + 4, Endian.little);
+    final startDisk = data.getUint16(eocdOffsetInTail + 6, Endian.little);
+    var entriesOnDisk = data.getUint16(eocdOffsetInTail + 8, Endian.little);
+    var totalEntries = data.getUint16(eocdOffsetInTail + 10, Endian.little);
     var centralDirectorySize = data.getUint32(
       eocdOffsetInTail + 12,
       Endian.little,
@@ -307,14 +295,16 @@ class _LazyZipIndexReader {
       return -1;
     }
     final data = ByteData.sublistView(tail);
-    for (var offset = tail.length - _ZipSignatures.eocdSize;
-        offset >= 0;
-        offset -= 1) {
-      if (data.getUint32(offset, Endian.little) != _ZipSignatures.eocdSignature) {
+    for (
+      var offset = tail.length - _ZipSignatures.eocdSize;
+      offset >= 0;
+      offset -= 1
+    ) {
+      if (data.getUint32(offset, Endian.little) !=
+          _ZipSignatures.eocdSignature) {
         continue;
       }
-      final commentLength =
-          data.getUint16(offset + 20, Endian.little);
+      final commentLength = data.getUint16(offset + 20, Endian.little);
       final expectedLength = offset + _ZipSignatures.eocdSize + commentLength;
       if (expectedLength == tail.length) {
         return offset;
@@ -415,8 +405,7 @@ class _LazyZipIndexReader {
       final localHeaderOffset = data.getUint32(cursor + 42, Endian.little);
 
       final fixedEnd = cursor + _ZipSignatures.centralDirectoryHeaderSize;
-      final fileNameBytes =
-          bytes.sublist(fixedEnd, fixedEnd + fileNameLength);
+      final fileNameBytes = bytes.sublist(fixedEnd, fixedEnd + fileNameLength);
       final extraStart = fixedEnd + fileNameLength;
       final extraEnd = extraStart + extraFieldLength;
       final extraBytes = bytes.sublist(extraStart, extraEnd);

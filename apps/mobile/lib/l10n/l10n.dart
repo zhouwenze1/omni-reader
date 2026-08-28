@@ -28,8 +28,7 @@ class MobileStrings {
   String get layoutAutoHint => _isZh
       ? '自适应模式会在手机上使用单页，在更大屏幕上使用双页。'
       : 'Auto uses a single page on phones and a spread on larger screens.';
-  String get enableTextIndent =>
-      _isZh ? '启用首行缩进' : 'Enable text indent';
+  String get enableTextIndent => _isZh ? '启用首行缩进' : 'Enable text indent';
   String get textIndent => _isZh ? '首行缩进' : 'Text indent';
   String get indentSize => _isZh ? '缩进大小' : 'Indent size';
   String get skipFirstParagraphIndent =>
@@ -67,7 +66,8 @@ Locale? mobileLocaleFromPreference(String localeCode) {
 
 extension MobileL10nX on BuildContext {
   MobileStrings get l10n {
-    final locale = Localizations.maybeLocaleOf(this) ?? const Locale('zh', 'CN');
+    final locale =
+        Localizations.maybeLocaleOf(this) ?? const Locale('zh', 'CN');
     return MobileStrings(locale);
   }
 }

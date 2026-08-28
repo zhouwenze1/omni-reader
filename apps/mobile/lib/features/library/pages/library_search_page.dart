@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../di/providers.dart';
-import '../../../routes/route_paths.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class LibrarySearchPage extends ConsumerStatefulWidget {
   const LibrarySearchPage({super.key});
@@ -72,7 +72,8 @@ class _LibrarySearchPageState extends ConsumerState<LibrarySearchPage> {
                             ? item.format
                             : '${item.authors.join(', ')} · ${item.format.toUpperCase()}'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => context.push(RoutePaths.reader(item.bookUid)),
+                        onTap: () =>
+                            context.push(RoutePaths.reader(item.bookUid)),
                       ),
                     );
                   }).toList(),

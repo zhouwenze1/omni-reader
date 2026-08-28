@@ -65,7 +65,8 @@ class AppFormatters {
 
     final monthDiffRaw =
         (current.year - target.year) * 12 + current.month - target.month;
-    final monthDiff = current.day < target.day ? monthDiffRaw - 1 : monthDiffRaw;
+    final monthDiff =
+        current.day < target.day ? monthDiffRaw - 1 : monthDiffRaw;
     if (monthDiff <= 1) {
       return zh ? (withVerb ? '上个月阅读' : '上个月') : 'Last month';
     }
@@ -76,11 +77,10 @@ class AppFormatters {
     }
 
     final yearDiffRaw = current.year - target.year;
-    final yearDiff =
-        current.month < target.month ||
-                (current.month == target.month && current.day < target.day)
-            ? yearDiffRaw - 1
-            : yearDiffRaw;
+    final yearDiff = current.month < target.month ||
+            (current.month == target.month && current.day < target.day)
+        ? yearDiffRaw - 1
+        : yearDiffRaw;
     if (yearDiff <= 1) {
       return zh ? (withVerb ? '去年阅读' : '去年') : 'Last year';
     }

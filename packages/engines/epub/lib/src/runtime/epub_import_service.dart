@@ -134,11 +134,10 @@ class EpubImportService {
         .whereType<Map>()
         .map((link) => link.map((key, value) => MapEntry('$key', value)))
         .where((link) {
-          final rel = '${link['rel'] ?? ''}'.trim().toLowerCase();
-          final href = '${link['href'] ?? ''}'.trim().toLowerCase();
-          return rel != 'search' && href != 'content.json';
-        })
-        .toList(growable: false);
+      final rel = '${link['rel'] ?? ''}'.trim().toLowerCase();
+      final href = '${link['href'] ?? ''}'.trim().toLowerCase();
+      return rel != 'search' && href != 'content.json';
+    }).toList(growable: false);
 
     if (filteredLinks.isEmpty) {
       manifestJson.remove('links');

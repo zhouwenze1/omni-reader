@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controller/settings_controller.dart';
-import '../widgets/dropdown_tile.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../widgets/settings_group.dart';
 import '../widgets/toggle_tile.dart';
 
@@ -29,7 +29,8 @@ class CloudSettingsPage extends ConsumerWidget {
                 value: cloud.provider,
                 items: const [
                   DropdownMenuItem(value: 'none', child: Text('未连接')),
-                  DropdownMenuItem(value: 'gdrive', child: Text('Google Drive')),
+                  DropdownMenuItem(
+                      value: 'gdrive', child: Text('Google Drive')),
                   DropdownMenuItem(value: 'onedrive', child: Text('OneDrive')),
                 ],
                 onChanged: (value) {

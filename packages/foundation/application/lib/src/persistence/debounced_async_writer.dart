@@ -29,9 +29,8 @@ class DebouncedAsyncWriter<T> {
     final pending = _pending;
     if (pending != null) {
       _pending = null;
-      _writeChain = _writeChain
-          .catchError((_) {})
-          .then((_) => _writer(pending));
+      _writeChain =
+          _writeChain.catchError((_) {}).then((_) => _writer(pending));
     }
 
     try {

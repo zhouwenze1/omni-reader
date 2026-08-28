@@ -19,4 +19,3 @@ class LdfParser implements FormatParser<ParsedBookPackage> {
     throw UnimplementedError('LDF parser is not implemented yet.');
   }
 }
-

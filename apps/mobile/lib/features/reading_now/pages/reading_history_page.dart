@@ -4,8 +4,7 @@ import 'package:foundation_domain/domain.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../di/providers.dart';
-import '../../../routes/route_paths.dart';
-import '../../../shared_ui/widgets/empty_view.dart';
+import 'package:shared_ui/shared_ui.dart';
 import '../../../utils/formatters.dart';
 
 class ReadingHistoryPage extends ConsumerWidget {

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
 
 import '../../../di/repositories_providers.dart';
-import 'settings_state.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 final settingsControllerProvider =
     StateNotifierProvider<SettingsController, SettingsState>((ref) {

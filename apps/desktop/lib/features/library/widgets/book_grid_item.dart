@@ -1,8 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
 
 import 'book_cover.dart';
-import 'progress_badge.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class BookGridItem extends StatelessWidget {
   const BookGridItem({
@@ -28,9 +30,11 @@ class BookGridItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final coverHeight =
-            (constraints.maxHeight * 0.58).clamp(96.0, 152.0).toDouble();
-        final coverWidth = (coverHeight * 0.72).toDouble();
+        final coverWidth = math.min(
+          174.0,
+          math.max(0.0, constraints.maxWidth - 16),
+        );
+        final coverHeight = coverWidth / 0.72;
         final cardColor = multiSelected
             ? Theme.of(context).colorScheme.primaryContainer
             : selected
@@ -42,11 +46,21 @@ class BookGridItem extends StatelessWidget {
 
         return Card(
           color: cardColor,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(
+              color: selected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.transparent,
+              width: selected ? 1.5 : 0,
+            ),
+          ),
           child: InkWell(
             onTap: onTap,
             onLongPress: onLongPress,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Column(
                 children: [
                   Align(
@@ -83,9 +97,9 @@ class BookGridItem extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   SizedBox(
-                    height: 34,
+                    height: 38,
                     child: Align(
                       alignment: Alignment.center,
                       child: Text(
@@ -93,30 +107,14 @@ class BookGridItem extends StatelessWidget {
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          _relativeLastRead(
-                            context,
-                            entry.lastOpenedAt ?? entry.updatedAt,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
+                      const Spacer(),
                       ProgressBadge(progress: entry.cachedProgress ?? 0),
                     ],
                   ),
@@ -127,36 +125,5 @@ class BookGridItem extends StatelessWidget {
         );
       },
     );
-  }
-
-  String _relativeLastRead(BuildContext context, DateTime dateTime) {
-    final isZh = Localizations.localeOf(context).languageCode.startsWith('zh');
-    final now = DateTime.now();
-    final startOfToday = DateTime(now.year, now.month, now.day);
-    final startOfTarget = DateTime(dateTime.year, dateTime.month, dateTime.day);
-    final days = startOfToday.difference(startOfTarget).inDays;
-
-    if (days <= 0) {
-      return isZh ? '今天' : 'Today';
-    }
-    if (days == 1) {
-      return isZh ? '昨天' : 'Yesterday';
-    }
-    if (days < 7) {
-      return isZh ? '$days 天前' : '$days days ago';
-    }
-    if (days < 14) {
-      return isZh ? '一周前' : 'A week ago';
-    }
-    if (days < 30) {
-      final weeks = (days / 7).floor();
-      return isZh ? '$weeks 周前' : '$weeks weeks ago';
-    }
-    if (days < 365) {
-      final months = (days / 30).floor();
-      return isZh ? '$months 个月前' : '$months months ago';
-    }
-    final years = (days / 365).floor();
-    return isZh ? '$years 年前' : '$years years ago';
   }
 }

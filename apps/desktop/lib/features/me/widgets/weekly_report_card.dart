@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../controller/me_state.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 class WeeklyReportCard extends StatelessWidget {
   const WeeklyReportCard({

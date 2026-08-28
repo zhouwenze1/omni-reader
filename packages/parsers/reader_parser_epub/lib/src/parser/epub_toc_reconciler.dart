@@ -207,23 +207,27 @@ class EpubTocReconciler {
     required List<_TocNode> existingNodes,
     required List<_TocNode> allNodes,
   }) {
-    final candidates = existingNodes.where((node) {
-      final start = node.spineIndex;
-      final end = node.endSpineExclusive;
-      if (!node.isSectionLike || start == null) {
-        return false;
-      }
-      return start < spineEntry.spineIndex && spineEntry.spineIndex < end;
-    }).toList(growable: false)
-      ..sort((left, right) {
-        final levelCompare = _nodeLevelScore(right).compareTo(
-          _nodeLevelScore(left),
-        );
-        if (levelCompare != 0) {
-          return levelCompare;
-        }
-        return (right.spineIndex ?? -1).compareTo(left.spineIndex ?? -1);
-      });
+    final candidates =
+        existingNodes
+            .where((node) {
+              final start = node.spineIndex;
+              final end = node.endSpineExclusive;
+              if (!node.isSectionLike || start == null) {
+                return false;
+              }
+              return start < spineEntry.spineIndex &&
+                  spineEntry.spineIndex < end;
+            })
+            .toList(growable: false)
+          ..sort((left, right) {
+            final levelCompare = _nodeLevelScore(
+              right,
+            ).compareTo(_nodeLevelScore(left));
+            if (levelCompare != 0) {
+              return levelCompare;
+            }
+            return (right.spineIndex ?? -1).compareTo(left.spineIndex ?? -1);
+          });
     if (candidates.isNotEmpty) {
       return candidates.first;
     }
@@ -245,9 +249,9 @@ class EpubTocReconciler {
       return null;
     }
     return allNodes.cast<_TocNode?>().firstWhere(
-          (node) => node?.id == previousNode?.parentId,
-          orElse: () => null,
-        );
+      (node) => node?.id == previousNode?.parentId,
+      orElse: () => null,
+    );
   }
 
   int _findBoundarySpineIndex({
@@ -255,7 +259,11 @@ class EpubTocReconciler {
     required int nodeIndex,
   }) {
     final node = orderedExistingNodes[nodeIndex];
-    for (var index = nodeIndex + 1; index < orderedExistingNodes.length; index += 1) {
+    for (
+      var index = nodeIndex + 1;
+      index < orderedExistingNodes.length;
+      index += 1
+    ) {
       final candidate = orderedExistingNodes[index];
       final candidateSpineIndex = candidate.spineIndex;
       if (candidateSpineIndex == null) {

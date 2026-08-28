@@ -31,9 +31,7 @@ void main() {
   }
 
   Future<int> userVersion(AppDatabase db) async {
-    final row = await db
-        .customSelect('PRAGMA user_version')
-        .getSingle();
+    final row = await db.customSelect('PRAGMA user_version').getSingle();
     return int.parse(row.data['user_version'].toString());
   }
 
