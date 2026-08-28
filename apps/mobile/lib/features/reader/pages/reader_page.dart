@@ -66,7 +66,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _exitInFlight = false;
   bool _disposed = false;
   bool _searchHighlightActive = false;
-  DateTime _searchHighlightAt = DateTime.fromMillisecondsSinceEpoch(0);
+  String? _searchHighlightPageKey;
   bool _systemUiRestored = false;
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
@@ -169,10 +169,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         if (_disposed) {
           return;
         }
-        if (event.type == ReaderEventType.relocated && _searchHighlightActive) {
-          if (DateTime.now().difference(_searchHighlightAt) >
-              const Duration(milliseconds: 1200)) {
+        if (event.type == ReaderEventType.relocated &&
+            _searchHighlightActive) {
+          final key = _pageKeyOf(event);
+          if (_searchHighlightPageKey == null) {
+            _searchHighlightPageKey = key;
+          } else if (_searchHighlightPageKey != key) {
             _searchHighlightActive = false;
+            _searchHighlightPageKey = null;
             _session?.clearSearchHighlight();
           }
         }
@@ -726,8 +730,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       exact: quote.exact,
       suffix: quote.suffix,
     );
-    _searchHighlightAt = DateTime.now();
+    _searchHighlightPageKey = null;
     _searchHighlightActive = true;
+  }
+
+  /// relocated 的页标识:章节 href + 页码(缺页码时用 progression 量化)。
+  String _pageKeyOf(ReaderEvent event) {
+    final payload = event.payload is Map ? event.payload as Map : const {};
+    final locator = payload['locator'];
+    String href = '';
+    if (locator is Map && locator['href'] != null) {
+      href = '${locator['href']}';
+    } else if (payload['url'] != null) {
+      href = '${payload['url']}';
+    }
+    final page = payload['pageIndex'];
+    if (page != null) {
+      return '$href#$page';
+    }
+    final progression = payload['progression'];
+    final quantized =
+        progression is num ? (progression * 100000).round() : 'x';
+    return '$href#$quantized';
   }
 
   Future<void> _openAnnotationHub() async {

@@ -52,6 +52,9 @@ class DesktopSearchPanel extends ConsumerStatefulWidget {
     super.key,
     required this.bookUid,
     required this.format,
+    required this.initialQuery,
+    required this.initialResult,
+    required this.onStateChanged,
     required this.onSelect,
     required this.onClose,
   });
@@ -60,6 +63,13 @@ class DesktopSearchPanel extends ConsumerStatefulWidget {
 
   /// 当前书格式;非 EPUB 直接显示不支持提示,不发起搜索。
   final String? format;
+
+  /// 上一次的搜索状态(面板隐藏后重开时恢复)。
+  final String initialQuery;
+  final Object? initialResult;
+
+  /// 搜索状态变化时回传宿主保存(会话内在书内保留)。
+  final void Function(String query, Object? result) onStateChanged;
 
   final ValueChanged<SearchHit> onSelect;
   final VoidCallback onClose;
@@ -80,6 +90,8 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
   @override
   void initState() {
     super.initState();
+    _controller.text = widget.initialQuery;
+    _result = widget.initialResult;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -96,6 +108,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
   }
 
   void _onChanged(String value) {
+    widget.onStateChanged(value.trim(), _result);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       _runSearch(value.trim());
@@ -130,6 +143,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
         _result = result;
         _searching = false;
       });
+      widget.onStateChanged(query, result);
     } catch (error) {
       if (!mounted) {
         return;
@@ -138,6 +152,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
         _error = '$error';
         _searching = false;
       });
+      widget.onStateChanged(query, _error);
     }
   }
 

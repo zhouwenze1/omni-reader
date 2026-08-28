@@ -8,10 +8,25 @@ import 'package:services_search/services_search.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 
+/// 会话内 per-book 搜索状态(输入 + 结果);换书即清,退出 app 自然消失。
+final _searchStateCache =
+    <String, ({String query, Object? result})>{};
+
 class SearchInBookPage extends ConsumerStatefulWidget {
-  const SearchInBookPage({super.key, required this.bookUid});
+  const SearchInBookPage({
+    super.key,
+    required this.bookUid,
+    this.initialQuery = '',
+    this.initialResult,
+    this.onStateChanged,
+  });
 
   final String bookUid;
+
+  /// 上一次的搜索状态(返回阅读器后再进入时恢复,会话内在书内保留)。
+  final String initialQuery;
+  final Object? initialResult;
+  final void Function(String query, Object? result)? onStateChanged;
 
   @override
   ConsumerState<SearchInBookPage> createState() => _SearchInBookPageState();
@@ -26,7 +41,22 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
   String? _fullTextError;
 
   @override
+  void initState() {
+    super.initState();
+    final cached = _searchStateCache[widget.bookUid];
+    _controller.text = cached?.query ?? widget.initialQuery;
+    _query = _controller.text.toLowerCase();
+    _fullTextResult = cached?.result ?? widget.initialResult;
+  }
+
+  @override
   void dispose() {
+    // 会话内保留本书的搜索状态;换书/退出图书即清(只留当前书)。
+    final query = _controller.text.trim();
+    _searchStateCache
+      ..clear()
+      ..[widget.bookUid] = (query: query, result: _fullTextResult);
+    widget.onStateChanged?.call(query, _fullTextResult);
     _debounce?.cancel();
     _controller.dispose();
     super.dispose();
@@ -67,12 +97,14 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
         _fullTextResult = result;
         _searching = false;
       });
+      widget.onStateChanged?.call(query, result);
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _fullTextError = '$error';
         _searching = false;
       });
+      widget.onStateChanged?.call(query, 'error:$error');
     }
   }
 

@@ -38,7 +38,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _tocPanelOpen = false;
   bool _searchPanelOpen = false;
   bool _searchHighlightActive = false;
-  DateTime _searchHighlightAt = DateTime.fromMillisecondsSinceEpoch(0);
+  String? _searchHighlightPageKey;
+  String _searchQuery = '';
+  Object? _searchResult;
   bool _disposed = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
@@ -168,10 +170,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
         if (event.type == ReaderEventType.relocated &&
             _searchHighlightActive) {
-          // 命中高亮保持到下一次翻页/滚动(relocated)为止。
-          if (DateTime.now().difference(_searchHighlightAt) >
-              const Duration(milliseconds: 1200)) {
+          // 第一个 relocated 作为命中页基线;之后翻到不同页才清除。
+          final key = _pageKeyOf(event);
+          if (_searchHighlightPageKey == null) {
+            _searchHighlightPageKey = key;
+          } else if (_searchHighlightPageKey != key) {
             _searchHighlightActive = false;
+            _searchHighlightPageKey = null;
             _session?.clearSearchHighlight();
           }
         }
@@ -387,6 +392,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             DesktopSearchPanel(
               bookUid: widget.bookUid,
               format: _book?.format,
+              initialQuery: _searchQuery,
+              initialResult: _searchResult,
+              onStateChanged: (query, result) {
+                _searchQuery = query;
+                _searchResult = result;
+              },
               onSelect: _onSearchSelect,
               onClose: () => setState(() => _searchPanelOpen = false),
             ),
@@ -425,8 +436,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       exact: quote.exact,
       suffix: quote.suffix,
     );
-    _searchHighlightAt = DateTime.now();
+    _searchHighlightPageKey = null;
     _searchHighlightActive = true;
+  }
+
+  /// relocated 的页标识:章节 href + 页码(缺页码时用 progression 量化)。
+  String _pageKeyOf(ReaderEvent event) {
+    final payload = event.payload is Map ? event.payload as Map : const {};
+    final locator = payload['locator'];
+    String href = '';
+    if (locator is Map && locator['href'] != null) {
+      href = '${locator['href']}';
+    } else if (payload['url'] != null) {
+      href = '${payload['url']}';
+    }
+    final page = payload['pageIndex'];
+    if (page != null) {
+      return '$href#$page';
+    }
+    final progression = payload['progression'];
+    final quantized =
+        progression is num ? (progression * 100000).round() : 'x';
+    return '$href#$quantized';
   }
 
   void _handleTapIntent(
