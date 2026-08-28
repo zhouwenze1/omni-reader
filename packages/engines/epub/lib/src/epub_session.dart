@@ -52,6 +52,8 @@ class EpubReaderSession extends ReaderSession {
 
   bool _openRequested = false;
   bool _bootstrapped = false;
+  Future<void>? _bootstrapInFlight;
+  Future<void>? _openInFlight;
   bool _debugInfoPublished = false;
   bool _inAppDevToolsOpened = false;
   String? _appliedRendererStyleSignature;
@@ -241,11 +243,31 @@ class EpubReaderSession extends ReaderSession {
     }
     await _waitWebViewReady();
     final bridge = _bridge;
-    if (bridge == null || !_bootstrapped) {
+    if (bridge == null) {
       return;
     }
-    await bridge.configure(style: stylePayload);
-    _appliedRendererStyleSignature = styleSignature;
+
+    if (!_bootstrapped) {
+      final bootstrap = _bootstrapInFlight;
+      if (bootstrap == null) {
+        // The value is retained in _readerStyle and will be included by the
+        // next bootstrap.
+        return;
+      }
+      await bootstrap;
+    }
+    if (!_bootstrapped) {
+      return;
+    }
+
+    // A newer setting may have arrived while bootstrap was in flight.
+    final latestPayload = _rendererStyleMapper.toPayload(_readerStyle);
+    final latestSignature = jsonEncode(latestPayload);
+    if (latestSignature == _appliedRendererStyleSignature) {
+      return;
+    }
+    await bridge.configure(style: latestPayload);
+    _appliedRendererStyleSignature = latestSignature;
   }
 
   @override
@@ -257,7 +279,18 @@ class EpubReaderSession extends ReaderSession {
     _layoutMode = nextLayoutMode;
     await _waitWebViewReady();
     final bridge = _bridge;
-    if (bridge == null || !_bootstrapped) {
+    if (bridge == null) {
+      return;
+    }
+
+    if (!_bootstrapped) {
+      final bootstrap = _bootstrapInFlight;
+      if (bootstrap == null) {
+        return;
+      }
+      await bootstrap;
+    }
+    if (!_bootstrapped) {
       return;
     }
     await bridge.configure(layoutMode: _layoutMode);
@@ -363,6 +396,84 @@ class EpubReaderSession extends ReaderSession {
   }
 
   Future<void> _bootstrapAndOpenIfNeeded(_SessionRuntime runtime) async {
+    final inFlight = _openInFlight;
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
+
+    final future = _runBootstrapAndOpen(runtime);
+    _openInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_openInFlight, future)) {
+        _openInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _runBootstrapAndOpen(_SessionRuntime runtime) async {
+    await _ensureBootstrapped(runtime);
+    final bridge = _bridge;
+    if (bridge == null) {
+      return;
+    }
+
+    final locator = await _resolveStartLocator(runtime);
+    final normalizedLocator = _locatorNormalizer.normalizeLocator(
+      locator,
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    );
+    final normalized = _rendererLocatorMapper.toPayload(
+      normalizedLocator,
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    );
+
+    final href =
+        (normalized['href'] as String?) ?? runtime.metadata.firstSpineHref;
+    if (href == null || href.isEmpty) {
+      _emitEvent(
+        const ReaderEvent(
+          type: ReaderEventType.error,
+          message: 'open failed: spine is empty',
+        ),
+      );
+      return;
+    }
+
+    normalized['href'] = runtime.uriMapper.toPublicHref(href);
+    final openUrl = runtime.uriMapper.hrefToHttp(href: href);
+
+    await bridge.open(url: openUrl, locator: normalized);
+    _openRequested = false;
+  }
+
+  Future<void> _ensureBootstrapped(_SessionRuntime runtime) async {
+    if (_bootstrapped) {
+      return;
+    }
+
+    final inFlight = _bootstrapInFlight;
+    if (inFlight != null) {
+      await inFlight;
+      return;
+    }
+
+    final future = _runBootstrap(runtime);
+    _bootstrapInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_bootstrapInFlight, future)) {
+        _bootstrapInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _runBootstrap(_SessionRuntime runtime) async {
     await _waitWebViewReady();
     await _waitPageLoadStopped();
     final bridge = _bridge;
@@ -396,36 +507,6 @@ class EpubReaderSession extends ReaderSession {
         _rendererStyleMapper.toPayload(_readerStyle),
       );
     }
-
-    final locator = await _resolveStartLocator(runtime);
-    final normalizedLocator = _locatorNormalizer.normalizeLocator(
-      locator,
-      uriMapper: runtime.uriMapper,
-      bookUuid: _book.uid,
-    );
-    final normalized = _rendererLocatorMapper.toPayload(
-      normalizedLocator,
-      uriMapper: runtime.uriMapper,
-      bookUuid: _book.uid,
-    );
-
-    final href =
-        (normalized['href'] as String?) ?? runtime.metadata.firstSpineHref;
-    if (href == null || href.isEmpty) {
-      _emitEvent(
-        const ReaderEvent(
-          type: ReaderEventType.error,
-          message: 'open failed: spine is empty',
-        ),
-      );
-      return;
-    }
-
-    normalized['href'] = runtime.uriMapper.toPublicHref(href);
-    final openUrl = runtime.uriMapper.hrefToHttp(href: href);
-
-    await bridge.open(url: openUrl, locator: normalized);
-    _openRequested = false;
   }
 
   Future<Locator> _resolveStartLocator(_SessionRuntime runtime) async {
@@ -810,7 +891,9 @@ class _EpubDebugConfig {
     );
     const debugPortRaw = String.fromEnvironment(
       'READER_EPUB_DEBUG_PORT',
-      defaultValue: '2789',
+      // Let the OS choose a free port by default. Some Windows installations
+      // reserve the old 2789 range for Hyper-V and reject the bind outright.
+      defaultValue: '',
     );
     const fixedPortRaw = String.fromEnvironment(
       'READER_EPUB_PORT',

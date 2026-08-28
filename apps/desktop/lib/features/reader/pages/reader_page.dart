@@ -130,6 +130,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       final session = await engine.createSession(
         book: book,
         initialProgress: progress,
+        initialStyle: _rendererStyleFor(_currentReaderSettings()),
         initialLayoutMode: initialLayoutMode,
       );
 

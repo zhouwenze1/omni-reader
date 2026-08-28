@@ -5,8 +5,48 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+namespace {
+
+constexpr wchar_t kSingleInstanceMutexName[] =
+    L"Local\\OmniReaderDesktop.SingleInstance";
+constexpr wchar_t kFlutterWindowClassName[] =
+    L"FLUTTER_RUNNER_WIN32_WINDOW";
+
+void ActivateExistingInstance() {
+  HWND existing_window =
+      FindWindowW(kFlutterWindowClassName, nullptr);
+  if (existing_window == nullptr) {
+    existing_window = FindWindowW(nullptr, L"Reader Desktop");
+  }
+  if (existing_window == nullptr) {
+    return;
+  }
+
+  if (IsIconic(existing_window)) {
+    ShowWindow(existing_window, SW_RESTORE);
+  }
+  SetForegroundWindow(existing_window);
+}
+
+}  // namespace
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  HANDLE single_instance_mutex = CreateMutexW(
+      nullptr, TRUE, kSingleInstanceMutexName);
+  if (single_instance_mutex == nullptr) {
+    MessageBoxW(nullptr,
+                L"Unable to check whether Reader Desktop is already running.",
+                L"Reader Desktop", MB_OK | MB_ICONERROR);
+    return EXIT_FAILURE;
+  }
+
+  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    ActivateExistingInstance();
+    CloseHandle(single_instance_mutex);
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -39,5 +79,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  CloseHandle(single_instance_mutex);
   return EXIT_SUCCESS;
 }
