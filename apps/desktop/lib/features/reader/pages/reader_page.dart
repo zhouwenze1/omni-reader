@@ -37,6 +37,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _chromeVisible = false;
   bool _tocPanelOpen = false;
   bool _searchPanelOpen = false;
+  bool _searchHighlightActive = false;
+  DateTime _searchHighlightAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _disposed = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
@@ -162,6 +164,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             event.asData<ReaderMediaTapData>(),
             event.payload,
           );
+        }
+
+        if (event.type == ReaderEventType.relocated &&
+            _searchHighlightActive) {
+          // 命中高亮保持到下一次翻页/滚动(relocated)为止。
+          if (DateTime.now().difference(_searchHighlightAt) >
+              const Duration(milliseconds: 1200)) {
+            _searchHighlightActive = false;
+            _session?.clearSearchHighlight();
+          }
         }
 
         if (event.type == ReaderEventType.relocated && event.locator != null) {
@@ -393,7 +405,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   void _onSearchSelect(SearchHit hit) {
-    setState(() => _searchPanelOpen = false);
+    // 面板保持打开,便于连续比对多个结果;可用顶栏按钮或 X 隐藏。
     if (_session == null || hit.href == null) {
       return;
     }
@@ -413,6 +425,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       exact: quote.exact,
       suffix: quote.suffix,
     );
+    _searchHighlightAt = DateTime.now();
+    _searchHighlightActive = true;
   }
 
   void _handleTapIntent(
@@ -580,8 +594,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   ),
                   IconButton(
                     tooltip: l10n.searchInBookTitle,
-                    onPressed: () => setState(() => _searchPanelOpen = true),
-                    icon: const Icon(Icons.search, color: Colors.white),
+                    onPressed: () =>
+                        setState(() => _searchPanelOpen = !_searchPanelOpen),
+                    icon: Icon(
+                      _searchPanelOpen ? Icons.search_off : Icons.search,
+                      color: Colors.white,
+                    ),
                   ),
                   IconButton(
                     tooltip: l10n.tocTitle,

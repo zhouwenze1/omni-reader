@@ -65,6 +65,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _isProgressDragging = false;
   bool _exitInFlight = false;
   bool _disposed = false;
+  bool _searchHighlightActive = false;
+  DateTime _searchHighlightAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _systemUiRestored = false;
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
@@ -167,6 +169,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         if (_disposed) {
           return;
         }
+        if (event.type == ReaderEventType.relocated && _searchHighlightActive) {
+          if (DateTime.now().difference(_searchHighlightAt) >
+              const Duration(milliseconds: 1200)) {
+            _searchHighlightActive = false;
+            _session?.clearSearchHighlight();
+          }
+        }
+
         if (event.type == ReaderEventType.relocated && event.locator != null) {
           final progression = ReaderEventParser.resolveProgression(
             payload: event.payload,
@@ -716,6 +726,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       exact: quote.exact,
       suffix: quote.suffix,
     );
+    _searchHighlightAt = DateTime.now();
+    _searchHighlightActive = true;
   }
 
   Future<void> _openAnnotationHub() async {

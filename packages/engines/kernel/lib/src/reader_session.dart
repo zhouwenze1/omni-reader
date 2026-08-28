@@ -43,5 +43,8 @@ abstract class ReaderSession {
     required String suffix,
   }) async {}
 
+  /// Removes a previous search-hit highlight.
+  Future<void> clearSearchHighlight() async {}
+
   Future<void> dispose();
 }

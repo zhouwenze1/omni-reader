@@ -148,76 +148,80 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
 
     return Align(
       alignment: Alignment.centerRight,
-      child: SizedBox(
-        width: 360,
-        height: double.infinity,
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1F2126),
-            border: Border(left: BorderSide(color: Colors.white24)),
-            boxShadow: const [
-              BoxShadow(color: Colors.black54, blurRadius: 24),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 4, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Text(
-                          l10n.searchInBookTitle,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+      child: Theme(
+        data: ThemeData.dark(useMaterial3: true),
+        child: SizedBox(
+          width: 360,
+          height: double.infinity,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2126),
+              border: Border(left: BorderSide(color: Colors.white24)),
+              boxShadow: const [
+                BoxShadow(color: Colors.black54, blurRadius: 24),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 4, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text(
+                            l10n.searchInBookTitle,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: MaterialLocalizations.of(
-                        context,
-                      ).closeButtonTooltip,
-                      onPressed: widget.onClose,
-                      icon: const Icon(Icons.close, color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(color: Colors.white12, height: 1),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: l10n.searchHint,
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
+                      IconButton(
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).closeButtonTooltip,
+                        onPressed: widget.onClose,
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                      ),
+                    ],
                   ),
-                  onChanged: _onChanged,
                 ),
-              ),
-              Expanded(child: _buildResults(context, tocTitles)),
-            ],
+                const Divider(color: Colors.white12, height: 1),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: l10n.searchHint,
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      prefixIcon: const Icon(Icons.search,
+                          size: 20, color: Colors.white54),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    onChanged: _onChanged,
+                  ),
+                ),
+                Expanded(child: _buildResults(context, tocTitles)),
+              ],
+            ),
           ),
         ),
       ),

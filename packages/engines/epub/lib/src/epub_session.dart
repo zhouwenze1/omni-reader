@@ -450,6 +450,17 @@ class EpubReaderSession extends ReaderSession {
     });
   }
 
+  @override
+  Future<void> clearSearchHighlight() async {
+    final bridge = _bridge;
+    if (bridge == null) {
+      return;
+    }
+    await bridge.removeHighlight(
+      <String, dynamic>{'uid': _searchHighlightUid},
+    );
+  }
+
   Future<void> _navigate(RendererNavigatePayload payload) async {
     await _waitWebViewReady();
     final bridge = _bridge;
