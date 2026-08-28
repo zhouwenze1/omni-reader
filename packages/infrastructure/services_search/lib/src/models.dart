@@ -142,3 +142,27 @@ class ParagraphRecord {
 abstract class ChapterTextSource {
   Future<List<ChapterText>> readChapters(Uint8List epubBytes);
 }
+
+extension SearchHitTextQuote on SearchHit {
+  /// Text-quote anchor (prefix/exact/suffix) for renderer-side highlighting
+  /// of this hit; null when paragraph text is unavailable.
+  ({String prefix, String exact, String suffix})? textQuote({
+    int contextChars = 16,
+  }) {
+    final text = paragraphText;
+    if (text == null || matchOffset < 0 || matchLength <= 0) {
+      return null;
+    }
+    final end = (matchOffset + matchLength).clamp(0, text.length);
+    if (end <= matchOffset) {
+      return null;
+    }
+    final prefixStart = (matchOffset - contextChars).clamp(0, text.length);
+    final suffixEnd = (end + contextChars).clamp(0, text.length);
+    return (
+      prefix: text.substring(prefixStart, matchOffset),
+      exact: text.substring(matchOffset, end),
+      suffix: text.substring(end, suffixEnd),
+    );
+  }
+}

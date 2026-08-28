@@ -705,6 +705,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     await _enterImmersiveMode();
   }
 
+  Future<void> _highlightSearchHit(SearchHit hit) async {
+    final quote = hit.textQuote();
+    if (quote == null || hit.href == null) {
+      return;
+    }
+    await _session?.applySearchHighlight(
+      href: hit.href!,
+      prefix: quote.prefix,
+      exact: quote.exact,
+      suffix: quote.suffix,
+    );
+  }
+
   Future<void> _openAnnotationHub() async {
     final l10n = context.l10n;
     final selection = await showModalBottomSheet<String>(
@@ -1001,6 +1014,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   await _session?.goTo(
                     Locator(href: hit.href, cfi: hit.cfi),
                   );
+                  await _highlightSearchHit(hit);
                 }
                 await _enterImmersiveMode();
               },

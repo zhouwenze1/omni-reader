@@ -4,12 +4,39 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:services_search/services_search.dart';
 
+import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared_ui/widgets/error_view.dart';
 
 /// 右侧全文搜索面板:输入防抖 300ms,正文命中按 snippet 高亮展示,
 /// 选中后由宿主(reader_page)关闭面板并跳转。
+final _tocTitlesProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, bookUid) async {
+  final items = await ref.watch(tocRepositoryProvider).getToc(bookUid);
+  final titles = <String, String>{};
+  for (final item in items) {
+    final href = item.href;
+    if (href == null || href.isEmpty) continue;
+    final file = _fileKeyOf(href);
+    titles.putIfAbsent(file, () => item.title);
+  }
+  return titles;
+});
+
+String? _chapterTitleFor(String? href, Map<String, String> titles) {
+  if (href == null || href.isEmpty) return null;
+  final file = _fileKeyOf(href);
+  return titles[file];
+}
+
+final RegExp _slashPattern = RegExp('[/\\\\]');
+
+String _fileKeyOf(String href) {
+  final normalized = href.replaceAll(_slashPattern, '/');
+  return normalized.split('#').first.split('?').first;
+}
+
 class DesktopSearchPanel extends ConsumerStatefulWidget {
   const DesktopSearchPanel({
     super.key,
@@ -107,6 +134,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tocTitles = ref.watch(_tocTitlesProvider(widget.bookUid)).valueOrNull;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -115,8 +143,11 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
         height: double.infinity,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.78),
-            border: Border(left: BorderSide(color: Colors.white12)),
+            color: const Color(0xF523262C),
+            border: Border(left: BorderSide(color: Colors.white24)),
+            boxShadow: const [
+              BoxShadow(color: Colors.black54, blurRadius: 24),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,11 +189,11 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: l10n.searchHint,
-                    hintStyle: const TextStyle(color: Colors.white38),
+                    hintStyle: const TextStyle(color: Colors.white54),
                     prefixIcon: const Icon(Icons.search, size: 20),
                     isDense: true,
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.08),
+                    fillColor: Colors.white.withValues(alpha: 0.10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
@@ -175,7 +206,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
                   onChanged: _onChanged,
                 ),
               ),
-              Expanded(child: _buildResults(context)),
+              Expanded(child: _buildResults(context, tocTitles)),
             ],
           ),
         ),
@@ -183,7 +214,10 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
     );
   }
 
-  Widget _buildResults(BuildContext context) {
+  Widget _buildResults(
+    BuildContext context,
+    Map<String, String>? tocTitles,
+  ) {
     final l10n = context.l10n;
 
     if (_searching) {
@@ -228,10 +262,10 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
           dense: true,
           title: _snippetText(context, hit.snippet, query),
           subtitle: Text(
-            hit.href ?? '',
+            _chapterTitleFor(hit.href, tocTitles ?? const {}) ?? hit.href ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white38, fontSize: 11),
+            style: const TextStyle(color: Colors.white60, fontSize: 11),
           ),
           onTap: () => widget.onSelect(hit),
           trailing:

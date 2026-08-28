@@ -399,6 +399,57 @@ class EpubReaderSession extends ReaderSession {
     await bridge.open(url: url, locator: normalized);
   }
 
+  static const String _searchHighlightUid = 'search-hit-temp';
+
+  @override
+  Future<void> applySearchHighlight({
+    required String href,
+    required String prefix,
+    required String exact,
+    required String suffix,
+  }) async {
+    final runtime = await _runtimeFuture;
+    await _waitWebViewReady();
+    final bridge = _bridge;
+    if (bridge == null || !_bootstrapped) {
+      return;
+    }
+
+    // 渲染器按打开章节的 scope href 匹配,先走与 goTo 相同的规范化链。
+    final normalizedLocator = _locatorNormalizer.normalizeLocator(
+      Locator(href: href),
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    );
+    final normalizedHref = _rendererLocatorMapper
+        .toPayload(
+          normalizedLocator,
+          uriMapper: runtime.uriMapper,
+          bookUuid: _book.uid,
+        )['href'] as String?;
+    if (normalizedHref == null || normalizedHref.isEmpty) {
+      return;
+    }
+
+    // 清掉上一次的临时命中高亮(渲染器返回 not_found 时忽略)。
+    await bridge.removeHighlight(
+      <String, dynamic>{'uid': _searchHighlightUid},
+    );
+
+    await bridge.applyHighlight(<String, dynamic>{
+      'uid': _searchHighlightUid,
+      'href': normalizedHref,
+      'color': '#FFD54F',
+      'anchor': <String, dynamic>{
+        'text': <String, dynamic>{
+          'prefix': prefix,
+          'exact': exact,
+          'suffix': suffix,
+        },
+      },
+    });
+  }
+
   Future<void> _navigate(RendererNavigatePayload payload) async {
     await _waitWebViewReady();
     final bridge = _bridge;

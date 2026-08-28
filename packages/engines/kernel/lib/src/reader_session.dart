@@ -34,5 +34,14 @@ abstract class ReaderSession {
 
   Future<void> goTo(Locator locator);
 
+  /// Highlights a search hit inside the already-open chapter using a
+  /// text-quote anchor. Engines without search support ignore this call.
+  Future<void> applySearchHighlight({
+    required String href,
+    required String prefix,
+    required String exact,
+    required String suffix,
+  }) async {}
+
   Future<void> dispose();
 }

@@ -37,8 +37,11 @@ class DesktopTocPanel extends ConsumerWidget {
         height: double.infinity,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.78),
-            border: Border(left: BorderSide(color: Colors.white12)),
+            color: const Color(0xF523262C),
+            border: Border(left: BorderSide(color: Colors.white24)),
+            boxShadow: const [
+              BoxShadow(color: Colors.black54, blurRadius: 24),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -104,7 +107,7 @@ class DesktopTocPanel extends ConsumerWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: enabled ? Colors.white : Colors.white38,
+                              color: enabled ? Colors.white : Colors.white54,
                               fontSize: 13,
                             ),
                           ),

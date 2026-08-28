@@ -79,6 +79,7 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
   @override
   Widget build(BuildContext context) {
     final asyncAnnotations = ref.watch(_annotationsProvider(widget.bookUid));
+    final tocTitles = ref.watch(_tocTitlesProvider(widget.bookUid)).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('书内搜索')),
@@ -105,7 +106,7 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
             const _SectionHeader(title: '正文'),
             Text('搜索失败: $_fullTextError'),
           ] else ...[
-            _buildFullTextSection(),
+            _buildFullTextSection(tocTitles),
           ],
           const SizedBox(height: 8),
           const _SectionHeader(title: '标注'),
@@ -155,7 +156,7 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
     );
   }
 
-  Widget _buildFullTextSection() {
+  Widget _buildFullTextSection(Map<String, String>? tocTitles) {
     final result = _fullTextResult;
     if (result is BookSearchUnsupported) {
       return Card(
@@ -185,26 +186,27 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
             style: Theme.of(context).textTheme.bodySmall,
           )
         else
-          ...hits.map(_buildHitTile),
+          ...hits.map((hit) => _buildHitTile(hit, tocTitles)),
       ],
     );
   }
 
-  Widget _buildHitTile(SearchHit hit) {
+  Widget _buildHitTile(SearchHit hit, Map<String, String>? tocTitles) {
     final snippet = hit.snippet;
     // snippet 与 matchOffset 对齐需要考虑前置省略号,偏移由 builder 生成时
     // 已含 "...";直接在显示时用 matchOffset 定位会偏移,这里以纯文本高亮
     // "第一个命中词"近似 —— 通过在渲染前重算词位置。
-    final matchIndex = snippet
-        .toLowerCase()
-        .indexOf(_query.isEmpty ? '' : _query);
+    final matchIndex =
+        snippet.toLowerCase().indexOf(_query.isEmpty ? '' : _query);
 
     return Card(
       child: ListTile(
         title: matchIndex >= 0 && _query.isNotEmpty
             ? _highlightedSnippet(snippet, matchIndex, _query.length)
             : Text(snippet),
-        subtitle: Text(hit.href ?? ''),
+        subtitle: Text(
+          _chapterTitleFor(hit.href, tocTitles) ?? hit.href ?? '',
+        ),
         onTap: () => Navigator.of(context).pop(hit),
         trailing: const Icon(Icons.chevron_right),
       ),
@@ -219,8 +221,7 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
           TextSpan(
             text: snippet.substring(matchIndex, matchIndex + matchLength),
             style: TextStyle(
-              backgroundColor:
-                  Theme.of(context).colorScheme.primaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -232,6 +233,11 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
       overflow: TextOverflow.ellipsis,
     );
   }
+}
+
+String? _chapterTitleFor(String? href, Map<String, String>? titles) {
+  if (href == null || titles == null) return null;
+  return titles[_fileKeyOf(href)];
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -249,6 +255,26 @@ class _SectionHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+final _tocTitlesProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, bookUid) async {
+  final items = await ref.watch(tocRepositoryProvider).getToc(bookUid);
+  final titles = <String, String>{};
+  for (final item in items) {
+    final href = item.href;
+    if (href == null || href.isEmpty) continue;
+    final file = _fileKeyOf(href);
+    titles.putIfAbsent(file, () => item.title);
+  }
+  return titles;
+});
+
+final RegExp _slashPattern = RegExp('[/\\\\]');
+
+String _fileKeyOf(String href) {
+  final normalized = href.replaceAll(_slashPattern, '/');
+  return normalized.split('#').first.split('?').first;
 }
 
 final _bookProvider = FutureProvider.family<Book?, String>((ref, bookUid) {

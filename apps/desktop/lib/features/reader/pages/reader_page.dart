@@ -397,7 +397,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (_session == null || hit.href == null) {
       return;
     }
-    _session!.goTo(Locator(href: hit.href, cfi: hit.cfi));
+    _session!.goTo(Locator(href: hit.href, cfi: hit.cfi)).then((_) {
+      _highlightSearchHit(hit);
+    });
+  }
+
+  Future<void> _highlightSearchHit(SearchHit hit) async {
+    final quote = hit.textQuote();
+    if (quote == null || hit.href == null) {
+      return;
+    }
+    await _session?.applySearchHighlight(
+      href: hit.href!,
+      prefix: quote.prefix,
+      exact: quote.exact,
+      suffix: quote.suffix,
+    );
   }
 
   void _handleTapIntent(
