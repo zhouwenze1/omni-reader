@@ -1,3 +1,4 @@
+import 'package:engine_epub/engine_epub.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infrastructure_data/data.dart';
@@ -22,7 +23,17 @@ Future<void> bootstrapDesktopApp() async {
     await windowManager.focus();
   });
 
-  final dataModule = await DataModule.bootstrap();
+  final storagePaths = await StoragePaths.initialize();
+  final bookStorageService = BookStorageService(
+    booksRootPath: storagePaths.booksRoot.path,
+  );
+  final dataModule = await DataModule.bootstrap(
+    storagePaths: storagePaths,
+    epubImportPort: EpubBookImportAdapter(
+      EpubImportService(storageService: bookStorageService),
+    ),
+    bookStoragePort: bookStorageService,
+  );
 
   runApp(
     ProviderScope(

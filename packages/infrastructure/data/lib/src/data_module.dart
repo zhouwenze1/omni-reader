@@ -1,4 +1,3 @@
-import 'package:engine_epub/engine_epub.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:hive/hive.dart';
 import 'package:path/path.dart' as p;
@@ -49,8 +48,11 @@ class DataModule {
 
   static bool _hiveInited = false;
 
-  static Future<DataModule> bootstrap() async {
-    final storagePaths = await StoragePaths.initialize();
+  static Future<DataModule> bootstrap({
+    required StoragePaths storagePaths,
+    required BookImportPort epubImportPort,
+    required BookStoragePort bookStoragePort,
+  }) async {
     final fileService = FileServiceImpl();
     final fingerprintService = FingerprintServiceImpl();
 
@@ -87,12 +89,6 @@ class DataModule {
     );
     final collectionRepository = CollectionRepositoryImpl(collectionDao);
     final settingsRepository = SettingsRepositoryImpl(settingsBox);
-    final bookStorageService = BookStorageService(
-      booksRootPath: storagePaths.booksRoot.path,
-    );
-    final epubImportService = EpubImportService(
-      storageService: bookStorageService,
-    );
     final coverExtractionService = CoverExtractionService(
       storagePaths: storagePaths,
     );
@@ -105,8 +101,8 @@ class DataModule {
       progressRepository: progressRepository,
       pdfPackager: StubPdfPackager(),
       audiobookConverter: StubLpfToAudiobookConverter(),
-      epubImportService: epubImportService,
-      bookStorageService: bookStorageService,
+      epubImportPort: epubImportPort,
+      bookStoragePort: bookStoragePort,
       coverExtractionService: coverExtractionService,
     );
 

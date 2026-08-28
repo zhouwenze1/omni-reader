@@ -15,8 +15,6 @@ dependencies:
     path: ../../foundation/core
   foundation_domain:
     path: ../../foundation/domain
-  engine_epub:
-    path: ../../engines/epub
   reader_parser_core:
     path: ../../../../reader_parser_next/packages/reader_parser_core
   archive: ^4.0.7
@@ -30,6 +28,7 @@ dependencies:
   xml: ^6.5.0
 
 dev_dependencies:
+  sqlite3: ^2.4.0
   flutter_test:
     sdk: flutter
 

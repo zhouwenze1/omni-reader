@@ -9,9 +9,12 @@ environment:
 resolution: workspace
 
 dependencies:
-  epub_pro: ^5.6.0
+  archive: ^4.0.7
+  reader_parser_core:
+    path: ../../../../reader_parser_next/packages/reader_parser_core
+  reader_parser_epub:
+    path: ../../../../reader_parser_next/packages/reader_parser_epub
 
 dev_dependencies:
-  archive: ^4.0.7
   lints: ^5.0.0
   test: ^1.25.8

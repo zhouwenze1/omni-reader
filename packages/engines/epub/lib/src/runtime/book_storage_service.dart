@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:foundation_domain/domain.dart';
 import 'package:path/path.dart' as p;
 
 import 'book_package.dart';
 
-class BookStorageService {
+class BookStorageService implements BookStoragePort {
   BookStorageService({required String booksRootPath})
     : _booksRoot = Directory(booksRootPath);
 
@@ -14,6 +15,7 @@ class BookStorageService {
 
   String get booksRootPath => _booksRoot.path;
 
+  @override
   String bookDirPath(String bookUuid) {
     return p.join(_booksRoot.path, bookUuid);
   }
@@ -56,6 +58,7 @@ class BookStorageService {
     }
   }
 
+  @override
   Future<void> clearBook(String bookUuid) async {
     final dir = Directory(bookDirPath(bookUuid));
     if (await dir.exists()) {

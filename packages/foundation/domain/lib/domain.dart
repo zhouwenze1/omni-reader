@@ -22,3 +22,5 @@ export 'ports/repositories/toc_repository.dart';
 export 'ports/services/file_service.dart';
 export 'ports/services/fingerprint_service.dart';
 export 'ports/services/import_conversion_services.dart';
+export 'ports/services/book_import_port.dart';
+export 'ports/services/book_storage_port.dart';

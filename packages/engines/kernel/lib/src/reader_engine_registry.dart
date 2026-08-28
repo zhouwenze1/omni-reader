@@ -10,7 +10,15 @@ class ReaderEngineRegistry {
       }
       _byId[id] = engine;
       for (final format in engine.supportedFormats) {
-        _byFormat.putIfAbsent(_normalize(format), () => engine);
+        final key = _normalize(format);
+        final existing = _byFormat[key];
+        if (existing != null && existing != engine) {
+          throw StateError(
+            'Duplicate engine format: $format claimed by both '
+            '${existing.id} and ${engine.id}',
+          );
+        }
+        _byFormat[key] = engine;
       }
     }
   }

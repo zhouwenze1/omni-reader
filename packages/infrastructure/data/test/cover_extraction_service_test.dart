@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:engine_epub/engine_epub.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:infrastructure_data/data.dart';
 import 'package:path/path.dart' as p;
@@ -16,11 +15,6 @@ void main() {
       addTearDown(() => tempRoot.delete(recursive: true));
 
       final storagePaths = StoragePaths.forTesting(baseDir: tempRoot);
-      final bookStorageService = BookStorageService(
-        booksRootPath: storagePaths.booksRoot.path,
-      );
-      final importService =
-          EpubImportService(storageService: bookStorageService);
       final coverExtractionService = CoverExtractionService(
         storagePaths: storagePaths,
       );
@@ -32,10 +26,10 @@ void main() {
         flush: true,
       );
 
-      final package = await importService.importEpub(
-        epubFilePath: epubPath,
-        bookUuid: 'book_1',
-      );
+      // 模拟导入完成后的存储布局:book.epub 位于 booksRoot/<bookUid>/ 下。
+      final bookDir = Directory(p.join(storagePaths.booksRoot.path, 'book_1'));
+      await bookDir.create(recursive: true);
+      await File(epubPath).copy(p.join(bookDir.path, 'book.epub'));
 
       final tempBookDir =
           p.join(storagePaths.libraryRoot.path, '.tmp', 'book_1');
@@ -44,7 +38,7 @@ void main() {
       final coverRelPath =
           await coverExtractionService.extractEpubCoverToLibraryTemp(
         bookUid: 'book_1',
-        opfPath: package.opfPath,
+        opfPath: 'OEBPS/content.opf',
         tempBookDir: tempBookDir,
       );
 

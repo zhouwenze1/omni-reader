@@ -13,3 +13,7 @@ dependencies:
     sdk: flutter
   foundation_domain:
     path: ../../foundation/domain
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

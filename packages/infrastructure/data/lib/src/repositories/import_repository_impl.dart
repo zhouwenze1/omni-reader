@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:engine_epub/engine_epub.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:path/path.dart' as p;
 
@@ -18,8 +17,8 @@ class ImportRepositoryImpl implements ImportRepository {
     required ProgressRepository progressRepository,
     required PdfPackager pdfPackager,
     required LpfToAudiobookConverter audiobookConverter,
-    required EpubImportService epubImportService,
-    required BookStorageService bookStorageService,
+    required BookImportPort epubImportPort,
+    required BookStoragePort bookStoragePort,
     required CoverExtractionService coverExtractionService,
   })  : _storagePaths = storagePaths,
         _fileService = fileService,
@@ -28,8 +27,8 @@ class ImportRepositoryImpl implements ImportRepository {
         _progressRepository = progressRepository,
         _pdfPackager = pdfPackager,
         _audiobookConverter = audiobookConverter,
-        _epubImportService = epubImportService,
-        _bookStorageService = bookStorageService,
+        _epubImportPort = epubImportPort,
+        _bookStoragePort = bookStoragePort,
         _coverExtractionService = coverExtractionService;
 
   final StoragePaths _storagePaths;
@@ -39,8 +38,8 @@ class ImportRepositoryImpl implements ImportRepository {
   final ProgressRepository _progressRepository;
   final PdfPackager _pdfPackager;
   final LpfToAudiobookConverter _audiobookConverter;
-  final EpubImportService _epubImportService;
-  final BookStorageService _bookStorageService;
+  final BookImportPort _epubImportPort;
+  final BookStoragePort _bookStoragePort;
   final CoverExtractionService _coverExtractionService;
 
   @override
@@ -100,10 +99,10 @@ class ImportRepositoryImpl implements ImportRepository {
       await _fileService.ensureDir(p.join(tmpDir, 'original'));
 
       String? tempConvertedPath;
-      BookPackage? epubPackage;
+      EpubImportResult? epubImport;
 
       if (format == 'epub') {
-        epubPackage = await _epubImportService.importEpub(
+        epubImport = await _epubImportPort.importEpubPackage(
           epubFilePath: filePath,
           bookUuid: bookUid,
           enableSmartTocReconciliation: options.enableSmartTocReconciliation,
@@ -138,11 +137,11 @@ class ImportRepositoryImpl implements ImportRepository {
 
       final now = DateTime.now();
       String? coverRelPath;
-      if (format == 'epub' && epubPackage != null) {
+      if (format == 'epub' && epubImport != null) {
         coverRelPath =
             await _coverExtractionService.extractEpubCoverToLibraryTemp(
           bookUid: bookUid,
-          opfPath: epubPackage.opfPath,
+          opfPath: epubImport.opfPath,
           tempBookDir: tmpDir,
         );
       }
@@ -152,21 +151,21 @@ class ImportRepositoryImpl implements ImportRepository {
         format: format,
         title: format == 'epub'
             ? _preferredText(
-                epubPackage?.title,
+                epubImport?.title,
                 p.basenameWithoutExtension(originalName),
               )!
             : p.basenameWithoutExtension(originalName),
         authors: format == 'epub'
-            ? List<String>.from(epubPackage?.authors ?? const <String>[])
+            ? List<String>.from(epubImport?.authors ?? const <String>[])
             : const <String>[],
         description: format == 'epub'
-            ? _preferredText(epubPackage?.description, null)
+            ? _preferredText(epubImport?.description, null)
             : null,
         language: format == 'epub'
-            ? _preferredText(epubPackage?.language, null)
+            ? _preferredText(epubImport?.language, null)
             : null,
         rootDir: format == 'epub'
-            ? _bookStorageService.bookDirPath(bookUid)
+            ? _bookStoragePort.bookDirPath(bookUid)
             : finalBookDir,
         originalRelPath: originalRelPath,
         coverRelPath: coverRelPath,
@@ -182,7 +181,7 @@ class ImportRepositoryImpl implements ImportRepository {
 
       final initialLocator = format == 'epub'
           ? Locator(
-              href: epubPackage?.firstSpineHref,
+              href: epubImport?.firstSpineHref,
               cfi: null,
               locations: const {'progression': 0.0},
               anchor: null,
@@ -220,11 +219,11 @@ class ImportRepositoryImpl implements ImportRepository {
             'detectedFormat': format,
             'fingerprint': fingerprint,
             'tempConvertedPath': tempConvertedPath,
-            'epubOpfPath': epubPackage?.opfPath,
-            'epubContentRoot': epubPackage?.contentRoot,
-            'epubSpineCount': epubPackage?.spineItems.length,
-            'epubTitle': epubPackage?.title,
-            'epubAuthors': epubPackage?.authors,
+            'epubOpfPath': epubImport?.opfPath,
+            'epubContentRoot': epubImport?.contentRoot,
+            'epubSpineCount': epubImport?.spineCount,
+            'epubTitle': epubImport?.title,
+            'epubAuthors': epubImport?.authors,
             'epubSmartTocReconciliation': options.enableSmartTocReconciliation,
           },
         );
@@ -262,7 +261,7 @@ class ImportRepositoryImpl implements ImportRepository {
         await _fileService.removeDir(tmpDir);
       }
       if (importedEpubPackage && importingBookUid != null) {
-        await _bookStorageService.clearBook(importingBookUid);
+        await _bookStoragePort.clearBook(importingBookUid);
       }
 
       task = task.copyWith(

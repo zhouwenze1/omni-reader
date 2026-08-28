@@ -3,6 +3,13 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
+/// Raw-SQL drift database for the reader library.
+///
+/// 迁移约定(2026-08 起):onCreate 直接建立当前版本 schema;onUpgrade 按
+/// from→to 分步执行,每个 step 只负责自己的增量。历史版本的精确形态已不可
+/// 考,因此各 step 内部保留 IF NOT EXISTS / _hasColumn 幂等防御,保证任意
+/// 存量库都能安全升级。新增 schema 变更时:schemaVersion +1,并追加一个
+/// step 函数,不要修改已有 step。
 class AppDatabase extends GeneratedDatabase {
   AppDatabase._(super.executor);
 
@@ -15,10 +22,17 @@ class AppDatabase extends GeneratedDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
-          await _migrate();
+          await _createLibraryIndexTable();
+          await _createCollectionsTables();
+          await _createAllIndexes();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          await _migrate();
+          if (from < 2) {
+            await _upgradeToV2();
+          }
+          if (from < 3) {
+            await _upgradeToV3();
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON;');
@@ -35,9 +49,9 @@ class AppDatabase extends GeneratedDatabase {
     return AppDatabase._(NativeDatabase(file));
   }
 
-  Future<void> _migrate() async {
-    await customStatement('PRAGMA foreign_keys = ON;');
+  // ---- schema v3 (current) -------------------------------------------------
 
+  Future<void> _createLibraryIndexTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS library_index (
         bookUid TEXT PRIMARY KEY,
@@ -53,13 +67,9 @@ class AppDatabase extends GeneratedDatabase {
         cachedProgress REAL NULL
       );
     ''');
+  }
 
-    if (!await _hasColumn('library_index', 'categoryId')) {
-      await customStatement(
-        'ALTER TABLE library_index ADD COLUMN categoryId TEXT NULL;',
-      );
-    }
-
+  Future<void> _createCollectionsTables() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS collections (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +78,6 @@ class AppDatabase extends GeneratedDatabase {
         updatedAt INTEGER NOT NULL
       );
     ''');
-
     await customStatement('''
       CREATE TABLE IF NOT EXISTS collection_items (
         collectionId INTEGER NOT NULL,
@@ -78,7 +87,9 @@ class AppDatabase extends GeneratedDatabase {
         FOREIGN KEY (collectionId) REFERENCES collections(id) ON DELETE CASCADE
       );
     ''');
+  }
 
+  Future<void> _createAllIndexes() async {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_index_format ON library_index(format);',
     );
@@ -99,6 +110,31 @@ class AppDatabase extends GeneratedDatabase {
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_collection_items_book ON collection_items(bookUid);',
+    );
+  }
+
+  // ---- migration steps -----------------------------------------------------
+
+  /// v2: 加入书桌(collections / collection_items)。
+  Future<void> _upgradeToV2() async {
+    await _createCollectionsTables();
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items(collectionId);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_collection_items_book ON collection_items(bookUid);',
+    );
+  }
+
+  /// v3: library_index 加入 categoryId(分类)。
+  Future<void> _upgradeToV3() async {
+    if (!await _hasColumn('library_index', 'categoryId')) {
+      await customStatement(
+        'ALTER TABLE library_index ADD COLUMN categoryId TEXT NULL;',
+      );
+    }
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_library_index_category ON library_index(categoryId);',
     );
   }
 
