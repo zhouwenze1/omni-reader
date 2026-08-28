@@ -1040,11 +1040,35 @@ abstract class AppLocalizations {
   /// **'Failed to load stats: {error}'**
   String meStatsLoadFailed(Object error);
 
-  /// No description provided for @tocPageComingSoon.
+  /// No description provided for @tocTitle.
   ///
   /// In en, this message translates to:
-  /// **'TOC page is under development\\nbookUid={bookUid}'**
-  String tocPageComingSoon(Object bookUid);
+  /// **'Contents'**
+  String get tocTitle;
+
+  /// No description provided for @tocLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading contents…'**
+  String get tocLoading;
+
+  /// No description provided for @tocLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load contents'**
+  String get tocLoadFailed;
+
+  /// No description provided for @tocEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No table of contents'**
+  String get tocEmpty;
+
+  /// No description provided for @tocEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This book has no cached TOC data.'**
+  String get tocEmptyMessage;
 
   /// No description provided for @searchInBookComingSoon.
   ///

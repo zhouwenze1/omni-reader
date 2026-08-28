@@ -198,12 +198,11 @@
       "error": {}
     }
   },
-  "tocPageComingSoon": "TOC page is under development\\nbookUid={bookUid}",
-  "@tocPageComingSoon": {
-    "placeholders": {
-      "bookUid": {}
-    }
-  },
+  "tocTitle": "Contents",
+  "tocLoading": "Loading contents…",
+  "tocLoadFailed": "Failed to load contents",
+  "tocEmpty": "No table of contents",
+  "tocEmptyMessage": "This book has no cached TOC data.",
   "searchInBookComingSoon": "Search page is under development\\nbookUid={bookUid}",
   "@searchInBookComingSoon": {
     "placeholders": {

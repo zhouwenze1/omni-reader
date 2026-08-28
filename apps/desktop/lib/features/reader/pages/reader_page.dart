@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:foundation_application/application.dart';
 import 'package:kernel/kernel.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Locator;
 import 'package:foundation_domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -12,6 +12,7 @@ import '../../../di/repositories_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/desktop_reader_settings_dialog.dart';
+import '../widgets/desktop_toc_panel.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.bookUid});
@@ -32,6 +33,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String? _error;
   bool _loading = true;
   bool _chromeVisible = false;
+  bool _tocPanelOpen = false;
   bool _disposed = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
@@ -359,9 +361,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           _session!.buildView(),
           _buildTopToolbar(context),
           _buildBottomToolbar(context),
+          if (_tocPanelOpen)
+            DesktopTocPanel(
+              bookUid: widget.bookUid,
+              onSelect: _onTocSelect,
+              onClose: () => setState(() => _tocPanelOpen = false),
+            ),
         ],
       ),
     );
+  }
+
+  void _onTocSelect(TocItem item) {
+    setState(() => _tocPanelOpen = false);
+    final href = item.href;
+    if (href == null || _session == null) {
+      return;
+    }
+    _session!.goTo(Locator(href: href));
   }
 
   void _handleTapIntent(
@@ -526,6 +543,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     tooltip: l10n.readerSettings,
                     onPressed: _openReaderSettings,
                     icon: const Icon(Icons.tune, color: Colors.white),
+                  ),
+                  IconButton(
+                    tooltip: l10n.tocTitle,
+                    onPressed: () => setState(() => _tocPanelOpen = true),
+                    icon: const Icon(Icons.menu_book, color: Colors.white),
                   ),
                   IconButton(
                     tooltip: _rendererTheme == 'day'

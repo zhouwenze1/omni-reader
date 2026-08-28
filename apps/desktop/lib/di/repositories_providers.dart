@@ -26,3 +26,7 @@ final collectionRepositoryProvider = Provider<CollectionRepository>((ref) {
 final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
   return ref.watch(dataModuleProvider).annotationRepository;
 });
+
+final tocRepositoryProvider = Provider<TocRepository>((ref) {
+  return ref.watch(dataModuleProvider).tocRepository;
+});

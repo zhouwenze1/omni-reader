@@ -494,9 +494,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String tocPageComingSoon(Object bookUid) {
-    return '目录页开发中\\nbookUid=$bookUid';
-  }
+  String get tocTitle => '目录';
+
+  @override
+  String get tocLoading => '正在加载目录…';
+
+  @override
+  String get tocLoadFailed => '目录加载失败';
+
+  @override
+  String get tocEmpty => '暂无目录数据';
+
+  @override
+  String get tocEmptyMessage => '这本书当前还没有缓存目录信息。';
 
   @override
   String searchInBookComingSoon(Object bookUid) {

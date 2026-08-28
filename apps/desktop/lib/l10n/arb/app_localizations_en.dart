@@ -496,9 +496,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String tocPageComingSoon(Object bookUid) {
-    return 'TOC page is under development\\nbookUid=$bookUid';
-  }
+  String get tocTitle => 'Contents';
+
+  @override
+  String get tocLoading => 'Loading contents…';
+
+  @override
+  String get tocLoadFailed => 'Failed to load contents';
+
+  @override
+  String get tocEmpty => 'No table of contents';
+
+  @override
+  String get tocEmptyMessage => 'This book has no cached TOC data.';
 
   @override
   String searchInBookComingSoon(Object bookUid) {

@@ -144,7 +144,13 @@ class LibraryPage extends ConsumerWidget {
             formatDate: (value) =>
                 LibraryPageActions.formatDate(context, value),
             onContinueReading: (uid) => context.push(RoutePaths.reader(uid)),
-            onOpenToc: (uid) => context.push(RoutePaths.toc(uid)),
+            onOpenToc: (uid) async {
+              final selected = await context.push<TocItem>(RoutePaths.toc(uid));
+              // 从书库入口点目录:选择章节后直接打开阅读器(从该书进度恢复)。
+              if (selected != null && context.mounted) {
+                context.push(RoutePaths.reader(uid));
+              }
+            },
             onDeleteBook: (uid) =>
                 LibraryPageActions.deleteBook(context, controller, uid),
             onShowBookCollections: (entry) =>

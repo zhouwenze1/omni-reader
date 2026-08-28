@@ -198,12 +198,11 @@
       "error": {}
     }
   },
-  "tocPageComingSoon": "目录页开发中\\nbookUid={bookUid}",
-  "@tocPageComingSoon": {
-    "placeholders": {
-      "bookUid": {}
-    }
-  },
+  "tocTitle": "目录",
+  "tocLoading": "正在加载目录…",
+  "tocLoadFailed": "目录加载失败",
+  "tocEmpty": "暂无目录数据",
+  "tocEmptyMessage": "这本书当前还没有缓存目录信息。",
   "searchInBookComingSoon": "书内搜索开发中\\nbookUid={bookUid}",
   "@searchInBookComingSoon": {
     "placeholders": {
