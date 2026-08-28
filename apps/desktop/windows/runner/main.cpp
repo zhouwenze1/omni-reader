@@ -44,6 +44,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
     ActivateExistingInstance();
     CloseHandle(single_instance_mutex);
+    MessageBoxW(nullptr,
+                L"阅读器已在运行，已为你切换到现有窗口。\n"
+                L"如果刚更新过版本，请先完全退出旧窗口（Alt+F4）再启动，"
+                L"否则运行的仍是旧版本。",
+                L"Reader Desktop", MB_OK | MB_ICONINFORMATION);
     return EXIT_SUCCESS;
   }
 
