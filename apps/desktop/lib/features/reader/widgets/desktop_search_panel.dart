@@ -25,9 +25,19 @@ final _tocTitlesProvider =
 });
 
 String? _chapterTitleFor(String? href, Map<String, String> titles) {
-  if (href == null || href.isEmpty) return null;
-  final file = _fileKeyOf(href);
-  return titles[file];
+  if (href == null || href.isEmpty || titles.isEmpty) return null;
+  final key = _fileKeyOf(href);
+  final direct = titles[key];
+  if (direct != null) return direct;
+  // TOC href 可能带 contentRoot 前缀(如 OEBPS/),而命中 href 是 OPF 相对
+  // 路径——做后缀匹配兜底。
+  final suffix = '/$key';
+  for (final entry in titles.entries) {
+    if (entry.key.endsWith(suffix)) {
+      return entry.value;
+    }
+  }
+  return null;
 }
 
 final RegExp _slashPattern = RegExp('[/\\\\]');
@@ -143,7 +153,7 @@ class _DesktopSearchPanelState extends ConsumerState<DesktopSearchPanel> {
         height: double.infinity,
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xF523262C),
+            color: const Color(0xFF1F2126),
             border: Border(left: BorderSide(color: Colors.white24)),
             boxShadow: const [
               BoxShadow(color: Colors.black54, blurRadius: 24),

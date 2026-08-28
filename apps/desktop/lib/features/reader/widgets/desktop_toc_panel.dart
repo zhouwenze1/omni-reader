@@ -37,7 +37,7 @@ class DesktopTocPanel extends ConsumerWidget {
         height: double.infinity,
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xF523262C),
+            color: const Color(0xFF1F2126),
             border: Border(left: BorderSide(color: Colors.white24)),
             boxShadow: const [
               BoxShadow(color: Colors.black54, blurRadius: 24),

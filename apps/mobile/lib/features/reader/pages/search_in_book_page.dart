@@ -236,8 +236,17 @@ class _SearchInBookPageState extends ConsumerState<SearchInBookPage> {
 }
 
 String? _chapterTitleFor(String? href, Map<String, String>? titles) {
-  if (href == null || titles == null) return null;
-  return titles[_fileKeyOf(href)];
+  if (href == null || titles == null || titles.isEmpty) return null;
+  final key = _fileKeyOf(href);
+  final direct = titles[key];
+  if (direct != null) return direct;
+  final suffix = '/$key';
+  for (final entry in titles.entries) {
+    if (entry.key.endsWith(suffix)) {
+      return entry.value;
+    }
+  }
+  return null;
 }
 
 class _SectionHeader extends StatelessWidget {
