@@ -1,11 +1,11 @@
 {
   "renderer": "vue-book-renderer",
-  "rendererCommit": "ceae573262cdf84c69471b68b8d8fe6013eb23d5",
-  "rendererDirty": true,
+  "rendererCommit": "4e27aa4636dbb635205371535a88dff90d1cc61b",
+  "rendererDirty": false,
   "files": {
-    "assets/index-CbI81oqu.js": {
-      "bytes": 311167,
-      "sha256": "21e2af3e02c3137c69af277f7c8bd9f82a10e31f0543032126f51bf82047850e"
+    "assets/index-BHLnJaYM.js": {
+      "bytes": 311450,
+      "sha256": "62f161bdb205a48c8fb8ae397ef5947fcdd571b67be4b799258c63cc72efaf92"
     },
     "assets/index-DNsThFnT.css": {
       "bytes": 94,
@@ -17,7 +17,7 @@
     },
     "index.html": {
       "bytes": 441,
-      "sha256": "7423ee1087d2866c97c03f61f5a9d45c8f3a320d43b448089c711d50381709a5"
+      "sha256": "b9e0a3e0e86ef76a8d7e8963a027ebe3d424a93cdf95ddc30d3044a6a83e83b4"
     }
   }
 }
