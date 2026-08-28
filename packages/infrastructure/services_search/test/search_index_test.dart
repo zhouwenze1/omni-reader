@@ -127,6 +127,10 @@ Third line
         expect(hit.cfi, isNotNull);
         expect(hit.cfi, startsWith('epubcfi('));
         expect(hit.paragraphText, isNotNull);
+        // DOM 对齐断言:galaxy 在 body 的第 2 个元素 <p>(路径 /4)的
+        // 第 1 个文本节点(/1)里。若提取器解析失败回退按行分段,此处会变成
+        // /4/{2*(paraIndex+1)} 形状,该断言即失败。
+        expect(hit.cfi, contains('!/4/1:'));
       }
     });
   });

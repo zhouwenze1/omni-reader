@@ -327,12 +327,25 @@ class EpubReaderSession extends ReaderSession {
     );
 
     final cfi = normalized['cfi'] as String?;
+    final href = normalized['href'] as String?;
+
+    // cfi 与 href 同时存在:目标可能不在当前章节,而 navigate(anchor) 只在
+    // 章内生效——走 open 让渲染器打开章节后按 cfi 落位(解析失败回退章首)。
+    if (cfi != null &&
+        cfi.isNotEmpty &&
+        href != null &&
+        href.isNotEmpty) {
+      normalized['href'] = runtime.uriMapper.toPublicHref(href);
+      final url = runtime.uriMapper.hrefToHttp(href: href);
+      await bridge.open(url: url, locator: normalized);
+      return;
+    }
+
     if (cfi != null && cfi.isNotEmpty) {
       await bridge.navigate(RendererNavigatePayload.anchor(cfi));
       return;
     }
 
-    final href = normalized['href'] as String?;
     if (href != null && href.isNotEmpty) {
       normalized['href'] = runtime.uriMapper.toPublicHref(href);
       final url = runtime.uriMapper.hrefToHttp(href: href);

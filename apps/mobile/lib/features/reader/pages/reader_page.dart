@@ -11,6 +11,7 @@ import 'package:kernel/kernel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:shared_ui/shared_ui.dart';
+import 'package:services_search/services_search.dart';
 import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../l10n/l10n.dart';
@@ -993,7 +994,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             IconButton(
               tooltip: l10n.search,
               onPressed: () async {
-                await context.push(RoutePaths.searchInBook(book.uid));
+                final hit = await context.push<SearchHit>(
+                  RoutePaths.searchInBook(book.uid),
+                );
+                if (hit != null && hit.href != null) {
+                  await _session?.goTo(
+                    Locator(href: hit.href, cfi: hit.cfi),
+                  );
+                }
                 await _enterImmersiveMode();
               },
               icon: Icon(Icons.search, color: chromePalette.chromeForeground),

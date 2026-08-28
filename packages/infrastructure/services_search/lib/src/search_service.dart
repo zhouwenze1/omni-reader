@@ -124,10 +124,27 @@ class EpubSearchService {
 
   String _buildHitCfi(ParagraphRecord paragraph, int matchOffset) {
     final spineStep = (paragraph.spineIndex + 1) * 2;
-    final paragraphStep = (paragraph.paraIndex + 1) * 2;
     final safeOffset = matchOffset.clamp(0, paragraph.text.length);
 
-    // Use a standard EPUB CFI layout so web readers can consume it directly.
+    // DOM 对齐段落:用最近的文本节点锚点生成精确 CFI 终点。
+    final anchors = paragraph.anchors;
+    final cfiPath = paragraph.cfiPath;
+    if (anchors != null && anchors.isNotEmpty && cfiPath != null) {
+      var selected = anchors.first;
+      for (final anchor in anchors) {
+        if (anchor.start <= safeOffset) {
+          selected = anchor;
+        } else {
+          break;
+        }
+      }
+      final local =
+          (safeOffset - selected.start + selected.rawAdjust).clamp(0, 1 << 20);
+      return 'epubcfi(/6/$spineStep!${selected.path}:$local)';
+    }
+
+    // 回退:按段落序号的近似 CFI(渲染器解析失败会安全回退到章首)。
+    final paragraphStep = (paragraph.paraIndex + 1) * 2;
     return 'epubcfi(/6/$spineStep!/4/$paragraphStep/1:$safeOffset)';
   }
 }

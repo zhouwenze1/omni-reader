@@ -20,6 +20,28 @@ class SearchIndexBuilder {
     final paragraphs = <ParagraphRecord>[];
 
     for (final chapter in chapters) {
+      final segments = chapter.segments;
+      if (segments != null) {
+        // DOM 对齐路径:一段一条记录,携带段级 CFI 路径与文本节点锚点。
+        for (var paraIndex = 0; paraIndex < segments.length; paraIndex++) {
+          final segment = segments[paraIndex];
+          paragraphs.add(
+            ParagraphRecord(
+              bookId: bookId,
+              spineIndex: chapter.spineIndex,
+              href: chapter.href,
+              cfi: chapter.cfi,
+              cfiPath: segment.cfiPath,
+              anchors: segment.anchors,
+              paraIndex: paraIndex,
+              text: segment.text,
+            ),
+          );
+        }
+        continue;
+      }
+
+      // 回退路径:原始 HTML 按行分段(近似 CFI)。
       final segmented = _segmenter.segment(
         chapter.text,
         minParagraphLength: minParagraphLength,

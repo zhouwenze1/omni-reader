@@ -9,6 +9,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  xml: ^6.5.0
   archive: ^4.0.7
   reader_parser_core:
     path: ../../parsers/reader_parser_core
