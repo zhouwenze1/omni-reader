@@ -1,0 +1,17 @@
+name: reader_parser_epub
+description: EPUB parser and derivative generator.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  path: ^1.9.1
+  reader_parser_core:
+    path: ../reader_parser_core
+  xml: ^6.5.0
+
+dev_dependencies:
+  test: ^1.25.15

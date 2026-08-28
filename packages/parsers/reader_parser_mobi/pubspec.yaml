@@ -1,0 +1,12 @@
+name: reader_parser_mobi
+description: Mobi parser placeholder.
+publish_to: none
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  reader_parser_core: any
+

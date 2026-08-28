@@ -15,6 +15,12 @@ packages:
   - packages/engines/audio
   - packages/engines/ldf
   - packages/engines/comic_zip
+  - packages/parsers/reader_parser_core
+  - packages/parsers/reader_parser_epub
+  - packages/parsers/reader_parser_pdf
+  - packages/parsers/reader_parser_ldf
+  - packages/parsers/reader_parser_comiczip
+  - packages/parsers/reader_parser_mobi
 
 scripts:
   bootstrap: melos bootstrap

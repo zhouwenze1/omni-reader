@@ -16,9 +16,9 @@ dependencies:
   foundation_domain:
     path: ../../foundation/domain
   reader_parser_core:
-    path: ../../../../reader_parser_next/packages/reader_parser_core
+    path: ../../parsers/reader_parser_core
   reader_parser_epub:
-    path: ../../../../reader_parser_next/packages/reader_parser_epub
+    path: ../../parsers/reader_parser_epub
   flutter_inappwebview: ^6.1.5
   mime: ^1.0.6
   path: ^1.9.1

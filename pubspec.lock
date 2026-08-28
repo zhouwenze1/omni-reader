@@ -677,20 +677,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.0"
-  reader_parser_core:
-    dependency: transitive
-    description:
-      path: "../reader_parser_next/packages/reader_parser_core"
-      relative: true
-    source: path
-    version: "0.1.0"
-  reader_parser_epub:
-    dependency: transitive
-    description:
-      path: "../reader_parser_next/packages/reader_parser_epub"
-      relative: true
-    source: path
-    version: "0.1.0"
   riverpod:
     dependency: transitive
     description:

@@ -11,9 +11,9 @@ resolution: workspace
 dependencies:
   archive: ^4.0.7
   reader_parser_core:
-    path: ../../../../reader_parser_next/packages/reader_parser_core
+    path: ../../parsers/reader_parser_core
   reader_parser_epub:
-    path: ../../../../reader_parser_next/packages/reader_parser_epub
+    path: ../../parsers/reader_parser_epub
 
 dev_dependencies:
   lints: ^5.0.0
