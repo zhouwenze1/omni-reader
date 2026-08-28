@@ -746,6 +746,36 @@ abstract class AppLocalizations {
   /// **'Layout mode'**
   String get layoutMode;
 
+  /// No description provided for @layoutAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get layoutAuto;
+
+  /// No description provided for @layoutSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'Single page'**
+  String get layoutSingle;
+
+  /// No description provided for @layoutSpread.
+  ///
+  /// In en, this message translates to:
+  /// **'Two-page spread'**
+  String get layoutSpread;
+
+  /// No description provided for @layoutBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Boundary scroll'**
+  String get layoutBoundary;
+
+  /// No description provided for @layoutContinuous.
+  ///
+  /// In en, this message translates to:
+  /// **'Continuous scroll'**
+  String get layoutContinuous;
+
   /// No description provided for @layoutPaged.
   ///
   /// In en, this message translates to:
@@ -835,6 +865,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image failed to load'**
   String get imageLoadFailed;
+
+  /// No description provided for @noCover.
+  ///
+  /// In en, this message translates to:
+  /// **'No cover'**
+  String get noCover;
 
   /// No description provided for @back.
   ///

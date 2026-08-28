@@ -333,6 +333,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get layoutMode => '分页模式';
 
   @override
+  String get layoutAuto => '自动';
+
+  @override
+  String get layoutSingle => '单页';
+
+  @override
+  String get layoutSpread => '双页';
+
+  @override
+  String get layoutBoundary => '边界滚动';
+
+  @override
+  String get layoutContinuous => '连续滚动';
+
+  @override
   String get layoutPaged => '分页';
 
   @override
@@ -376,6 +391,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get imageLoadFailed => '图片加载失败';
+
+  @override
+  String get noCover => '暂无封面';
 
   @override
   String get back => '返回';

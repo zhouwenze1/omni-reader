@@ -335,6 +335,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get layoutMode => 'Layout mode';
 
   @override
+  String get layoutAuto => 'Auto';
+
+  @override
+  String get layoutSingle => 'Single page';
+
+  @override
+  String get layoutSpread => 'Two-page spread';
+
+  @override
+  String get layoutBoundary => 'Boundary scroll';
+
+  @override
+  String get layoutContinuous => 'Continuous scroll';
+
+  @override
   String get layoutPaged => 'Paged';
 
   @override
@@ -378,6 +393,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imageLoadFailed => 'Image failed to load';
+
+  @override
+  String get noCover => 'No cover';
 
   @override
   String get back => 'Back';
