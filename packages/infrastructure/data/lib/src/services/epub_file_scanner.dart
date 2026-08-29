@@ -11,6 +11,20 @@ class EpubFileScanner {
   }
 
   static Future<List<String>> collectRecursively(String directoryPath) async {
+    return _collect(directoryPath);
+  }
+
+  /// Collects EPUB files from [directoryPath] and its direct child folders.
+  ///
+  /// Files below the first child-folder level are intentionally ignored.
+  static Future<List<String>> collectOneLevel(String directoryPath) async {
+    return _collect(directoryPath, maxDepth: 1);
+  }
+
+  static Future<List<String>> _collect(
+    String directoryPath, {
+    int? maxDepth,
+  }) async {
     final root = Directory(directoryPath);
     if (!await root.exists()) {
       return const <String>[];
@@ -19,10 +33,11 @@ class EpubFileScanner {
     final results = <String>[];
     final visitedDirs = <String>{};
     final seenFiles = <String>{};
-    final pending = Queue<Directory>()..add(root);
+    final pending = Queue<_PendingDirectory>()..add(_PendingDirectory(root, 0));
 
     while (pending.isNotEmpty) {
-      final dir = pending.removeFirst();
+      final pendingDirectory = pending.removeFirst();
+      final dir = pendingDirectory.directory;
       final dirKey = p.normalize(dir.path).toLowerCase();
       if (!visitedDirs.add(dirKey)) {
         continue;
@@ -38,7 +53,11 @@ class EpubFileScanner {
       try {
         await for (final entity in stream) {
           if (entity is Directory) {
-            pending.add(entity);
+            if (maxDepth == null || pendingDirectory.depth < maxDepth) {
+              pending.add(
+                _PendingDirectory(entity, pendingDirectory.depth + 1),
+              );
+            }
             continue;
           }
           if (entity is! File) {
@@ -63,4 +82,11 @@ class EpubFileScanner {
     results.sort();
     return results;
   }
+}
+
+class _PendingDirectory {
+  const _PendingDirectory(this.directory, this.depth);
+
+  final Directory directory;
+  final int depth;
 }

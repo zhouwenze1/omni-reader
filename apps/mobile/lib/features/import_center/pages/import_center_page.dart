@@ -46,6 +46,19 @@ class ImportCenterPage extends ConsumerWidget {
             onTap:
                 state.isImporting ? () {} : () => _importFolder(context, ref),
           ),
+          const SizedBox(height: 12),
+          ImportSourceTile(
+            icon: Icons.folder_copy_outlined,
+            title: '导入一级子文件夹',
+            subtitle: '扫描当前文件夹和直属子文件夹，忽略更深层目录。',
+            onTap: state.isImporting
+                ? () {}
+                : () => _importFolder(
+                      context,
+                      ref,
+                      directChildrenOnly: true,
+                    ),
+          ),
           if (state.isImporting)
             const Card(
               child: Padding(
@@ -115,9 +128,15 @@ class ImportCenterPage extends ConsumerWidget {
     await _refreshShellState(ref);
   }
 
-  Future<void> _importFolder(BuildContext context, WidgetRef ref) async {
+  Future<void> _importFolder(
+    BuildContext context,
+    WidgetRef ref, {
+    bool directChildrenOnly = false,
+  }) async {
     final controller = ref.read(importControllerProvider.notifier);
-    final selection = await controller.pickFolderImportSelection();
+    final selection = await controller.pickFolderImportSelection(
+      directChildrenOnly: directChildrenOnly,
+    );
     if (selection == null || !context.mounted) {
       return;
     }

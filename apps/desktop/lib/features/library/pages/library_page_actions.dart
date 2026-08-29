@@ -436,7 +436,9 @@ class LibraryPageActions {
       if (directoryPath == null || directoryPath.trim().isEmpty) {
         return;
       }
-      paths = await _collectEpubFilesRecursively(directoryPath);
+      paths = importKind == _LibraryImportKind.folderOneLevel
+          ? await _collectEpubFilesOneLevel(directoryPath)
+          : await _collectEpubFilesRecursively(directoryPath);
       if (paths.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -534,8 +536,8 @@ class LibraryPageActions {
         title: Text(l10n.importBook),
         content: Text(
           isZh
-              ? '选择导入本地文件，或递归扫描整个 EPUB 文件夹。'
-              : 'Choose file import or recursive EPUB folder import.',
+              ? '选择导入本地文件，或扫描选中文件夹中的 EPUB。'
+              : 'Choose local files or scan EPUB files from a folder.',
         ),
         actions: [
           TextButton(
@@ -545,7 +547,13 @@ class LibraryPageActions {
           FilledButton.tonal(
             onPressed: () =>
                 Navigator.of(context).pop(_LibraryImportKind.folder),
-            child: Text(isZh ? '导入文件夹' : 'Import Folder'),
+            child: Text(isZh ? '导入全部子文件夹' : 'Import Recursively'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.of(context).pop(
+              _LibraryImportKind.folderOneLevel,
+            ),
+            child: Text(isZh ? '导入一级子文件夹' : 'Import One Level'),
           ),
           FilledButton(
             onPressed: () =>
@@ -636,6 +644,12 @@ class LibraryPageActions {
     return EpubFileScanner.collectRecursively(directoryPath);
   }
 
+  static Future<List<String>> _collectEpubFilesOneLevel(
+    String directoryPath,
+  ) async {
+    return EpubFileScanner.collectOneLevel(directoryPath);
+  }
+
   static String _folderCollectionName(String directoryPath) {
     final normalized = directoryPath.replaceAll('\\', '/');
     final segments =
@@ -649,4 +663,4 @@ class LibraryPageActions {
   }
 }
 
-enum _LibraryImportKind { files, folder }
+enum _LibraryImportKind { files, folder, folderOneLevel }

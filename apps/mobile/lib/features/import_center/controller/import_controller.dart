@@ -63,10 +63,15 @@ class ImportController extends StateNotifier<ImportState> {
     );
   }
 
-  Future<FolderImportSelection?> pickFolderImportSelection() async {
+  Future<FolderImportSelection?> pickFolderImportSelection({
+    bool directChildrenOnly = false,
+  }) async {
     if (Platform.isAndroid) {
       final result = await _folderImportChannel.invokeMethod<Object?>(
         'pickEpubFilesFromDirectory',
+        <String, Object?>{
+          'maxDepth': directChildrenOnly ? 1 : null,
+        },
       );
       if (result == null) {
         return null;
@@ -105,7 +110,9 @@ class ImportController extends StateNotifier<ImportState> {
       return null;
     }
 
-    final paths = await collectEpubFilesRecursively(directoryPath);
+    final paths = directChildrenOnly
+        ? await collectEpubFilesOneLevel(directoryPath)
+        : await collectEpubFilesRecursively(directoryPath);
     return FolderImportSelection(
       paths: paths,
       collectionName: _folderCollectionName(directoryPath),
@@ -116,6 +123,10 @@ class ImportController extends StateNotifier<ImportState> {
 
   Future<List<String>> collectEpubFilesRecursively(String directoryPath) async {
     return EpubFileScanner.collectRecursively(directoryPath);
+  }
+
+  Future<List<String>> collectEpubFilesOneLevel(String directoryPath) async {
+    return EpubFileScanner.collectOneLevel(directoryPath);
   }
 
   Future<void> cleanupFolderImportSelection(

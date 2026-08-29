@@ -18,6 +18,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private var pendingFolderImportResult: MethodChannel.Result? = null
+    private var pendingFolderImportMaxDepth: Int? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,7 +36,10 @@ class MainActivity : FlutterActivity() {
             "reader_mobile/folder_import",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "pickEpubFilesFromDirectory" -> openFolderImportPicker(result)
+                "pickEpubFilesFromDirectory" -> openFolderImportPicker(
+                    result,
+                    call.argument<Int>("maxDepth"),
+                )
                 else -> result.notImplemented()
             }
         }
@@ -49,13 +53,15 @@ class MainActivity : FlutterActivity() {
 
         val result = pendingFolderImportResult ?: return
         pendingFolderImportResult = null
+        val maxDepth = pendingFolderImportMaxDepth
+        pendingFolderImportMaxDepth = null
 
         if (resultCode != RESULT_OK) {
             result.success(null)
             return
         }
 
-        handleFolderImportResult(data?.data, result)
+        handleFolderImportResult(data?.data, result, maxDepth)
     }
 
     private fun readBatteryLevel(): Int? {
@@ -65,13 +71,17 @@ class MainActivity : FlutterActivity() {
         return capacity.takeIf { it >= 0 }
     }
 
-    private fun openFolderImportPicker(result: MethodChannel.Result) {
+    private fun openFolderImportPicker(
+        result: MethodChannel.Result,
+        requestedMaxDepth: Int?,
+    ) {
         if (pendingFolderImportResult != null) {
             result.error("busy", "Folder import picker is already active.", null)
             return
         }
 
         pendingFolderImportResult = result
+        pendingFolderImportMaxDepth = requestedMaxDepth?.takeIf { it >= 0 }
         try {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -81,11 +91,16 @@ class MainActivity : FlutterActivity() {
             startActivityForResult(intent, FOLDER_IMPORT_REQUEST_CODE)
         } catch (error: Throwable) {
             pendingFolderImportResult = null
+            pendingFolderImportMaxDepth = null
             result.error("launch_failed", error.message, null)
         }
     }
 
-    private fun handleFolderImportResult(uri: Uri?, result: MethodChannel.Result) {
+    private fun handleFolderImportResult(
+        uri: Uri?,
+        result: MethodChannel.Result,
+        maxDepth: Int?,
+    ) {
         if (uri == null) {
             result.success(null)
             return
@@ -112,7 +127,7 @@ class MainActivity : FlutterActivity() {
             }
 
             val filePaths = mutableListOf<String>()
-            collectEpubFiles(root, sessionDir, "", filePaths)
+            collectEpubFiles(root, sessionDir, "", filePaths, 0, maxDepth)
 
             val payload = hashMapOf<String, Any?>(
                 "directoryName" to resolveDirectoryName(root),
@@ -130,6 +145,8 @@ class MainActivity : FlutterActivity() {
         sessionDir: File,
         relativeDir: String,
         outputPaths: MutableList<String>,
+        depth: Int,
+        maxDepth: Int?,
     ) {
         val children = try {
             directory.listFiles()
@@ -139,13 +156,23 @@ class MainActivity : FlutterActivity() {
 
         for (child in children) {
             if (child.isDirectory) {
+                if (maxDepth != null && depth >= maxDepth) {
+                    continue
+                }
                 val segment = sanitizePathSegment(child.name ?: "folder")
                 val nextRelativeDir = if (relativeDir.isEmpty()) {
                     segment
                 } else {
                     "$relativeDir/$segment"
                 }
-                collectEpubFiles(child, sessionDir, nextRelativeDir, outputPaths)
+                collectEpubFiles(
+                    child,
+                    sessionDir,
+                    nextRelativeDir,
+                    outputPaths,
+                    depth + 1,
+                    maxDepth,
+                )
                 continue
             }
 

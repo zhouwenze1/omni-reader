@@ -30,5 +30,31 @@ void main() {
       expect(paths, contains(epub2.path));
       expect(paths, isNot(contains(other.path)));
     });
+
+    test('finds files in direct child folders but skips deeper folders',
+        () async {
+      final tempRoot = await Directory.systemTemp.createTemp(
+        'epub_file_scanner_one_level_test_',
+      );
+      addTearDown(() => tempRoot.delete(recursive: true));
+
+      final childDir = Directory(p.join(tempRoot.path, 'A'));
+      final deepDir = Directory(p.join(childDir.path, 'B'));
+      await deepDir.create(recursive: true);
+
+      final rootEpub = File(p.join(tempRoot.path, 'root.epub'));
+      final childEpub = File(p.join(childDir.path, 'child.EPUB'));
+      final deepEpub = File(p.join(deepDir.path, 'deep.epub'));
+      await rootEpub.writeAsString('root', flush: true);
+      await childEpub.writeAsString('child', flush: true);
+      await deepEpub.writeAsString('deep', flush: true);
+
+      final paths = await EpubFileScanner.collectOneLevel(tempRoot.path);
+
+      expect(paths, contains(rootEpub.path));
+      expect(paths, contains(childEpub.path));
+      expect(paths, isNot(contains(deepEpub.path)));
+      expect(paths, hasLength(2));
+    });
   });
 }
