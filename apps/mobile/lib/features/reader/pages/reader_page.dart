@@ -67,6 +67,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _disposed = false;
   bool _searchHighlightActive = false;
   String? _searchHighlightPageKey;
+  String? _searchHighlightTargetHref;
+  String? _lastRelocatedPageKey;
+  String? _lastRelocatedHref;
+  int _searchHighlightRequestToken = 0;
   bool _systemUiRestored = false;
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
@@ -169,16 +173,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         if (_disposed) {
           return;
         }
-        if (event.type == ReaderEventType.relocated &&
-            _searchHighlightActive) {
-          final key = _pageKeyOf(event);
-          if (_searchHighlightPageKey == null) {
-            _searchHighlightPageKey = key;
-          } else if (_searchHighlightPageKey != key) {
-            _searchHighlightActive = false;
-            _searchHighlightPageKey = null;
-            _session?.clearSearchHighlight();
-          }
+        if (event.type == ReaderEventType.relocated) {
+          _handleSearchRelocated(event);
         }
 
         if (event.type == ReaderEventType.relocated && event.locator != null) {
@@ -719,38 +715,115 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     await _enterImmersiveMode();
   }
 
-  Future<void> _highlightSearchHit(SearchHit hit) async {
+  Future<void> _selectSearchHit(SearchHit hit, int token) async {
+    final session = _session;
+    if (session == null || hit.href == null) return;
+    try {
+      await session.goTo(Locator(href: hit.href, cfi: hit.cfi));
+      await _highlightSearchHit(hit, token);
+    } catch (error) {
+      if (token == _searchHighlightRequestToken && !_disposed) {
+        debugPrint('[mobile-reader][search-highlight.error] $error');
+      }
+    }
+  }
+
+  Future<void> _highlightSearchHit(SearchHit hit, int token) async {
     final quote = hit.textQuote();
     if (quote == null || hit.href == null) {
       return;
     }
-    await _session?.applySearchHighlight(
+    final applied = await _session?.applySearchHighlight(
       href: hit.href!,
       prefix: quote.prefix,
       exact: quote.exact,
       suffix: quote.suffix,
+      requestToken: token,
     );
+    if (token != _searchHighlightRequestToken || _disposed || applied != true) {
+      return;
+    }
     _searchHighlightPageKey = null;
     _searchHighlightActive = true;
+    if (_sameHref(_lastRelocatedHref, _searchHighlightTargetHref)) {
+      _searchHighlightPageKey = _lastRelocatedPageKey;
+    }
+  }
+
+  void _handleSearchRelocated(ReaderEvent event) {
+    final key = _pageKeyOf(event);
+    final href = _hrefOf(event);
+    if (key.isNotEmpty) _lastRelocatedPageKey = key;
+    if (href.isNotEmpty) _lastRelocatedHref = href;
+
+    if (!_searchHighlightActive || key.isEmpty) return;
+    if (_searchHighlightPageKey == null) {
+      if (_sameHref(href, _searchHighlightTargetHref)) {
+        _searchHighlightPageKey = key;
+      }
+      return;
+    }
+    if (_searchHighlightPageKey == key) return;
+
+    final token = _searchHighlightRequestToken;
+    _searchHighlightActive = false;
+    _searchHighlightPageKey = null;
+    _searchHighlightTargetHref = null;
+    unawaited(_clearSearchHighlightIfCurrent(token));
+  }
+
+  Future<void> _clearSearchHighlightIfCurrent(int token) async {
+    await Future<void>.delayed(Duration.zero);
+    if (_disposed || token != _searchHighlightRequestToken) return;
+    await _session?.clearSearchHighlight(requestToken: token);
+  }
+
+  String _hrefOf(ReaderEvent event) {
+    final locatorHref = event.locator?.href;
+    if (locatorHref != null && locatorHref.trim().isNotEmpty) {
+      return _normalizeHrefKey(locatorHref);
+    }
+    final payload = event.payload is Map ? event.payload as Map : const {};
+    final locator = payload['locator'];
+    if (locator is Map && locator['href'] != null) {
+      return _normalizeHrefKey('${locator['href']}');
+    }
+    return _normalizeHrefKey('${payload['url'] ?? ''}');
+  }
+
+  String _normalizeHrefKey(String? raw) {
+    final value = raw?.trim().replaceAll('\\', '/');
+    if (value == null || value.isEmpty) return '';
+    final parsed = Uri.tryParse(value);
+    final path = parsed != null &&
+            (parsed.scheme == 'http' ||
+                parsed.scheme == 'https' ||
+                parsed.scheme == 'book')
+        ? parsed.path
+        : value.split('#').first.split('?').first;
+    return path
+        .replaceFirst(RegExp(r'^/+'), '')
+        .replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  bool _sameHref(String? left, String? right) {
+    final a = _normalizeHrefKey(left);
+    final b = _normalizeHrefKey(right);
+    if (a.isEmpty || b.isEmpty) return false;
+    return a == b || a.endsWith('/$b') || b.endsWith('/$a');
   }
 
   /// relocated 的页标识:章节 href + 页码(缺页码时用 progression 量化)。
   String _pageKeyOf(ReaderEvent event) {
     final payload = event.payload is Map ? event.payload as Map : const {};
-    final locator = payload['locator'];
-    String href = '';
-    if (locator is Map && locator['href'] != null) {
-      href = '${locator['href']}';
-    } else if (payload['url'] != null) {
-      href = '${payload['url']}';
-    }
+    final href = _hrefOf(event);
     final page = payload['pageIndex'];
     if (page != null) {
       return '$href#$page';
     }
-    final progression = payload['progression'];
-    final quantized =
-        progression is num ? (progression * 100000).round() : 'x';
+    final progression =
+        payload['progression'] ?? event.locator?.locations?['progression'];
+    final quantized = progression is num ? (progression * 100000).round() : 'x';
     return '$href#$quantized';
   }
 
@@ -1047,10 +1120,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   RoutePaths.searchInBook(book.uid),
                 );
                 if (hit != null && hit.href != null) {
-                  await _session?.goTo(
-                    Locator(href: hit.href, cfi: hit.cfi),
-                  );
-                  await _highlightSearchHit(hit);
+                  final token = ++_searchHighlightRequestToken;
+                  _searchHighlightActive = false;
+                  _searchHighlightPageKey = null;
+                  _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
+                  await _selectSearchHit(hit, token);
                 }
                 await _enterImmersiveMode();
               },

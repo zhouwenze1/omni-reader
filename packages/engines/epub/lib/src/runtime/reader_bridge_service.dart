@@ -177,26 +177,45 @@ class ReaderBridgeService {
   ]) async {
     final controller = _controllerProvider();
     final method = command.wireName;
-    final encodedPayload = payload == null ? null : jsonEncode(payload);
-    final invocation = encodedPayload == null
-        ? 'api[${jsonEncode(method)}]()'
-        : 'api[${jsonEncode(method)}]($encodedPayload)';
-    final source = '''
-      (async function() {
+    final asyncResult = await controller.callAsyncJavaScript(
+      functionBody: '''
         const api = window.reader;
-        const method = ${jsonEncode(method)};
-        if (!api || typeof api[method] !== 'function') {
-          return { ok: false, error: 'missing_method', method };
+        if (!api || typeof api[methodName] !== 'function') {
+          return JSON.stringify({
+            ok: false,
+            error: 'missing_method',
+            method: methodName,
+          });
         }
         try {
-          return await $invocation;
+          const value = hasPayload
+              ? await api[methodName](payload)
+              : await api[methodName]();
+          // Serialize explicitly so result-bearing commands keep their fields
+          // on every WebView platform, including WebView2.
+          return JSON.stringify(value ?? null);
         } catch (e) {
-          return { ok: false, error: String(e), method };
+          return JSON.stringify({
+            ok: false,
+            error: String(e),
+            method: methodName,
+          });
         }
-      })();
-    ''';
+      ''',
+      arguments: <String, dynamic>{
+        'methodName': method,
+        'hasPayload': payload != null,
+        'payload': payload,
+      },
+    );
 
-    final result = await controller.evaluateJavascript(source: source);
+    final result = asyncResult?.error == null
+        ? asyncResult?.value
+        : jsonEncode(<String, dynamic>{
+            'ok': false,
+            'error': asyncResult?.error,
+            'method': method,
+          });
     final normalized = _normalizeResult(result);
     _emitEvent(
       ReaderEvent(

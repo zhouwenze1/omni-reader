@@ -36,15 +36,21 @@ abstract class ReaderSession {
 
   /// Highlights a search hit inside the already-open chapter using a
   /// text-quote anchor. Engines without search support ignore this call.
-  Future<void> applySearchHighlight({
+  /// Applies a temporary search-hit highlight and reports whether the
+  /// renderer actually created it.
+  ///
+  /// Engines without search support return `false`.
+  Future<bool> applySearchHighlight({
     required String href,
     required String prefix,
     required String exact,
     required String suffix,
-  }) async {}
+    int? requestToken,
+  }) async =>
+      false;
 
   /// Removes a previous search-hit highlight.
-  Future<void> clearSearchHighlight() async {}
+  Future<void> clearSearchHighlight({int? requestToken}) async {}
 
   Future<void> dispose();
 }

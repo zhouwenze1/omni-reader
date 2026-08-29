@@ -57,6 +57,7 @@ class EpubReaderSession extends ReaderSession {
   bool _debugInfoPublished = false;
   bool _inAppDevToolsOpened = false;
   String? _appliedRendererStyleSignature;
+  int _searchHighlightRequestToken = 0;
 
   String _layoutMode;
   ReaderStyle _readerStyle;
@@ -331,10 +332,7 @@ class EpubReaderSession extends ReaderSession {
 
     // cfi 与 href 同时存在:目标可能不在当前章节,而 navigate(anchor) 只在
     // 章内生效——走 open 让渲染器打开章节后按 cfi 落位(解析失败回退章首)。
-    if (cfi != null &&
-        cfi.isNotEmpty &&
-        href != null &&
-        href.isNotEmpty) {
+    if (cfi != null && cfi.isNotEmpty && href != null && href.isNotEmpty) {
       normalized['href'] = runtime.uriMapper.toPublicHref(href);
       final url = runtime.uriMapper.hrefToHttp(href: href);
       await bridge.open(url: url, locator: normalized);
@@ -402,18 +400,27 @@ class EpubReaderSession extends ReaderSession {
   static const String _searchHighlightUid = 'search-hit-temp';
 
   @override
-  Future<void> applySearchHighlight({
+  Future<bool> applySearchHighlight({
     required String href,
     required String prefix,
     required String exact,
     required String suffix,
+    int? requestToken,
   }) async {
+    final token = requestToken ?? _searchHighlightRequestToken + 1;
+    if (token < _searchHighlightRequestToken) {
+      return false;
+    }
+    _searchHighlightRequestToken = token;
+
     final runtime = await _runtimeFuture;
     await _waitWebViewReady();
     final bridge = _bridge;
     if (bridge == null || !_bootstrapped) {
-      return;
+      return false;
     }
+
+    await _installSearchHighlightProbe();
 
     // 渲染器按打开章节的 scope href 匹配,先走与 goTo 相同的规范化链。
     final normalizedLocator = _locatorNormalizer.normalizeLocator(
@@ -421,22 +428,29 @@ class EpubReaderSession extends ReaderSession {
       uriMapper: runtime.uriMapper,
       bookUuid: _book.uid,
     );
-    final normalizedHref = _rendererLocatorMapper
-        .toPayload(
-          normalizedLocator,
-          uriMapper: runtime.uriMapper,
-          bookUuid: _book.uid,
-        )['href'] as String?;
+    final normalizedHref = _rendererLocatorMapper.toPayload(
+      normalizedLocator,
+      uriMapper: runtime.uriMapper,
+      bookUuid: _book.uid,
+    )['href'] as String?;
     if (normalizedHref == null || normalizedHref.isEmpty) {
-      return;
+      return false;
+    }
+
+    if (token != _searchHighlightRequestToken) {
+      return false;
     }
 
     // 清掉上一次的临时命中高亮(渲染器返回 not_found 时忽略)。
-    await bridge.removeHighlight(
+    final removeResult = await bridge.removeHighlight(
       <String, dynamic>{'uid': _searchHighlightUid},
     );
 
-    await bridge.applyHighlight(<String, dynamic>{
+    if (token != _searchHighlightRequestToken) {
+      return false;
+    }
+
+    final applyResult = await bridge.applyHighlight(<String, dynamic>{
       'uid': _searchHighlightUid,
       'href': normalizedHref,
       'color': '#FFD54F',
@@ -448,10 +462,202 @@ class EpubReaderSession extends ReaderSession {
         },
       },
     });
+
+    String? rendererHref;
+    try {
+      final value = await _controller?.evaluateJavascript(
+        source: '''
+          (function() {
+            const nodes = Array.from(document.querySelectorAll('[data-chapter-href]'));
+            const isVisible = (element) => {
+              for (let node = element; node instanceof HTMLElement; node = node.parentElement) {
+                const style = getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                  return false;
+                }
+              }
+              return true;
+            };
+            const current = nodes.find(isVisible) || nodes[0];
+            return current?.getAttribute('data-chapter-href') || null;
+          })();
+        ''',
+      );
+      if (value is String && value.trim().isNotEmpty) {
+        rendererHref = value.trim();
+      } else if (value != null && '$value'.trim().isNotEmpty) {
+        rendererHref = '$value'.trim();
+      }
+    } catch (_) {
+      // Diagnostics must never make the search highlight fail.
+    }
+
+    _emitEvent(
+      ReaderEvent(
+        type: ReaderEventType.log,
+        payload: <String, dynamic>{
+          'phase': 'searchHighlight.apply',
+          'requestToken': token,
+          'requestedHref': href,
+          'normalizedHref': normalizedHref,
+          'rendererHref': rendererHref,
+          'prefix': prefix,
+          'exact': exact,
+          'suffix': suffix,
+          'removeResult': removeResult,
+          'applyResult': applyResult,
+          'removeOk': removeResult?['ok'],
+          'removeReason': removeResult?['reason'],
+          'applyOk': applyResult?['ok'],
+          'applyReason': applyResult?['reason'],
+        },
+      ),
+    );
+
+    _scheduleSearchHighlightProbe(token);
+
+    return applyResult?['ok'] == true;
+  }
+
+  Future<void> _installSearchHighlightProbe() async {
+    try {
+      await _controller?.evaluateJavascript(
+        source: r'''
+          (function() {
+            const key = '__OMNI_SEARCH_HIGHLIGHT_PROBE__';
+            const previous = window[key];
+            previous?.observer?.disconnect?.();
+            const events = [];
+
+            const isVisible = (element) => {
+              for (let node = element; node instanceof HTMLElement; node = node.parentElement) {
+                const style = getComputedStyle(node);
+                if (
+                  style.display === 'none' ||
+                  style.visibility === 'hidden' ||
+                  style.opacity === '0'
+                ) {
+                  return false;
+                }
+              }
+              return true;
+            };
+
+            const snapshot = () => ({
+              ts: Date.now(),
+              marks: Array.from(document.querySelectorAll('mark.rd-hl[data-uid="search-hit-temp"]')).map((mark) => ({
+                text: (mark.textContent || '').slice(0, 160),
+                href: mark.getAttribute('data-hl-href'),
+                chapterHref: mark.closest('[data-chapter-href]')?.getAttribute('data-chapter-href') || null,
+                connected: mark.isConnected,
+              })),
+              scopes: Array.from(document.querySelectorAll('[data-chapter-href]')).map((scope) => {
+                const rect = scope.getBoundingClientRect();
+                const style = getComputedStyle(scope);
+                return {
+                  href: scope.getAttribute('data-chapter-href'),
+                  visible: isVisible(scope),
+                  display: style.display,
+                  visibility: style.visibility,
+                  opacity: style.opacity,
+                  left: Math.round(rect.left * 10) / 10,
+                  top: Math.round(rect.top * 10) / 10,
+                  width: Math.round(rect.width * 10) / 10,
+                  height: Math.round(rect.height * 10) / 10,
+                  textLength: (scope.textContent || '').length,
+                  markCount: scope.querySelectorAll('mark.rd-hl[data-uid="search-hit-temp"]').length,
+                };
+              }),
+            });
+
+            let previousSignature = '';
+            const record = (type, extra = {}) => {
+              const current = snapshot();
+              const signature = JSON.stringify(current);
+              if (type === 'mutation' && signature === previousSignature) return;
+              previousSignature = signature;
+              events.push({ type, ...extra, snapshot: current });
+              if (events.length > 64) events.splice(0, events.length - 64);
+            };
+
+            const observer = new MutationObserver((records) => {
+              record('mutation', { recordCount: records.length });
+            });
+            observer.observe(document.body || document.documentElement, {
+              childList: true,
+              subtree: true,
+            });
+            const probe = { observer, events, snapshot };
+            window[key] = probe;
+            record('install');
+            return JSON.stringify(events[events.length - 1]);
+          })();
+        ''',
+      );
+    } catch (_) {
+      // Diagnostics must never make a search highlight fail.
+    }
+  }
+
+  void _scheduleSearchHighlightProbe(int token) {
+    const delays = <int>[0, 80, 300, 1000, 2500];
+    for (final delay in delays) {
+      unawaited(
+        Future<void>.delayed(
+          Duration(milliseconds: delay),
+          () => _emitSearchHighlightProbe(token, delay),
+        ),
+      );
+    }
+  }
+
+  Future<void> _emitSearchHighlightProbe(int token, int delayMs) async {
+    if (_eventsController.isClosed || token != _searchHighlightRequestToken) {
+      return;
+    }
+    try {
+      final value = await _controller?.evaluateJavascript(
+        source: '''
+          (function() {
+            const probe = window.__OMNI_SEARCH_HIGHLIGHT_PROBE__;
+            if (!probe) return JSON.stringify({ available: false });
+            return JSON.stringify({
+              available: true,
+              events: probe.events.slice(-12),
+              snapshot: probe.snapshot(),
+            });
+          })();
+        ''',
+      );
+      dynamic decoded = value;
+      if (value is String) {
+        try {
+          decoded = jsonDecode(value);
+        } catch (_) {
+          decoded = value;
+        }
+      }
+      _emitEvent(
+        ReaderEvent(
+          type: ReaderEventType.log,
+          payload: <String, dynamic>{
+            'phase': 'searchHighlight.domProbe',
+            'requestToken': token,
+            'delayMs': delayMs,
+            'probe': decoded,
+          },
+        ),
+      );
+    } catch (_) {
+      // Diagnostics must never make a search highlight fail.
+    }
   }
 
   @override
-  Future<void> clearSearchHighlight() async {
+  Future<void> clearSearchHighlight({int? requestToken}) async {
+    if (requestToken != null && requestToken != _searchHighlightRequestToken) {
+      return;
+    }
     final bridge = _bridge;
     if (bridge == null) {
       return;
