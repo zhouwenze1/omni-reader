@@ -20,6 +20,7 @@ import 'runtime/reader_bridge_service.dart';
 import 'runtime/reader_event_receiver.dart';
 import 'runtime/renderer_api_models.dart';
 import 'runtime/renderer_locator_mapper.dart';
+import 'runtime/renderer_highlight_mapper.dart';
 import 'runtime/renderer_style_mapper.dart';
 
 class EpubReaderSession extends ReaderSession {
@@ -43,6 +44,8 @@ class EpubReaderSession extends ReaderSession {
   final LocatorNormalizer _locatorNormalizer = const LocatorNormalizer();
   final RendererLocatorMapper _rendererLocatorMapper =
       const RendererLocatorMapper();
+  final RendererHighlightMapper _rendererHighlightMapper =
+      const RendererHighlightMapper();
   final RendererStyleMapper _rendererStyleMapper = const RendererStyleMapper();
 
   final Future<_SessionRuntime> _runtimeFuture;
@@ -58,6 +61,8 @@ class EpubReaderSession extends ReaderSession {
   bool _inAppDevToolsOpened = false;
   String? _appliedRendererStyleSignature;
   int _searchHighlightRequestToken = 0;
+  final Map<String, ReaderHighlight> _activeHighlights =
+      <String, ReaderHighlight>{};
 
   String _layoutMode;
   ReaderStyle _readerStyle;
@@ -295,6 +300,160 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
     await bridge.configure(layoutMode: _layoutMode);
+  }
+
+  @override
+  Future<void> setActiveHighlights(List<ReaderHighlight> highlights) async {
+    final next = <String, ReaderHighlight>{
+      for (final highlight in highlights)
+        if (highlight.uid.trim().isNotEmpty &&
+            highlight.href.trim().isNotEmpty &&
+            highlight.quote.isUsable)
+          highlight.uid: highlight,
+    };
+    final previous = Map<String, ReaderHighlight>.from(_activeHighlights);
+    _activeHighlights
+      ..clear()
+      ..addAll(next);
+
+    if (!_bootstrapped) {
+      return;
+    }
+
+    final runtime = await _runtimeFuture;
+    await _waitWebViewReady();
+    final bridge = _bridge;
+    if (bridge == null) {
+      return;
+    }
+
+    final removed = previous.keys.where((uid) => !next.containsKey(uid));
+    for (final uid in removed) {
+      await bridge.removeHighlight(<String, dynamic>{'uid': uid});
+    }
+
+    final changed = <String, List<Map<String, dynamic>>>{};
+    for (final highlight in next.values) {
+      final old = previous[highlight.uid];
+      if (old != null && _sameHighlight(old, highlight)) {
+        continue;
+      }
+      final payload = _rendererHighlightMapper.toPayload(
+        highlight,
+        uriMapper: runtime.uriMapper,
+      );
+      final href = payload['href'] as String;
+      changed.putIfAbsent(href, () => <Map<String, dynamic>>[]).add(payload);
+    }
+
+    for (final entry in changed.entries) {
+      await bridge.applyHighlights(<String, dynamic>{
+        'href': entry.key,
+        'highlights': entry.value,
+      });
+    }
+  }
+
+  @override
+  Future<bool> applyUserHighlight(ReaderHighlight highlight) async {
+    if (!highlight.quote.isUsable || highlight.uid.trim().isEmpty) {
+      return false;
+    }
+    final runtime = await _runtimeFuture;
+    await _waitWebViewReady();
+    final bridge = _bridge;
+    if (bridge == null || !_bootstrapped) {
+      return false;
+    }
+
+    final payload = _rendererHighlightMapper.toPayload(
+      highlight,
+      uriMapper: runtime.uriMapper,
+    );
+    final result = await bridge.applyHighlight(payload);
+    if (result?['ok'] != true) {
+      return false;
+    }
+
+    _activeHighlights[highlight.uid] = ReaderHighlight(
+      uid: highlight.uid,
+      href: payload['href'] as String,
+      color: highlight.color,
+      quote: highlight.quote,
+      cfi: highlight.cfi,
+    );
+    return true;
+  }
+
+  @override
+  Future<bool> updateUserHighlightColor({
+    required String uid,
+    required String color,
+  }) async {
+    final bridge = _bridge;
+    if (bridge == null || uid.trim().isEmpty || color.trim().isEmpty) {
+      return false;
+    }
+    final result = await bridge.updateHighlight(<String, dynamic>{
+      'uid': uid,
+      'color': color,
+    });
+    if (result?['ok'] != true) {
+      return false;
+    }
+    final current = _activeHighlights[uid];
+    if (current != null) {
+      _activeHighlights[uid] = ReaderHighlight(
+        uid: current.uid,
+        href: current.href,
+        color: color,
+        quote: current.quote,
+        cfi: current.cfi,
+      );
+    }
+    return true;
+  }
+
+  @override
+  Future<bool> removeUserHighlight(String uid) async {
+    final bridge = _bridge;
+    if (bridge == null || uid.trim().isEmpty) {
+      return false;
+    }
+    final result = await bridge.removeHighlight(<String, dynamic>{'uid': uid});
+    if (result?['ok'] != true) {
+      return false;
+    }
+    _activeHighlights.remove(uid);
+    return true;
+  }
+
+  @override
+  Future<ReaderSelectionQuote?> getSelectionQuote() async {
+    final runtime = await _runtimeFuture;
+    await _waitWebViewReady();
+    final result = await _bridge?.getSelectionAnchor(
+      <String, dynamic>{'emitCreateRequest': false},
+    );
+    if (result?['ok'] != true) {
+      return null;
+    }
+    final rawHref = result?['href'];
+    final selection = result?['selection'];
+    if (rawHref is! String || selection is! Map) {
+      return null;
+    }
+    final selectionMap = selection.map((key, value) => MapEntry('$key', value));
+    final quote = ReaderTextQuote.fromJson(selectionMap['text']);
+    if (!quote.isUsable) {
+      return null;
+    }
+    final cfi = selectionMap['cfi'];
+    return ReaderSelectionQuote(
+      href: runtime.uriMapper.toPublicHref(rawHref),
+      quote: quote,
+      cfi: cfi is String && cfi.isNotEmpty ? cfi : null,
+    );
   }
 
   @override
@@ -539,7 +698,19 @@ class EpubReaderSession extends ReaderSession {
     normalized['href'] = runtime.uriMapper.toPublicHref(href);
     final openUrl = runtime.uriMapper.hrefToHttp(href: href);
 
-    await bridge.open(url: openUrl, locator: normalized);
+    final highlights = _activeHighlights.values
+        .map(
+          (highlight) => _rendererHighlightMapper.toPayload(
+            highlight,
+            uriMapper: runtime.uriMapper,
+          ),
+        )
+        .toList();
+    await bridge.open(
+      url: openUrl,
+      locator: normalized,
+      highlights: highlights.isEmpty ? null : highlights,
+    );
     _openRequested = false;
   }
 
@@ -911,9 +1082,20 @@ class EpubReaderSession extends ReaderSession {
       final runtime = await _runtimeFuture;
       await runtime.webViewEnvironment?.dispose();
     } catch (_) {}
+    _activeHighlights.clear();
     if (!_eventsController.isClosed) {
       await _eventsController.close();
     }
+  }
+
+  bool _sameHighlight(ReaderHighlight left, ReaderHighlight right) {
+    return left.uid == right.uid &&
+        left.href == right.href &&
+        left.color == right.color &&
+        left.cfi == right.cfi &&
+        left.quote.prefix == right.quote.prefix &&
+        left.quote.exact == right.quote.exact &&
+        left.quote.suffix == right.quote.suffix;
   }
 }
 

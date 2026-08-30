@@ -183,6 +183,80 @@ class ReaderMediaTapData extends ReaderEventData {
   }
 }
 
+class ReaderSelectionData extends ReaderEventData {
+  const ReaderSelectionData({
+    this.phase,
+    this.mode,
+    this.text,
+    this.rect,
+    this.anchorRect,
+    this.focusRect,
+    this.raw = const <String, dynamic>{},
+  });
+
+  final String? phase;
+  final String? mode;
+  final String? text;
+  final Map<String, dynamic>? rect;
+  final Map<String, dynamic>? anchorRect;
+  final Map<String, dynamic>? focusRect;
+  final Map<String, dynamic> raw;
+
+  factory ReaderSelectionData.fromJson(Map<String, dynamic> json) {
+    return ReaderSelectionData(
+      phase: _asString(json['phase']),
+      mode: _asString(json['mode']),
+      text: _asString(json['text']),
+      rect: _asMap(json['rect']),
+      anchorRect: _asMap(json['anchorRect']),
+      focusRect: _asMap(json['focusRect']),
+      raw: Map<String, dynamic>.from(json),
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        ...raw,
+        if (phase != null) 'phase': phase,
+        if (mode != null) 'mode': mode,
+        if (text != null) 'text': text,
+        if (rect != null) 'rect': rect,
+        if (anchorRect != null) 'anchorRect': anchorRect,
+        if (focusRect != null) 'focusRect': focusRect,
+      };
+}
+
+class ReaderHighlightTappedData extends ReaderEventData {
+  const ReaderHighlightTappedData({
+    this.uid,
+    this.href,
+    this.rects = const <Map<String, dynamic>>[],
+    this.raw = const <String, dynamic>{},
+  });
+
+  final String? uid;
+  final String? href;
+  final List<Map<String, dynamic>> rects;
+  final Map<String, dynamic> raw;
+
+  factory ReaderHighlightTappedData.fromJson(Map<String, dynamic> json) {
+    return ReaderHighlightTappedData(
+      uid: _asString(json['uid']),
+      href: _asString(json['href']),
+      rects: _asMapList(json['rects']),
+      raw: Map<String, dynamic>.from(json),
+    );
+  }
+
+  @override
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        ...raw,
+        if (uid != null) 'uid': uid,
+        if (href != null) 'href': href,
+        'rects': rects,
+      };
+}
+
 class ReaderRelocatedData extends ReaderEventData {
   const ReaderRelocatedData({
     this.progression,
@@ -224,12 +298,35 @@ class ReaderEventDataCodec {
         return ReaderLinkData.fromJson(payload);
       case ReaderEventType.mediaTap:
         return ReaderMediaTapData.fromJson(payload);
+      case ReaderEventType.selection:
+        return ReaderSelectionData.fromJson(payload);
+      case ReaderEventType.highlightTapped:
+        return ReaderHighlightTappedData.fromJson(payload);
       case ReaderEventType.relocated:
         return ReaderRelocatedData.fromJson(payload);
       default:
         return ReaderUnknownData(payload);
     }
   }
+}
+
+String? _asString(dynamic value) => value is String ? value : null;
+
+Map<String, dynamic>? _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return Map<String, dynamic>.from(value);
+  }
+  if (value is Map) {
+    return value.map((key, value) => MapEntry('$key', value));
+  }
+  return null;
+}
+
+List<Map<String, dynamic>> _asMapList(dynamic value) {
+  if (value is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+  return value.map(_asMap).whereType<Map<String, dynamic>>().toList();
 }
 
 class ReaderEvent {

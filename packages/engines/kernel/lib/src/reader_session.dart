@@ -3,6 +3,7 @@ import 'package:foundation_domain/domain.dart';
 
 import 'reader_capability.dart';
 import 'reader_event.dart';
+import 'reader_highlight.dart';
 import 'reader_style.dart';
 
 abstract class ReaderSession {
@@ -27,6 +28,26 @@ abstract class ReaderSession {
   Future<void> applyTheme(String theme) {
     return setStyle(style.copyWith(theme: theme));
   }
+
+  /// Makes the current book's user highlights available to the engine.
+  /// Engines without highlight support ignore this call.
+  Future<void> setActiveHighlights(List<ReaderHighlight> highlights) async {}
+
+  /// Applies one user highlight and returns whether the engine acknowledged it.
+  Future<bool> applyUserHighlight(ReaderHighlight highlight) async => false;
+
+  /// Changes one user's highlight color.
+  Future<bool> updateUserHighlightColor({
+    required String uid,
+    required String color,
+  }) async =>
+      false;
+
+  /// Removes one user highlight.
+  Future<bool> removeUserHighlight(String uid) async => false;
+
+  /// Reads the currently selected text as a stable text-quote anchor.
+  Future<ReaderSelectionQuote?> getSelectionQuote() async => null;
 
   Future<void> navigateNext();
 

@@ -9,6 +9,7 @@ export 'src/runtime/local_reader_http_server.dart';
 export 'src/runtime/locator_normalizer.dart';
 export 'src/runtime/renderer_api_models.dart';
 export 'src/runtime/renderer_locator_mapper.dart';
+export 'src/runtime/renderer_highlight_mapper.dart';
 export 'src/runtime/renderer_style_mapper.dart';
 export 'src/runtime/reader_bridge_service.dart';
 export 'src/runtime/reader_event_receiver.dart';
