@@ -70,6 +70,7 @@
   "targetCollection": "Target collection",
   "move": "Move",
   "batchActions": "Batch actions",
+  "addToCollection": "Add to collection",
   "moveToCollection": "Move to collection",
   "deleteSelected": "Delete selected",
   "exitMultiSelect": "Exit multi-select",

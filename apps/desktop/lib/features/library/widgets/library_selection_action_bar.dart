@@ -8,6 +8,7 @@ class LibrarySelectionActionBar extends StatelessWidget {
     required this.selectedCount,
     required this.onSelectAll,
     required this.onClear,
+    required this.onAddToCollection,
     required this.onMoveToCollection,
     required this.onDeleteSelected,
     required this.onExit,
@@ -16,6 +17,7 @@ class LibrarySelectionActionBar extends StatelessWidget {
   final int selectedCount;
   final VoidCallback onSelectAll;
   final VoidCallback onClear;
+  final VoidCallback onAddToCollection;
   final VoidCallback onMoveToCollection;
   final VoidCallback onDeleteSelected;
   final VoidCallback onExit;
@@ -41,6 +43,12 @@ class LibrarySelectionActionBar extends StatelessWidget {
           OutlinedButton(
             onPressed: onClear,
             child: Text(l10n.clear),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: selectedCount == 0 ? null : onAddToCollection,
+            icon: const Icon(Icons.playlist_add),
+            label: Text(l10n.addToCollection),
           ),
           const SizedBox(width: 8),
           OutlinedButton.icon(

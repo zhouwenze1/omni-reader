@@ -160,7 +160,14 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
   }
 
   Future<void> addBookToCollection(int collectionId, String bookUid) async {
-    await _collectionRepository.removeBookFromAllCollections(bookUid);
+    if (collectionId == state.defaultCollectionId) {
+      await _collectionRepository.removeBookFromAllCollections(bookUid);
+    } else if (state.defaultCollectionId != null) {
+      await _collectionRepository.removeBookFromCollection(
+        state.defaultCollectionId!,
+        bookUid,
+      );
+    }
     await _collectionRepository.addBookToCollection(collectionId, bookUid);
     await _reload();
   }
@@ -170,8 +177,63 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
     Iterable<String> bookUids,
   ) async {
     for (final uid in bookUids.toSet()) {
-      await _collectionRepository.removeBookFromAllCollections(uid);
+      if (collectionId == state.defaultCollectionId) {
+        await _collectionRepository.removeBookFromAllCollections(uid);
+      } else if (state.defaultCollectionId != null) {
+        await _collectionRepository.removeBookFromCollection(
+          state.defaultCollectionId!,
+          uid,
+        );
+      }
       await _collectionRepository.addBookToCollection(collectionId, uid);
+    }
+    await _reload();
+  }
+
+  Future<void> renameCollection(int collectionId, String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || collectionId == state.defaultCollectionId) {
+      return;
+    }
+    await _collectionRepository.renameCollection(collectionId, trimmed);
+    await _reload();
+  }
+
+  Future<void> deleteCollection(int collectionId) async {
+    if (collectionId == state.defaultCollectionId) {
+      return;
+    }
+    await _collectionRepository.deleteCollection(collectionId);
+    if (state.selectedCollectionId == collectionId) {
+      state = state.copyWith(selectedCollectionId: state.defaultCollectionId);
+    }
+    await _reload();
+  }
+
+  Future<void> removeBookFromCollection(
+    int collectionId,
+    String bookUid,
+  ) async {
+    await _collectionRepository.removeBookFromCollection(collectionId, bookUid);
+    await _ensureUncategorizedIfNeeded(bookUid);
+    await _reload();
+  }
+
+  Future<void> setBookCollections({
+    required String bookUid,
+    required Iterable<int> collectionIds,
+  }) async {
+    final defaultId = state.defaultCollectionId;
+    final customIds = collectionIds.where((id) => id != defaultId).toSet();
+    await _collectionRepository.removeBookFromAllCollections(bookUid);
+    if (customIds.isEmpty) {
+      if (defaultId != null) {
+        await _collectionRepository.addBookToCollection(defaultId, bookUid);
+      }
+    } else {
+      for (final collectionId in customIds) {
+        await _collectionRepository.addBookToCollection(collectionId, bookUid);
+      }
     }
     await _reload();
   }
@@ -280,6 +342,20 @@ class MobileLibraryController extends StateNotifier<MobileLibraryState> {
       collectionBookUids: collectionBookUids,
       defaultCollectionId: defaultCollection.id,
     );
+  }
+
+  Future<void> _ensureUncategorizedIfNeeded(String bookUid) async {
+    final defaultId = state.defaultCollectionId;
+    if (defaultId == null) {
+      return;
+    }
+    final memberships = await _collectionRepository.listCollectionBookUids();
+    final hasCustomCollection = memberships.entries.any(
+      (entry) => entry.key != defaultId && entry.value.contains(bookUid),
+    );
+    if (!hasCustomCollection) {
+      await _collectionRepository.addBookToCollection(defaultId, bookUid);
+    }
   }
 
   MobileLibraryState _buildState({

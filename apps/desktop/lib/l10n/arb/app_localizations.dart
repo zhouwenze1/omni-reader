@@ -518,6 +518,12 @@ abstract class AppLocalizations {
   /// **'Batch actions'**
   String get batchActions;
 
+  /// No description provided for @addToCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to collection'**
+  String get addToCollection;
+
   /// No description provided for @moveToCollection.
   ///
   /// In en, this message translates to:

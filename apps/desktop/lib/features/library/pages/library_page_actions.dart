@@ -106,7 +106,15 @@ class LibraryPageActions {
       ),
     );
     if (rename == true) {
-      await controller.renameCollection(collection.id, input.text);
+      try {
+        await controller.renameCollection(collection.id, input.text);
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString())),
+          );
+        }
+      }
     }
   }
 
@@ -160,8 +168,17 @@ class LibraryPageActions {
                                 onPressed: isDefault
                                     ? null
                                     : () async {
-                                        await controller
-                                            .deleteCollection(collection.id);
+                                        final confirmed =
+                                            await _confirmDeleteCollection(
+                                          context,
+                                          collection,
+                                          count,
+                                        );
+                                        if (confirmed == true) {
+                                          await controller.deleteCollection(
+                                            collection.id,
+                                          );
+                                        }
                                       },
                                 icon: const Icon(Icons.delete_outline),
                               ),
@@ -199,9 +216,12 @@ class LibraryPageActions {
     }
 
     final l10n = context.l10n;
-    int? selectedCollectionId = state.collectionsOfBook(entry.bookUid).isEmpty
-        ? state.defaultCollectionId
-        : state.collectionsOfBook(entry.bookUid).first;
+    final selectedCollectionIds = state.collectionsOfBook(entry.bookUid);
+    if (selectedCollectionIds.any(
+      (id) => id != state.defaultCollectionId,
+    )) {
+      selectedCollectionIds.remove(state.defaultCollectionId);
+    }
 
     await showDialog<void>(
       context: context,
@@ -211,22 +231,27 @@ class LibraryPageActions {
             title: Text(l10n.collectionsForBookTitle(entry.title)),
             content: SizedBox(
               width: 380,
-              child: RadioGroup<int>(
-                groupValue: selectedCollectionId,
-                onChanged: (value) {
-                  setDialogState(() {
-                    selectedCollectionId = value;
-                  });
-                },
-                child: ListView(
-                  shrinkWrap: true,
-                  children: state.collections.map((collection) {
-                    return RadioListTile<int>(
-                      value: collection.id,
-                      title: Text(collection.name),
-                    );
-                  }).toList(),
-                ),
+              child: ListView(
+                shrinkWrap: true,
+                children: state.collections.map((collection) {
+                  final isDefault = collection.id == state.defaultCollectionId;
+                  return CheckboxListTile(
+                    value: selectedCollectionIds.contains(collection.id),
+                    title: Text(collection.name),
+                    subtitle: isDefault ? Text(l10n.uncategorized) : null,
+                    onChanged: isDefault
+                        ? null
+                        : (value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                selectedCollectionIds.add(collection.id);
+                              } else {
+                                selectedCollectionIds.remove(collection.id);
+                              }
+                            });
+                          },
+                  );
+                }).toList(),
               ),
             ),
             actions: [
@@ -236,24 +261,119 @@ class LibraryPageActions {
                 child: Text(l10n.newCollection),
               ),
               FilledButton(
-                onPressed: selectedCollectionId == null
-                    ? null
-                    : () async {
-                        await controller.moveBooksToCollection(
-                          bookUids: <String>{entry.bookUid},
-                          collectionId: selectedCollectionId!,
-                        );
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
-                        }
-                      },
-                child: Text(l10n.move),
+                onPressed: () async {
+                  await controller.setBookCollections(
+                    bookUid: entry.bookUid,
+                    collectionIds: selectedCollectionIds,
+                  );
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: Text(l10n.save),
               ),
             ],
           );
         },
       ),
     );
+  }
+
+  static Future<bool?> _confirmDeleteCollection(
+    BuildContext context,
+    Collection collection,
+    int count,
+  ) {
+    final isZh =
+        Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
+              'zh',
+            );
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isZh ? '删除合集' : 'Delete collection'),
+        content: Text(
+          isZh
+              ? '确定删除“${collection.name}”吗？将删除其中的归属关系，但不会删除书籍。当前包含 $count 本书。'
+              : 'Delete “${collection.name}”? Books will remain in the library. It currently contains $count books.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Future<void> showAddSelectedDialog(
+    BuildContext context,
+    DesktopLibraryController controller,
+    DesktopLibraryState state,
+  ) async {
+    if (state.selectedBookUids.isEmpty || state.collections.isEmpty) {
+      return;
+    }
+    final isZh =
+        Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
+              'zh',
+            );
+    final targetCollections = state.collections
+        .where((collection) => collection.id != state.defaultCollectionId)
+        .toList();
+    if (targetCollections.isEmpty) {
+      return;
+    }
+    int? selectedCollectionId = targetCollections.first.id;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(isZh ? '加入合集' : 'Add to collection'),
+          content: DropdownButtonFormField<int>(
+            initialValue: selectedCollectionId,
+            decoration: InputDecoration(
+              labelText: isZh ? '目标合集' : 'Target collection',
+              border: const OutlineInputBorder(),
+            ),
+            items: targetCollections
+                .map(
+                  (collection) => DropdownMenuItem<int>(
+                    value: collection.id,
+                    child: Text(collection.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(() {
+              selectedCollectionId = value;
+            }),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: selectedCollectionId == null
+                  ? null
+                  : () => Navigator.of(context).pop(true),
+              child: Text(isZh ? '加入' : 'Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true && selectedCollectionId != null) {
+      await controller.addBooksToCollection(
+        selectedCollectionId!,
+        state.selectedBookUids,
+      );
+    }
   }
 
   static Future<void> deleteBook(

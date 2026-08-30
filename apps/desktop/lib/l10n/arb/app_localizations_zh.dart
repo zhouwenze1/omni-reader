@@ -219,6 +219,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get batchActions => '批量操作';
 
   @override
+  String get addToCollection => '加入合集';
+
+  @override
   String get moveToCollection => '移动到合集';
 
   @override

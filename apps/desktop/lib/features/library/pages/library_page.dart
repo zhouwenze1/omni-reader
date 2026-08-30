@@ -113,6 +113,9 @@ class LibraryPage extends ConsumerWidget {
                     selectedCount: state.selectedBookUids.length,
                     onSelectAll: controller.selectAllVisible,
                     onClear: controller.clearSelectedBooks,
+                    onAddToCollection: () =>
+                        LibraryPageActions.showAddSelectedDialog(
+                            context, controller, state),
                     onMoveToCollection: () =>
                         LibraryPageActions.showMoveSelectedDialog(
                             context, controller, state),

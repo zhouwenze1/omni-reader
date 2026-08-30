@@ -220,6 +220,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get batchActions => 'Batch actions';
 
   @override
+  String get addToCollection => 'Add to collection';
+
+  @override
   String get moveToCollection => 'Move to collection';
 
   @override

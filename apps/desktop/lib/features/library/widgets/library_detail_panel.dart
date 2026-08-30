@@ -138,7 +138,7 @@ class LibraryDetailPanel extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () => onShowBookCollections(entry),
               icon: const Icon(Icons.playlist_add),
-              label: Text(l10n.moveToCollection),
+              label: Text(l10n.manageCollection),
             ),
           ),
           const Spacer(),

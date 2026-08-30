@@ -81,12 +81,18 @@ class CollectionDao {
     );
   }
 
-  Future<void> renameCollection(int id, String name) {
+  Future<void> renameCollection(int id, String name) async {
     final normalized = _normalizeName(name);
     if (normalized.isEmpty) {
       throw StateError('Collection name cannot be empty');
     }
-    return _db.customStatement(
+
+    final existing = await findCollectionByName(normalized);
+    if (existing != null && existing.id != id) {
+      throw StateError('Collection name already exists');
+    }
+
+    await _db.customStatement(
       'UPDATE collections SET name = ?, updatedAt = ? WHERE id = ?',
       [normalized, DateTime.now().millisecondsSinceEpoch, id],
     );

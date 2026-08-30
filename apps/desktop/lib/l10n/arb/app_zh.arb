@@ -70,6 +70,7 @@
   "targetCollection": "目标合集",
   "move": "移动",
   "batchActions": "批量操作",
+  "addToCollection": "加入合集",
   "moveToCollection": "移动到合集",
   "deleteSelected": "删除所选",
   "exitMultiSelect": "退出多选",

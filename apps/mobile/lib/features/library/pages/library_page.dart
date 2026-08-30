@@ -46,6 +46,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                   icon: const Icon(Icons.select_all_rounded),
                 ),
                 IconButton(
+                  tooltip: '\u52a0\u5165\u5408\u96c6',
+                  onPressed: state.selectedBookUids.isEmpty
+                      ? null
+                      : () => _showAddSelectedSheet(context, state, controller),
+                  icon: const Icon(Icons.playlist_add),
+                ),
+                IconButton(
                   tooltip: '\u79fb\u52a8\u5230\u5408\u96c6',
                   onPressed: state.selectedBookUids.isEmpty
                       ? null
@@ -292,6 +299,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               label: const Text('\u65b0\u5efa'),
               onPressed: () => _showCreateCollectionDialog(context, controller),
             ),
+            const SizedBox(width: 8),
+            ActionChip(
+              avatar: const Icon(Icons.settings_outlined, size: 18),
+              label: const Text('\u7ba1\u7406'),
+              onPressed: () => _showManageCollectionsSheet(context),
+            ),
           ],
         ),
       ),
@@ -475,6 +488,199 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       final collection = await controller.ensureCollection(name);
       await controller.setCollectionFilter(collection.id);
     }
+  }
+
+  Future<void> _showManageCollectionsSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final state = ref.watch(mobileLibraryControllerProvider);
+          final controller = ref.read(mobileLibraryControllerProvider.notifier);
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const ListTile(
+                  title: Text('\u7ba1\u7406\u5408\u96c6'),
+                  subtitle: Text(
+                      '\u53ef\u4ee5\u91cd\u547d\u540d\u6216\u5220\u9664\u81ea\u5b9a\u4e49\u5408\u96c6'),
+                ),
+                ...state.collections.map((collection) {
+                  final isDefault = collection.id == state.defaultCollectionId;
+                  final count =
+                      state.collectionBookUids[collection.id]?.length ?? 0;
+                  return ListTile(
+                    leading: Icon(
+                      isDefault
+                          ? Icons.inbox_outlined
+                          : Icons.folder_copy_outlined,
+                    ),
+                    title: Text(collection.name),
+                    subtitle: Text('\u5171 $count \u672c\u4e66'),
+                    trailing: isDefault
+                        ? const Chip(label: Text('\u7cfb\u7edf'))
+                        : PopupMenuButton<String>(
+                            onSelected: (action) async {
+                              if (action == 'rename') {
+                                await _showRenameCollectionDialog(
+                                  context,
+                                  controller,
+                                  collection,
+                                );
+                              } else if (action == 'delete') {
+                                final confirmed =
+                                    await _confirmDeleteCollection(
+                                  context,
+                                  collection,
+                                  count,
+                                );
+                                if (confirmed == true) {
+                                  await controller
+                                      .deleteCollection(collection.id);
+                                }
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'rename',
+                                child: Text('\u91cd\u547d\u540d'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('\u5220\u9664'),
+                              ),
+                            ],
+                          ),
+                  );
+                }),
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('\u65b0\u5efa\u5408\u96c6'),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _showCreateCollectionDialog(context, controller);
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showRenameCollectionDialog(
+    BuildContext context,
+    MobileLibraryController controller,
+    Collection collection,
+  ) async {
+    final input = TextEditingController(text: collection.name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('\u91cd\u547d\u540d\u5408\u96c6'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration:
+              const InputDecoration(hintText: '\u8f93\u5165\u65b0\u540d\u79f0'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('\u53d6\u6d88'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('\u4fdd\u5b58'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await controller.renameCollection(collection.id, input.text);
+      } catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString())),
+          );
+        }
+      }
+    }
+  }
+
+  Future<bool?> _confirmDeleteCollection(
+    BuildContext context,
+    Collection collection,
+    int count,
+  ) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('\u5220\u9664\u5408\u96c6'),
+        content: Text(
+          '\u786e\u5b9a\u5220\u9664\u201c${collection.name}\u201d\u5417\uff1f\u4ec5\u5220\u9664\u5408\u96c6\u548c\u5f52\u5c5e\u5173\u7cfb\uff0c\u4e0d\u4f1a\u5220\u9664\u4e66\u7c4d\u3002\u5f53\u524d $count \u672c\u4e66\u3002',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('\u53d6\u6d88'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('\u5220\u9664'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddSelectedSheet(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) async {
+    final collections = state.collections
+        .where((collection) => collection.id != state.defaultCollectionId)
+        .toList();
+    if (state.selectedBookUids.isEmpty || collections.isEmpty) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(
+              title: Text('\u52a0\u5165\u5408\u96c6'),
+              subtitle: Text('\u9009\u62e9\u76ee\u6807\u5408\u96c6'),
+            ),
+            ...collections.map(
+              (collection) => ListTile(
+                leading: const Icon(Icons.folder_copy_outlined),
+                title: Text(collection.name),
+                onTap: () async {
+                  await controller.addBooksToCollection(
+                    collection.id,
+                    state.selectedBookUids,
+                  );
+                  controller.exitSelectionMode();
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showMoveSelectedSheet(
