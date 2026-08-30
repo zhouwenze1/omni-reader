@@ -384,6 +384,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get skipFirstParagraphIndent => '首段不缩进';
 
   @override
+  String get annotationNote => '标注笔记';
+
+  @override
+  String get copied => '已复制';
+
+  @override
+  String get highlightAdded => '已添加高亮';
+
+  @override
+  String get highlightFailed => '高亮操作失败';
+
+  @override
   String get checkForUpdates => '检查更新';
 
   @override

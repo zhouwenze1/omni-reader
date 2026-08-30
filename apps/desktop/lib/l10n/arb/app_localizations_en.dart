@@ -386,6 +386,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get skipFirstParagraphIndent => 'Skip first paragraph indent';
 
   @override
+  String get annotationNote => 'Annotation note';
+
+  @override
+  String get copied => 'Copied';
+
+  @override
+  String get highlightAdded => 'Highlight added';
+
+  @override
+  String get highlightFailed => 'Highlight operation failed';
+
+  @override
   String get checkForUpdates => 'Check for updates';
 
   @override

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:foundation_application/application.dart';
 import 'package:kernel/kernel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Locator;
 import 'package:foundation_domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,6 +32,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
   ProgressRepository? _progressRepository;
+  AnnotationsStore? _annotationsStore;
   Book? _book;
   ReadingProgress? _progress;
   String? _error;
@@ -63,6 +66,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _layoutSyncScheduled = false;
   ReaderSettings? _pendingReaderSettings;
   bool _styleApplyInFlight = false;
+  bool _selectionMenuVisible = false;
+  String? _selectionText;
+  ui.Rect? _selectionRect;
+  ReaderSelectionQuote? _selectionQuote;
+  Future<ReaderSelectionQuote?>? _selectionQuoteFuture;
+  Annotation? _editingAnnotation;
+  int _selectionGeneration = 0;
+  bool _annotationActionInFlight = false;
 
   @override
   void initState() {
@@ -128,6 +139,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       }
 
       final progress = await progressRepository.getProgress(widget.bookUid);
+      final annotationsStore = AnnotationsStore(
+        repository: ref.read(annotationRepositoryProvider),
+        bookUid: book.uid,
+      );
+      await annotationsStore.load();
       final engine = registry.findByFormat(book.format);
       if (engine == null) {
         setState(() {
@@ -144,6 +160,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         initialStyle: _rendererStyleFor(_currentReaderSettings()),
         initialLayoutMode: initialLayoutMode,
       );
+      await session.setActiveHighlights(annotationsStore.readerHighlights);
 
       _subscription = session.events.listen((event) async {
         if (_disposed) {
@@ -168,6 +185,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         if (event.type == ReaderEventType.mediaTap) {
           await _handleMediaTapEvent(
             event.asData<ReaderMediaTapData>(),
+            event.payload,
+          );
+        }
+
+        if (event.type == ReaderEventType.selection) {
+          _handleSelectionEvent(
+            event.asData<ReaderSelectionData>(),
+            event.payload,
+          );
+        }
+
+        if (event.type == ReaderEventType.highlightTapped) {
+          _handleHighlightTapped(
+            event.asData<ReaderHighlightTappedData>(),
             event.payload,
           );
         }
@@ -203,6 +234,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       setState(() {
         _book = book;
         _progress = progress;
+        _annotationsStore = annotationsStore;
         _appliedRendererLayoutMode = initialLayoutMode;
         _session = session;
         _loading = false;
@@ -347,6 +379,298 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     super.dispose();
   }
 
+  void _handleSelectionEvent(
+    ReaderSelectionData? data,
+    Map<String, dynamic>? payload,
+  ) {
+    final selection = data;
+    if (selection == null) {
+      return;
+    }
+    if (selection.phase == 'clear') {
+      _dismissSelectionMenu();
+      return;
+    }
+
+    final text = selection.text?.trim();
+    final rect = _rectFromJson(
+      selection.focusRect ?? selection.anchorRect ?? selection.rect,
+    );
+    if (text == null || text.isEmpty || rect == null || _disposed) {
+      return;
+    }
+
+    final sameSelection = _selectionText == text && _editingAnnotation == null;
+    setState(() {
+      _selectionMenuVisible = true;
+      _selectionText = text;
+      _selectionRect = rect;
+      _editingAnnotation = null;
+    });
+
+    if (!sameSelection || _selectionQuote == null) {
+      _selectionQuote = null;
+      final generation = ++_selectionGeneration;
+      final session = _session;
+      if (session == null) {
+        return;
+      }
+      final future = session.getSelectionQuote();
+      _selectionQuoteFuture = future;
+      unawaited(
+        future.then((quote) {
+          if (_disposed || generation != _selectionGeneration) {
+            return;
+          }
+          _selectionQuoteFuture = null;
+          _selectionQuote = quote;
+        }).catchError((_) {
+          if (generation == _selectionGeneration) {
+            _selectionQuoteFuture = null;
+          }
+          return null;
+        }),
+      );
+    }
+  }
+
+  void _handleHighlightTapped(
+    ReaderHighlightTappedData? data,
+    Map<String, dynamic>? payload,
+  ) {
+    final uid = data?.uid;
+    final store = _annotationsStore;
+    if (uid == null || store == null) {
+      return;
+    }
+    final annotation = store.find(uid);
+    if (annotation == null) {
+      return;
+    }
+    final rect =
+        unionRects(data!.rects.map(_rectFromJson).whereType<ui.Rect>());
+    if (rect == ui.Rect.zero || _disposed) {
+      return;
+    }
+    _selectionGeneration += 1;
+    _selectionQuoteFuture = null;
+    setState(() {
+      _selectionMenuVisible = true;
+      _selectionText = annotation.text;
+      _selectionRect = rect;
+      _selectionQuote = null;
+      _editingAnnotation = annotation;
+    });
+  }
+
+  ui.Rect? _rectFromJson(Map<String, dynamic>? value) {
+    if (value == null) {
+      return null;
+    }
+    final left = _number(value['left']);
+    final top = _number(value['top']);
+    if (left == null || top == null) {
+      return null;
+    }
+    final width = _number(value['width']);
+    final height = _number(value['height']);
+    final right = _number(value['right']) ?? left + (width ?? 0);
+    final bottom = _number(value['bottom']) ?? top + (height ?? 0);
+    return ui.Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  double? _number(dynamic value) => value is num ? value.toDouble() : null;
+
+  Offset _selectionMenuOffset(BuildContext context) {
+    final viewport = MediaQuery.sizeOf(context);
+    final menuWidth = (viewport.width - 16).clamp(360.0, 620.0);
+    return computeMenuOffset(
+      selectionRect: _selectionRect ?? ui.Rect.zero,
+      viewport: viewport,
+      menuSize: Size(menuWidth, 64),
+    );
+  }
+
+  void _dismissSelectionMenu() {
+    if (!mounted) {
+      return;
+    }
+    _selectionGeneration += 1;
+    setState(() {
+      _selectionMenuVisible = false;
+      _selectionRect = null;
+      _selectionText = null;
+      _selectionQuote = null;
+      _editingAnnotation = null;
+    });
+  }
+
+  Future<ReaderSelectionQuote?> _selectionQuoteForAction() async {
+    if (_selectionQuote != null) {
+      return _selectionQuote;
+    }
+    if (_selectionQuoteFuture != null) {
+      return _selectionQuoteFuture;
+    }
+    return _session?.getSelectionQuote();
+  }
+
+  Future<void> _createHighlight({
+    required String color,
+    String? note,
+  }) async {
+    if (_annotationActionInFlight || _annotationsStore == null) {
+      return;
+    }
+    final l10n = context.l10n;
+    _annotationActionInFlight = true;
+    try {
+      final selection = await _selectionQuoteForAction();
+      final session = _session;
+      final store = _annotationsStore;
+      if (selection == null || session == null || store == null) {
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      final uid = store.newHighlightId();
+      final applied = await session.applyUserHighlight(
+        ReaderHighlight(
+          uid: uid,
+          href: selection.href,
+          color: color,
+          quote: selection.quote,
+          cfi: selection.cfi,
+        ),
+      );
+      if (!applied) {
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      try {
+        await store.createHighlight(
+          selection: selection,
+          color: color,
+          note: note,
+          id: uid,
+        );
+      } catch (_) {
+        await session.removeUserHighlight(uid);
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      _dismissSelectionMenu();
+      _showAnnotationMessage(l10n.highlightAdded);
+    } finally {
+      _annotationActionInFlight = false;
+    }
+  }
+
+  Future<void> _changeHighlightColor(String color) async {
+    final annotation = _editingAnnotation;
+    final session = _session;
+    final store = _annotationsStore;
+    if (annotation == null || session == null || store == null) {
+      await _createHighlight(color: color);
+      return;
+    }
+    if (_annotationActionInFlight) {
+      return;
+    }
+    _annotationActionInFlight = true;
+    try {
+      if (await session.updateUserHighlightColor(
+        uid: annotation.id,
+        color: color,
+      )) {
+        await store.changeColor(annotation.id, color);
+        if (mounted) {
+          setState(() => _editingAnnotation = store.find(annotation.id));
+        }
+      }
+    } finally {
+      _annotationActionInFlight = false;
+    }
+  }
+
+  Future<void> _handleNoteAction() async {
+    final note = await _showNoteEditor(_editingAnnotation?.note);
+    if (note == null) {
+      return;
+    }
+    final annotation = _editingAnnotation;
+    final store = _annotationsStore;
+    if (annotation == null || store == null) {
+      await _createHighlight(color: AnnotationPalette.defaultColor, note: note);
+      return;
+    }
+    await store.setNote(annotation.id, note);
+    if (mounted) {
+      setState(() => _editingAnnotation = store.find(annotation.id));
+    }
+  }
+
+  Future<String?> _showNoteEditor(String? initial) async {
+    final controller = TextEditingController(text: initial ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        return AlertDialog(
+          title: Text(l10n.annotationNote),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 6,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+              child: Text(l10n.save),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _copySelectionText() async {
+    final text = _selectionText?.trim();
+    if (text == null || text.isEmpty) {
+      return;
+    }
+    final message = context.l10n.copied;
+    await Clipboard.setData(ClipboardData(text: text));
+    _showAnnotationMessage(message);
+  }
+
+  Future<void> _deleteHighlight() async {
+    final annotation = _editingAnnotation;
+    final session = _session;
+    final store = _annotationsStore;
+    if (annotation == null || session == null || store == null) {
+      return;
+    }
+    if (await session.removeUserHighlight(annotation.id)) {
+      await store.remove(annotation.id);
+      _dismissSelectionMenu();
+    }
+  }
+
+  void _showAnnotationMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _scheduleProgressSave(ReadingProgress progress) {
     if (_disposed) {
       return;
@@ -395,6 +719,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               },
               onSelect: _onSearchSelect,
               onClose: () => setState(() => _searchPanelOpen = false),
+            ),
+          if (_selectionMenuVisible && _selectionRect != null)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _dismissSelectionMenu,
+              ),
+            ),
+          if (_selectionMenuVisible && _selectionRect != null)
+            Positioned(
+              left: _selectionMenuOffset(context).dx,
+              top: _selectionMenuOffset(context).dy,
+              right: 8,
+              child: GestureDetector(
+                onTap: () {},
+                child: SelectionActionMenu(
+                  selectedColor: _editingAnnotation?.color,
+                  onColor: (color) => unawaited(_changeHighlightColor(color)),
+                  onNote: () => unawaited(_handleNoteAction()),
+                  onCopy: () => unawaited(_copySelectionText()),
+                  onDelete: _editingAnnotation == null
+                      ? null
+                      : () => unawaited(_deleteHighlight()),
+                ),
+              ),
             ),
         ],
       ),
@@ -715,6 +1064,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     icon: const Icon(Icons.menu_book, color: Colors.white),
                   ),
                   IconButton(
+                    tooltip: l10n.statsAnnotationsTotal,
+                    onPressed: _openAnnotationHub,
+                    icon: const Icon(Icons.format_paint_outlined,
+                        color: Colors.white),
+                  ),
+                  IconButton(
                     tooltip: _rendererTheme == 'day'
                         ? l10n.switchToNight
                         : l10n.switchToDay,
@@ -783,6 +1138,70 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openAnnotationHub() async {
+    final store = _annotationsStore;
+    if (store == null) {
+      return;
+    }
+    final annotations = store.items
+        .where(
+          (item) =>
+              item.type == AnnotationType.highlight ||
+              (item.note?.trim().isNotEmpty ?? false),
+        )
+        .toList(growable: false);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final l10n = dialogContext.l10n;
+        return AlertDialog(
+          title: Text(l10n.statsAnnotationsTotal),
+          content: SizedBox(
+            width: 520,
+            height: 420,
+            child: annotations.isEmpty
+                ? Center(child: Text(l10n.noCollectionYet))
+                : ListView.separated(
+                    itemCount: annotations.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, index) {
+                      final annotation = annotations[index];
+                      return ListTile(
+                        leading: Icon(
+                          annotation.note?.trim().isNotEmpty ?? false
+                              ? Icons.edit_note_outlined
+                              : Icons.format_paint_outlined,
+                        ),
+                        title: Text(
+                          annotation.text ??
+                              annotation.note ??
+                              l10n.statsHighlights,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(annotation.locator.href ?? ''),
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          final href = annotation.locator.href;
+                          if (href != null && href.isNotEmpty) {
+                            unawaited(_session?.goTo(annotation.locator));
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.close),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -115,6 +115,9 @@ class MeController extends StateNotifier<MeState> {
           switch (annotation.type) {
             case AnnotationType.highlight:
               highlights += 1;
+              if (annotation.note?.trim().isNotEmpty ?? false) {
+                notes += 1;
+              }
             case AnnotationType.note:
               notes += 1;
             case AnnotationType.bookmark:

@@ -848,6 +848,30 @@ abstract class AppLocalizations {
   /// **'Skip first paragraph indent'**
   String get skipFirstParagraphIndent;
 
+  /// No description provided for @annotationNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Annotation note'**
+  String get annotationNote;
+
+  /// No description provided for @copied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get copied;
+
+  /// No description provided for @highlightAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight added'**
+  String get highlightAdded;
+
+  /// No description provided for @highlightFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight operation failed'**
+  String get highlightFailed;
+
   /// No description provided for @checkForUpdates.
   ///
   /// In en, this message translates to:
