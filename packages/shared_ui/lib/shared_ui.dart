@@ -1,5 +1,8 @@
 library;
 
+export 'src/annotations/annotation_palette.dart';
+export 'src/annotations/annotations_store.dart';
+export 'src/annotations/selection_action_menu.dart';
 export 'src/di/engines_providers.dart';
 export 'src/routes/route_paths.dart';
 export 'src/state/me_state.dart';

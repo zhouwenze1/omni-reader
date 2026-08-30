@@ -27,3 +27,7 @@ dependencies:
     path: ../engines/audio
   engine_ldf:
     path: ../engines/ldf
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
