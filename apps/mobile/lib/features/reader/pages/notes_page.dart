@@ -20,8 +20,13 @@ class NotesPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('加载失败: $error')),
         data: (items) {
-          final notes =
-              items.where((item) => item.type == AnnotationType.note).toList();
+          final notes = items
+              .where(
+                (item) =>
+                    item.type == AnnotationType.note ||
+                    (item.note?.trim().isNotEmpty ?? false),
+              )
+              .toList();
           if (notes.isEmpty) {
             return const EmptyView(title: '暂无笔记');
           }

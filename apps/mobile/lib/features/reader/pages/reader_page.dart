@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Timer? _deviceStatusTimer;
   ProviderContainer? _providerContainer;
   ProgressRepository? _progressRepository;
+  AnnotationsStore? _annotationsStore;
   Book? _book;
   ReadingProgress? _progress;
   String? _error;
@@ -97,6 +99,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _readerStyleSyncScheduled = false;
   ReaderSettings? _pendingReaderSettings;
   bool _styleApplyInFlight = false;
+  bool _selectionMenuVisible = false;
+  String? _selectionText;
+  ui.Rect? _selectionRect;
+  ReaderSelectionQuote? _selectionQuote;
+  Future<ReaderSelectionQuote?>? _selectionQuoteFuture;
+  Annotation? _editingAnnotation;
+  int _selectionGeneration = 0;
+  bool _annotationActionInFlight = false;
 
   @override
   void initState() {
@@ -168,6 +178,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       if (!mounted) {
         return;
       }
+      final annotationsStore = AnnotationsStore(
+        repository: ref.read(annotationRepositoryProvider),
+        bookUid: book.uid,
+      );
+      await annotationsStore.load();
       final engine = registry.findByFormat(book.format);
       if (engine == null) {
         setState(() {
@@ -184,6 +199,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         initialStyle: _currentReaderStyle(),
         initialLayoutMode: initialLayoutMode,
       );
+      await session.setActiveHighlights(annotationsStore.readerHighlights);
 
       _subscription = session.events.listen((event) async {
         if (_disposed) {
@@ -229,6 +245,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             event.payload,
           );
         }
+
+        if (event.type == ReaderEventType.selection) {
+          _handleSelectionEvent(
+            event.asData<ReaderSelectionData>(),
+            event.payload,
+          );
+        }
+
+        if (event.type == ReaderEventType.highlightTapped) {
+          _handleHighlightTapped(
+            event.asData<ReaderHighlightTappedData>(),
+            event.payload,
+          );
+        }
       });
 
       if (!mounted) {
@@ -237,6 +267,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       setState(() {
         _book = book;
         _progress = progress;
+        _annotationsStore = annotationsStore;
         _sliderProgress = progress?.progression ?? 0;
         _appliedReaderStyleSignature = _readerStyleSignature(
           _currentReaderStyle(),
@@ -877,6 +908,325 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return '$href#$quantized';
   }
 
+  void _handleSelectionEvent(
+    ReaderSelectionData? data,
+    Map<String, dynamic>? payload,
+  ) {
+    final selection = data;
+    if (selection == null) {
+      return;
+    }
+    if (selection.phase == 'clear') {
+      _dismissSelectionMenu();
+      return;
+    }
+
+    final text = selection.text?.trim();
+    final rect = _rectFromJson(
+      selection.focusRect ?? selection.anchorRect ?? selection.rect,
+    );
+    if (text == null || text.isEmpty || rect == null || _disposed) {
+      return;
+    }
+
+    final sameSelection = _selectionText == text && _editingAnnotation == null;
+    setState(() {
+      _selectionMenuVisible = true;
+      _selectionText = text;
+      _selectionRect = rect;
+      _editingAnnotation = null;
+    });
+
+    if (!sameSelection || _selectionQuote == null) {
+      _selectionQuote = null;
+      final generation = ++_selectionGeneration;
+      final session = _session;
+      if (session == null) {
+        return;
+      }
+      final future = session.getSelectionQuote();
+      _selectionQuoteFuture = future;
+      unawaited(
+        future.then((quote) {
+          if (_disposed || generation != _selectionGeneration) {
+            return;
+          }
+          _selectionQuoteFuture = null;
+          _selectionQuote = quote;
+        }).catchError((_) {
+          if (generation == _selectionGeneration) {
+            _selectionQuoteFuture = null;
+          }
+          return null;
+        }),
+      );
+    }
+  }
+
+  void _handleHighlightTapped(
+    ReaderHighlightTappedData? data,
+    Map<String, dynamic>? payload,
+  ) {
+    final uid = data?.uid;
+    final store = _annotationsStore;
+    if (uid == null || store == null) {
+      return;
+    }
+    final annotation = store.find(uid);
+    if (annotation == null) {
+      return;
+    }
+    final rects = data!.rects.map(_rectFromJson).whereType<ui.Rect>();
+    final rect = unionRects(rects);
+    if (rect == ui.Rect.zero || _disposed) {
+      return;
+    }
+    _selectionGeneration += 1;
+    _selectionQuoteFuture = null;
+    setState(() {
+      _selectionMenuVisible = true;
+      _selectionText = annotation.text;
+      _selectionRect = rect;
+      _selectionQuote = null;
+      _editingAnnotation = annotation;
+    });
+  }
+
+  ui.Rect? _rectFromJson(Map<String, dynamic>? value) {
+    if (value == null) {
+      return null;
+    }
+    final left = _number(value['left']);
+    final top = _number(value['top']);
+    if (left == null || top == null) {
+      return null;
+    }
+    final width = _number(value['width']);
+    final height = _number(value['height']);
+    final right = _number(value['right']) ?? left + (width ?? 0);
+    final bottom = _number(value['bottom']) ?? top + (height ?? 0);
+    return ui.Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  double? _number(dynamic value) {
+    return value is num ? value.toDouble() : null;
+  }
+
+  Offset _selectionMenuOffset(BuildContext context) {
+    final rect = _selectionRect ?? ui.Rect.zero;
+    final viewport = MediaQuery.sizeOf(context);
+    final menuWidth = (viewport.width - 16).clamp(240.0, 460.0);
+    return computeMenuOffset(
+      selectionRect: rect,
+      viewport: viewport,
+      menuSize: Size(menuWidth, 64),
+    );
+  }
+
+  void _dismissSelectionMenu() {
+    if (!mounted) {
+      return;
+    }
+    _selectionGeneration += 1;
+    setState(() {
+      _selectionMenuVisible = false;
+      _selectionRect = null;
+      _selectionText = null;
+      _selectionQuote = null;
+      _editingAnnotation = null;
+    });
+  }
+
+  Future<ReaderSelectionQuote?> _selectionQuoteForAction() async {
+    final cached = _selectionQuote;
+    if (cached != null) {
+      return cached;
+    }
+    final pending = _selectionQuoteFuture;
+    if (pending != null) {
+      return pending;
+    }
+    final session = _session;
+    if (session == null) {
+      return null;
+    }
+    return session.getSelectionQuote();
+  }
+
+  Future<void> _createHighlight({
+    required String color,
+    String? note,
+  }) async {
+    if (_annotationActionInFlight || _annotationsStore == null) {
+      return;
+    }
+    final l10n = context.l10n;
+    _annotationActionInFlight = true;
+    try {
+      final selection = await _selectionQuoteForAction();
+      final session = _session;
+      final store = _annotationsStore;
+      if (selection == null || session == null || store == null) {
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      final uid = store.newHighlightId();
+      final highlight = ReaderHighlight(
+        uid: uid,
+        href: selection.href,
+        color: color,
+        quote: selection.quote,
+        cfi: selection.cfi,
+      );
+      final applied = await session.applyUserHighlight(highlight);
+      if (!applied) {
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      try {
+        await store.createHighlight(
+          selection: selection,
+          color: color,
+          note: note,
+          id: uid,
+        );
+      } catch (_) {
+        await session.removeUserHighlight(uid);
+        _showAnnotationMessage(l10n.highlightFailed);
+        return;
+      }
+      _dismissSelectionMenu();
+      _showAnnotationMessage(l10n.highlightAdded);
+    } finally {
+      _annotationActionInFlight = false;
+    }
+  }
+
+  Future<void> _changeHighlightColor(String color) async {
+    final annotation = _editingAnnotation;
+    final session = _session;
+    final store = _annotationsStore;
+    if (annotation == null || session == null || store == null) {
+      await _createHighlight(color: color);
+      return;
+    }
+    if (_annotationActionInFlight) {
+      return;
+    }
+    _annotationActionInFlight = true;
+    try {
+      if (await session.updateUserHighlightColor(
+        uid: annotation.id,
+        color: color,
+      )) {
+        await store.changeColor(annotation.id, color);
+        if (mounted) {
+          setState(() => _editingAnnotation = store.find(annotation.id));
+        }
+      }
+    } finally {
+      _annotationActionInFlight = false;
+    }
+  }
+
+  Future<void> _handleNoteAction() async {
+    final current = _editingAnnotation?.note;
+    final note = await _showNoteEditor(current);
+    if (note == null) {
+      return;
+    }
+    final annotation = _editingAnnotation;
+    final store = _annotationsStore;
+    if (annotation == null || store == null) {
+      await _createHighlight(color: AnnotationPalette.defaultColor, note: note);
+      return;
+    }
+    await store.setNote(annotation.id, note);
+    if (mounted) {
+      setState(() => _editingAnnotation = store.find(annotation.id));
+    }
+  }
+
+  Future<String?> _showNoteEditor(String? initial) async {
+    final controller = TextEditingController(text: initial ?? '');
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final l10n = sheetContext.l10n;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: 5,
+                decoration: InputDecoration(labelText: l10n.annotationNote),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    child: Text(l10n.cancel),
+                  ),
+                  FilledButton(
+                    onPressed: () =>
+                        Navigator.of(sheetContext).pop(controller.text),
+                    child: Text(l10n.save),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
+  Future<void> _copySelectionText() async {
+    final text = _selectionText?.trim();
+    if (text == null || text.isEmpty) {
+      return;
+    }
+    final message = context.l10n.copied;
+    await Clipboard.setData(ClipboardData(text: text));
+    _showAnnotationMessage(message);
+  }
+
+  Future<void> _deleteHighlight() async {
+    final annotation = _editingAnnotation;
+    final session = _session;
+    final store = _annotationsStore;
+    if (annotation == null || session == null || store == null) {
+      return;
+    }
+    if (await session.removeUserHighlight(annotation.id)) {
+      await store.remove(annotation.id);
+      _dismissSelectionMenu();
+    }
+  }
+
+  void _showAnnotationMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _openAnnotationHub() async {
     final l10n = context.l10n;
     final selection = await showModalBottomSheet<String>(
@@ -1156,85 +1506,122 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         }
         unawaited(_requestExitReader());
       },
-      child: ReaderShell(
-        backgroundColor: chromePalette.pageBackground,
-        chromeVisible: _chromeVisible,
-        topBar: ReaderTopBar(
-          onBackPressed: _requestExitReader,
-          title: book.title,
-          backgroundColor: chromePalette.chromeBackground,
-          foregroundColor: chromePalette.chromeForeground,
-          borderColor: chromePalette.chromeBorder,
-          actions: [
-            IconButton(
-              tooltip: l10n.search,
-              onPressed: () async {
-                final hit = await context.push<SearchHit>(
-                  RoutePaths.searchInBook(book.uid),
-                );
-                if (hit != null && hit.href != null) {
-                  final token = ++_searchHighlightRequestToken;
-                  _searchHighlightActive = false;
-                  _searchHighlightPageKey = null;
-                  _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
-                  await _selectSearchHit(hit, token);
-                }
-                await _enterImmersiveMode();
-              },
-              icon: Icon(Icons.search, color: chromePalette.chromeForeground),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ReaderShell(
+            backgroundColor: chromePalette.pageBackground,
+            chromeVisible: _chromeVisible,
+            topBar: ReaderTopBar(
+              onBackPressed: _requestExitReader,
+              title: book.title,
+              backgroundColor: chromePalette.chromeBackground,
+              foregroundColor: chromePalette.chromeForeground,
+              borderColor: chromePalette.chromeBorder,
+              actions: [
+                IconButton(
+                  tooltip: l10n.search,
+                  onPressed: () async {
+                    final hit = await context.push<SearchHit>(
+                      RoutePaths.searchInBook(book.uid),
+                    );
+                    if (hit != null && hit.href != null) {
+                      final token = ++_searchHighlightRequestToken;
+                      _searchHighlightActive = false;
+                      _searchHighlightPageKey = null;
+                      _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
+                      await _selectSearchHit(hit, token);
+                    }
+                    await _enterImmersiveMode();
+                  },
+                  icon: Icon(
+                    Icons.search,
+                    color: chromePalette.chromeForeground,
+                  ),
+                ),
+                IconButton(
+                  tooltip: l10n.switchThemeQuick,
+                  onPressed: _toggleTheme,
+                  icon: Icon(
+                    _rendererTheme == 'day'
+                        ? Icons.dark_mode
+                        : Icons.light_mode,
+                    color: chromePalette.chromeForeground,
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: l10n.switchThemeQuick,
-              onPressed: _toggleTheme,
-              icon: Icon(
-                _rendererTheme == 'day' ? Icons.dark_mode : Icons.light_mode,
-                color: chromePalette.chromeForeground,
+            immersiveOverlayPadding: EdgeInsets.fromLTRB(
+              immersiveOverlayHorizontalPadding,
+              0,
+              immersiveOverlayHorizontalPadding,
+              12,
+            ),
+            immersiveOverlay: ReaderImmersiveHud(
+              timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
+              batteryLevel: _batteryLevel,
+              progress: _sliderProgress,
+              progressText: _buildImmersiveProgressText(),
+              darkMode: chromePalette.isDark,
+            ),
+            body: _session!.buildView(),
+            floatingActionButton: FloatingActionButton.small(
+              heroTag: 'selectionTools',
+              onPressed: _openSelectionTools,
+              backgroundColor: chromePalette.fabBackground,
+              foregroundColor: chromePalette.fabForeground,
+              child: const Icon(Icons.auto_awesome),
+            ),
+            bottomBar: ReaderBottomBar(
+              progress: _sliderProgress,
+              backgroundColor: chromePalette.chromeBackground,
+              foregroundColor: chromePalette.chromeForeground,
+              borderColor: chromePalette.chromeBorder,
+              progressActiveColor: chromePalette.sliderActive,
+              progressInactiveColor: chromePalette.sliderInactive,
+              onProgressChangeStart: _handleProgressChangeStart,
+              onProgressChanged: (value) {
+                setState(() {
+                  _sliderProgress = value;
+                });
+              },
+              onProgressChangeEnd: _handleProgressChangeEnd,
+              onPrev: () => _session?.navigatePrev(),
+              onNext: () => _session?.navigateNext(),
+              onOpenToc: _openToc,
+              onOpenAnnotations: _openAnnotationHub,
+              onOpenSettings: _openReaderSettings,
+              onOpenMore: _openMoreActions,
+            ),
+          ),
+          if (_selectionMenuVisible && _selectionRect != null)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  _dismissSelectionMenu();
+                },
               ),
             ),
-          ],
-        ),
-        immersiveOverlayPadding: EdgeInsets.fromLTRB(
-          immersiveOverlayHorizontalPadding,
-          0,
-          immersiveOverlayHorizontalPadding,
-          12,
-        ),
-        immersiveOverlay: ReaderImmersiveHud(
-          timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
-          batteryLevel: _batteryLevel,
-          progress: _sliderProgress,
-          progressText: _buildImmersiveProgressText(),
-          darkMode: chromePalette.isDark,
-        ),
-        body: _session!.buildView(),
-        floatingActionButton: FloatingActionButton.small(
-          heroTag: 'selectionTools',
-          onPressed: _openSelectionTools,
-          backgroundColor: chromePalette.fabBackground,
-          foregroundColor: chromePalette.fabForeground,
-          child: const Icon(Icons.auto_awesome),
-        ),
-        bottomBar: ReaderBottomBar(
-          progress: _sliderProgress,
-          backgroundColor: chromePalette.chromeBackground,
-          foregroundColor: chromePalette.chromeForeground,
-          borderColor: chromePalette.chromeBorder,
-          progressActiveColor: chromePalette.sliderActive,
-          progressInactiveColor: chromePalette.sliderInactive,
-          onProgressChangeStart: _handleProgressChangeStart,
-          onProgressChanged: (value) {
-            setState(() {
-              _sliderProgress = value;
-            });
-          },
-          onProgressChangeEnd: _handleProgressChangeEnd,
-          onPrev: () => _session?.navigatePrev(),
-          onNext: () => _session?.navigateNext(),
-          onOpenToc: _openToc,
-          onOpenAnnotations: _openAnnotationHub,
-          onOpenSettings: _openReaderSettings,
-          onOpenMore: _openMoreActions,
-        ),
+          if (_selectionMenuVisible && _selectionRect != null)
+            Positioned(
+              left: _selectionMenuOffset(context).dx,
+              top: _selectionMenuOffset(context).dy,
+              right: 8,
+              child: GestureDetector(
+                onTap: () {},
+                child: SelectionActionMenu(
+                  selectedColor: _editingAnnotation?.color,
+                  onColor: (color) => unawaited(_changeHighlightColor(color)),
+                  onNote: () => unawaited(_handleNoteAction()),
+                  onCopy: () => unawaited(_copySelectionText()),
+                  onDelete: _editingAnnotation == null
+                      ? null
+                      : () => unawaited(_deleteHighlight()),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

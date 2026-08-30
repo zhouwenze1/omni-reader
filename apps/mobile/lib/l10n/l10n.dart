@@ -50,6 +50,12 @@ class MobileStrings {
   String get comicMode => _isZh ? '漫画模式' : 'Comic mode';
   String get annotationHubTitle => _isZh ? '标注内容' : 'Annotations';
   String get moreActionsTitle => _isZh ? '更多操作' : 'More actions';
+  String get annotationNote => _isZh ? '标注笔记' : 'Annotation note';
+  String get save => _isZh ? '保存' : 'Save';
+  String get cancel => _isZh ? '取消' : 'Cancel';
+  String get copied => _isZh ? '已复制' : 'Copied';
+  String get highlightAdded => _isZh ? '已添加高亮' : 'Highlight added';
+  String get highlightFailed => _isZh ? '高亮操作失败' : 'Highlight failed';
   String get imageLoadFailed => _isZh ? '图片加载失败' : 'Image failed to load';
 }
 
