@@ -99,6 +99,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _readerStyleSyncScheduled = false;
   ReaderSettings? _pendingReaderSettings;
   bool _styleApplyInFlight = false;
+  ReadingSessionRecorder? _readingRecorder;
   bool _selectionMenuVisible = false;
   String? _selectionText;
   ui.Rect? _selectionRect;
@@ -276,6 +277,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+
+      // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
+      _readingRecorder = ReadingSessionRecorder(
+        bookUid: widget.bookUid,
+        onSegment: (startedAt, endedAt) {
+          ref
+              .read(readingStatsRepositoryProvider)
+              .recordSession(
+                bookUid: widget.bookUid,
+                startedAt: startedAt,
+                endedAt: endedAt,
+              )
+              .ignore();
+        },
+      )..start();
 
       unawaited(_openSession(session));
       unawaited(_enterImmersiveMode());
@@ -562,9 +578,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         state == AppLifecycleState.detached) {
       unawaited(_progressWriteQueue.flush());
       unawaited(_readerSettingsWriteQueue.flush());
+      _readingRecorder?.pause();
       return;
     }
     if (state == AppLifecycleState.resumed) {
+      _readingRecorder?.resume();
       unawaited(_enterImmersiveMode());
       unawaited(_refreshDeviceStatus());
     }
@@ -1453,6 +1471,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    _readingRecorder?.dispose();
     // 与桌面端对齐:书内搜索状态(输入 + 结果)随阅读页销毁,不跨阅读会话保留。
     clearBookSearchSession(widget.bookUid);
     WidgetsBinding.instance.removeObserver(this);

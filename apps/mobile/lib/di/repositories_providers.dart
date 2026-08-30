@@ -30,3 +30,7 @@ final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
 final tocRepositoryProvider = Provider<TocRepository>((ref) {
   return ref.watch(dataModuleProvider).tocRepository;
 });
+
+final readingStatsRepositoryProvider = Provider<ReadingStatsRepository>((ref) {
+  return ref.watch(dataModuleProvider).readingStatsRepository;
+});

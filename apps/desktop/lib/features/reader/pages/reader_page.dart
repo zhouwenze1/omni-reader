@@ -66,6 +66,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _layoutSyncScheduled = false;
   ReaderSettings? _pendingReaderSettings;
   bool _styleApplyInFlight = false;
+  ReadingSessionRecorder? _readingRecorder;
   bool _selectionMenuVisible = false;
   String? _selectionText;
   ui.Rect? _selectionRect;
@@ -116,6 +117,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         state == AppLifecycleState.detached) {
       unawaited(_progressWriteQueue.flush());
       unawaited(_readerSettingsWriteQueue.flush());
+      _readingRecorder?.pause();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      _readingRecorder?.resume();
     }
   }
 
@@ -239,6 +245,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+
+      // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
+      _readingRecorder = ReadingSessionRecorder(
+        bookUid: widget.bookUid,
+        onSegment: (startedAt, endedAt) {
+          ref
+              .read(readingStatsRepositoryProvider)
+              .recordSession(
+                bookUid: widget.bookUid,
+                startedAt: startedAt,
+                endedAt: endedAt,
+              )
+              .ignore();
+        },
+      )..start();
 
       await _applyReaderStyle();
       unawaited(_openSession(session));
@@ -365,6 +386,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    _readingRecorder?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close());
     unawaited(_readerSettingsWriteQueue.close());
