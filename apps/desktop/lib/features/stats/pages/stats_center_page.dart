@@ -52,21 +52,44 @@ class _StatsCenterPageState extends ConsumerState<StatsCenterPage> {
           }
           return LayoutBuilder(
             builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 900;
               return Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1080),
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     children: [
-                      _rangeSelector(l10n),
+                      if (wide)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: _rangeSelector(l10n),
+                        )
+                      else
+                        _rangeSelector(l10n),
                       const SizedBox(height: 16),
-                      StatsOverviewGrid(items: _overviewItems(l10n, data)),
+                      StatsOverviewGrid(
+                        items: _overviewItems(l10n, data),
+                        columns: wide ? 4 : 2,
+                      ),
                       const SizedBox(height: 16),
-                      _trendCard(l10n, data),
+                      if (wide)
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(flex: 2, child: _trendCard(l10n, data)),
+                              const SizedBox(width: 16),
+                              Expanded(flex: 1, child: _hourlyCard(l10n, data)),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        _trendCard(l10n, data),
+                        const SizedBox(height: 16),
+                        _hourlyCard(l10n, data),
+                      ],
                       const SizedBox(height: 16),
-                      _heatmapCard(context, l10n, data),
-                      const SizedBox(height: 16),
-                      _hourlyCard(l10n, data),
+                      _heatmapCard(context, l10n, data, weeks: wide ? 20 : 15),
                       const SizedBox(height: 16),
                       _topBooksCard(context, l10n, data),
                     ],
@@ -266,8 +289,9 @@ class _StatsCenterPageState extends ConsumerState<StatsCenterPage> {
   Widget _heatmapCard(
     BuildContext context,
     AppLocalizations l10n,
-    StatsCenterData data,
-  ) {
+    StatsCenterData data, {
+    int weeks = 15,
+  }) {
     return _sectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +302,7 @@ class _StatsCenterPageState extends ConsumerState<StatsCenterPage> {
           ),
           const SizedBox(height: 12),
           ReadingHeatmap(
-            weeks: 20,
+            weeks: weeks,
             secondsByDay: data.heatDays,
             now: DateTime.now(),
             monthLabel: (month) => _monthLabel(context, month),

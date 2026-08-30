@@ -1483,6 +1483,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       providerContainer.invalidate(mobileLibraryControllerProvider);
       providerContainer.invalidate(meControllerProvider);
       providerContainer.invalidate(weeklyReadingSummaryProvider);
+      providerContainer.invalidate(statsCenterProvider);
     }
     unawaited(_progressWriteQueue.close());
     unawaited(_readerSettingsWriteQueue.close());

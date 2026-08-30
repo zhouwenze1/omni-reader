@@ -401,6 +401,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (providerContainer != null) {
       providerContainer.invalidate(meControllerProvider);
       providerContainer.invalidate(weeklyReadingSummaryProvider);
+      providerContainer.invalidate(statsCenterProvider);
     }
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close());
