@@ -35,6 +35,7 @@ import 'notes_page.dart';
 import 'pdf_outline_page.dart';
 import 'pdf_thumbnail_page.dart';
 import 'reader_debug_page.dart';
+import 'search_in_book_page.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.bookUid});
@@ -78,6 +79,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   SystemUiOverlayStyle _restoreOverlayStyle = SystemUiOverlayStyle.dark;
 
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
+  late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
 
   String _rendererTheme = 'day';
   double _fontSize = 18;
@@ -93,6 +95,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String? _appliedReaderStyleSignature;
   bool _layoutSyncScheduled = false;
   bool _readerStyleSyncScheduled = false;
+  ReaderSettings? _pendingReaderSettings;
+  bool _styleApplyInFlight = false;
 
   @override
   void initState() {
@@ -110,6 +114,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           await repository.saveProgress(progress);
         } catch (error) {
           debugPrint('[mobile-reader][saveProgress.error] $error');
+        }
+      },
+    );
+    _readerSettingsWriteQueue = DebouncedAsyncWriter<ReaderSettings>(
+      debounce: const Duration(milliseconds: 420),
+      writer: (settings) async {
+        try {
+          await ref
+              .read(settingsControllerProvider.notifier)
+              .updateReader(settings);
+        } catch (error) {
+          debugPrint('[mobile-reader][saveReaderSettings.error] $error');
         }
       },
     );
@@ -256,40 +272,66 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _layoutMode = ReaderLayoutMode.normalize(settings.layoutMode);
   }
 
-  ReaderStyle _currentReaderStyle() {
-    final mediaQuery = MediaQuery.maybeOf(context);
-    final viewPadding = mediaQuery?.viewPadding ?? EdgeInsets.zero;
-    return ReaderStyle(
-      theme: _rendererTheme,
-      columnCount: 1,
-      pageGap: _pageGap.round(),
-      fontSize: _fontSize.round(),
+  ReaderSettings _currentReaderSettings() {
+    final current = ref.read(settingsControllerProvider).reader;
+    return current.copyWith(
+      fontSize: _fontSize,
       lineHeight: _lineHeight,
-      paddingTop: (_paddingVertical + viewPadding.top).round(),
-      paddingRight: (_paddingHorizontal + viewPadding.right).round(),
-      paddingBottom:
-          (_paddingVertical + viewPadding.bottom + _immersiveHudReserveHeight)
-              .round(),
-      paddingLeft: (_paddingHorizontal + viewPadding.left).round(),
+      pageGap: _pageGap,
+      paddingHorizontal: _paddingHorizontal,
+      paddingVertical: _paddingVertical,
       textIndentEnabled: _textIndentEnabled,
       textIndentEm: _textIndentEm,
       textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
+      rendererTheme: _rendererTheme,
+      layoutMode: _layoutMode,
+      progressDisplay: 'bar',
     );
+  }
+
+  ReaderStyle _readerStyleFor(ReaderSettings settings) {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final viewPadding = mediaQuery?.viewPadding ?? EdgeInsets.zero;
+    return ReaderStyle(
+      theme: settings.rendererTheme,
+      columnCount: 1,
+      pageGap: settings.pageGap.round(),
+      fontSize: settings.fontSize.round(),
+      lineHeight: settings.lineHeight,
+      paddingTop: (settings.paddingVertical + viewPadding.top).round(),
+      paddingRight: (settings.paddingHorizontal + viewPadding.right).round(),
+      paddingBottom: (settings.paddingVertical +
+              viewPadding.bottom +
+              _immersiveHudReserveHeight)
+          .round(),
+      paddingLeft: (settings.paddingHorizontal + viewPadding.left).round(),
+      textIndentEnabled: settings.textIndentEnabled,
+      textIndentEm: settings.textIndentEm,
+      textIndentSkipFirstParagraph: settings.textIndentSkipFirstParagraph,
+    );
+  }
+
+  ReaderStyle _currentReaderStyle() {
+    return _readerStyleFor(_currentReaderSettings());
   }
 
   String _readerStyleSignature(ReaderStyle style) {
     return jsonEncode(style.toJson());
   }
 
-  String _resolveRendererLayoutMode() {
+  String _resolveRendererLayoutModeFor(String layoutMode) {
     final mediaQuery = MediaQuery.maybeOf(context);
     if (mediaQuery == null) {
-      return ReaderLayoutMode.normalizeRendererMode(_layoutMode);
+      return ReaderLayoutMode.normalizeRendererMode(layoutMode);
     }
     return ReaderLayoutMode.resolveAdaptive(
-      _layoutMode,
+      layoutMode,
       shortestSide: mediaQuery.size.shortestSide,
     );
+  }
+
+  String _resolveRendererLayoutMode() {
+    return _resolveRendererLayoutModeFor(_layoutMode);
   }
 
   Future<void> _syncLayoutMode({bool force = false}) async {
@@ -488,6 +530,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       unawaited(_progressWriteQueue.flush());
+      unawaited(_readerSettingsWriteQueue.flush());
       return;
     }
     if (state == AppLifecycleState.resumed) {
@@ -635,37 +678,56 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _toggleTheme() async {
-    _rendererTheme = _rendererTheme == 'day' ? 'night' : 'day';
-    await _applyReaderStyle();
+    await _commitReaderSettings(
+      _currentReaderSettings().copyWith(
+        rendererTheme: _rendererTheme == 'day' ? 'night' : 'day',
+      ),
+    );
   }
 
-  Future<void> _applyReaderStyle() async {
+  Future<void> _commitReaderSettings(ReaderSettings settings) async {
+    if (_disposed || !mounted) {
+      return;
+    }
+    setState(() {
+      _bootstrapReaderStyleFromSettings(settings);
+    });
+    _readerSettingsWriteQueue.schedule(settings);
+    _pendingReaderSettings = settings;
+    await _drainReaderStyleApplies();
+  }
+
+  Future<void> _drainReaderStyleApplies() async {
+    if (_styleApplyInFlight || _disposed) {
+      return;
+    }
+    _styleApplyInFlight = true;
+    try {
+      while (_pendingReaderSettings != null && !_disposed) {
+        final settings = _pendingReaderSettings!;
+        _pendingReaderSettings = null;
+        await _applyReaderStyleSnapshot(settings);
+      }
+    } finally {
+      _styleApplyInFlight = false;
+      if (_pendingReaderSettings != null && !_disposed) {
+        unawaited(_drainReaderStyleApplies());
+      }
+    }
+  }
+
+  Future<void> _applyReaderStyleSnapshot(ReaderSettings settings) async {
     final session = _session;
     if (session == null) {
       return;
     }
     try {
-      final nextSettings = ref.read(settingsControllerProvider).reader.copyWith(
-            fontSize: _fontSize,
-            lineHeight: _lineHeight,
-            pageGap: _pageGap,
-            paddingHorizontal: _paddingHorizontal,
-            paddingVertical: _paddingVertical,
-            textIndentEnabled: _textIndentEnabled,
-            textIndentEm: _textIndentEm,
-            textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
-            rendererTheme: _rendererTheme,
-            layoutMode: _layoutMode,
-            progressDisplay: 'bar',
-          );
-      final nextStyle = _currentReaderStyle();
-      await session.setLayoutMode(_resolveRendererLayoutMode());
-      _appliedRendererLayoutMode = _resolveRendererLayoutMode();
+      final nextLayoutMode = _resolveRendererLayoutModeFor(settings.layoutMode);
+      await session.setLayoutMode(nextLayoutMode);
+      _appliedRendererLayoutMode = nextLayoutMode;
+      final nextStyle = _readerStyleFor(settings);
       await session.setStyle(nextStyle);
       _appliedReaderStyleSignature = _readerStyleSignature(nextStyle);
-      await ref
-          .read(settingsControllerProvider.notifier)
-          .updateReader(nextSettings);
       if (mounted) {
         setState(() {});
       }
@@ -675,18 +737,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _openReaderSettings() async {
-    final current = ref.read(settingsControllerProvider).reader.copyWith(
-          fontSize: _fontSize,
-          lineHeight: _lineHeight,
-          pageGap: _pageGap,
-          paddingHorizontal: _paddingHorizontal,
-          paddingVertical: _paddingVertical,
-          textIndentEnabled: _textIndentEnabled,
-          textIndentEm: _textIndentEm,
-          textIndentSkipFirstParagraph: _textIndentSkipFirstParagraph,
-          rendererTheme: _rendererTheme,
-          layoutMode: _layoutMode,
-        );
+    final current = _currentReaderSettings();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -694,8 +745,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         return ReaderSettingsPanel(
           settings: current,
           onChanged: (settings) async {
-            _bootstrapReaderStyleFromSettings(settings);
-            await _applyReaderStyle();
+            await _commitReaderSettings(settings);
           },
         );
       },
@@ -1053,6 +1103,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    // 与桌面端对齐:书内搜索状态(输入 + 结果)随阅读页销毁,不跨阅读会话保留。
+    clearBookSearchSession(widget.bookUid);
     WidgetsBinding.instance.removeObserver(this);
     _deviceStatusTimer?.cancel();
     final providerContainer = _providerContainer;
@@ -1062,6 +1114,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       providerContainer.invalidate(meControllerProvider);
     }
     unawaited(_progressWriteQueue.close());
+    unawaited(_readerSettingsWriteQueue.close());
     final subscription = _subscription;
     if (subscription != null) {
       unawaited(subscription.cancel().catchError((_) {}));

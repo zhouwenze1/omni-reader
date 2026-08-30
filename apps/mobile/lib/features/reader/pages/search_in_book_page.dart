@@ -9,8 +9,13 @@ import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 
 /// 会话内 per-book 搜索状态(输入 + 结果);换书即清,退出 app 自然消失。
-final _searchStateCache =
-    <String, ({String query, Object? result})>{};
+final _searchStateCache = <String, ({String query, Object? result})>{};
+
+/// 清理某本书的会话内搜索状态。阅读器退出时调用,使搜索状态与桌面端一致
+/// (随阅读页销毁,而非跨阅读会话保留)。
+void clearBookSearchSession(String bookUid) {
+  _searchStateCache.remove(bookUid);
+}
 
 class SearchInBookPage extends ConsumerStatefulWidget {
   const SearchInBookPage({
