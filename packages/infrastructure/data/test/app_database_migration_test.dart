@@ -35,7 +35,7 @@ void main() {
     return int.parse(row.data['user_version'].toString());
   }
 
-  test('fresh database is created at schema v3 with all tables and columns',
+  test('fresh database is created at schema v4 with all tables and columns',
       () async {
     final db = await AppDatabase.open(
       '${tempRoot.path}${Platform.pathSeparator}fresh.sqlite',
@@ -44,12 +44,26 @@ void main() {
 
     final tables = await tableNames(db);
     expect(tables, containsAll(<String>['library_index', 'collections']));
+    expect(tables, contains('reading_sessions'));
     // sqlite 自动表
     expect(tables, isNot(contains('android_metadata')));
 
     final columns = await columnNames(db, 'library_index');
     expect(columns, contains('categoryId'));
-    expect(await userVersion(db), 3);
+    final sessionColumns = await columnNames(db, 'reading_sessions');
+    expect(
+      sessionColumns,
+      containsAll(<String>[
+        'id',
+        'bookUid',
+        'startedAt',
+        'endedAt',
+        'seconds',
+        'day',
+        'startHour',
+      ]),
+    );
+    expect(await userVersion(db), 4);
   });
 
   test('legacy v1 database upgrades through stepwise migrations to v3',
@@ -84,16 +98,69 @@ void main() {
 
     final tables = await tableNames(db);
     expect(tables, containsAll(<String>['collections', 'collection_items']));
+    expect(tables, contains('reading_sessions'));
 
     final columns = await columnNames(db, 'library_index');
     expect(columns, contains('categoryId'));
 
-    expect(await userVersion(db), 3);
+    expect(await userVersion(db), 4);
 
     // 旧数据在升级后仍然可读。
     final row = await db
         .customSelect("SELECT title FROM library_index WHERE bookUid = 'b1'")
         .getSingle();
     expect(row.data['title'], 'Old Book');
+  });
+
+  test('v3 database upgrades to v4 and keeps existing rows intact',
+      () async {
+    final dbPath = '${tempRoot.path}${Platform.pathSeparator}v3.sqlite';
+
+    // 构造 v3 形态的旧库:含 categoryId 与书桌表,但没有 reading_sessions。
+    final legacy = sqlite3.open(dbPath);
+    legacy.execute('''
+      CREATE TABLE library_index (
+        bookUid TEXT PRIMARY KEY,
+        fingerprint TEXT UNIQUE NOT NULL,
+        format TEXT NOT NULL,
+        title TEXT NOT NULL,
+        authorsJson TEXT NOT NULL,
+        categoryId TEXT NULL,
+        coverRelPath TEXT NULL,
+        importedAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        lastOpenedAt INTEGER NULL,
+        cachedProgress REAL NULL
+      );
+    ''');
+    legacy.execute('''
+      CREATE TABLE collections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+    ''');
+    legacy.execute(
+      "INSERT INTO library_index VALUES ('b3', 'fp3', 'epub', 'V3 Book', "
+      "'[]', NULL, NULL, 1, 1, NULL, 0.5);",
+    );
+    legacy.execute('PRAGMA user_version = 3;');
+    legacy.dispose();
+
+    final db = await AppDatabase.open(dbPath);
+    addTearDown(db.close);
+
+    expect(
+      await columnNames(db, 'reading_sessions'),
+      containsAll(<String>['day', 'startHour', 'seconds']),
+    );
+    expect(await userVersion(db), 4);
+
+    final row = await db
+        .customSelect("SELECT title, cachedProgress FROM library_index WHERE bookUid = 'b3'")
+        .getSingle();
+    expect(row.data['title'], 'V3 Book');
+    expect((row.data['cachedProgress'] as num).toDouble(), 0.5);
   });
 }

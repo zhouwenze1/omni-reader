@@ -17,13 +17,14 @@ class AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await _createLibraryIndexTable();
           await _createCollectionsTables();
+          await _createReadingSessionsTable();
           await _createAllIndexes();
         },
         onUpgrade: (Migrator m, int from, int to) async {
@@ -32,6 +33,9 @@ class AppDatabase extends GeneratedDatabase {
           }
           if (from < 3) {
             await _upgradeToV3();
+          }
+          if (from < 4) {
+            await _upgradeToV4();
           }
         },
         beforeOpen: (details) async {
@@ -49,7 +53,7 @@ class AppDatabase extends GeneratedDatabase {
     return AppDatabase._(NativeDatabase(file));
   }
 
-  // ---- schema v3 (current) -------------------------------------------------
+  // ---- schema v4 (current) --------------------------------------------------
 
   Future<void> _createLibraryIndexTable() async {
     await customStatement('''
@@ -135,6 +139,31 @@ class AppDatabase extends GeneratedDatabase {
     }
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_library_index_category ON library_index(categoryId);',
+    );
+  }
+
+  /// v4: reading_sessions(阅读时长会话,统计中心数据源)。
+  Future<void> _upgradeToV4() async {
+    await _createReadingSessionsTable();
+  }
+
+  Future<void> _createReadingSessionsTable() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS reading_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bookUid TEXT NOT NULL,
+        startedAt INTEGER NOT NULL,
+        endedAt INTEGER NOT NULL,
+        seconds INTEGER NOT NULL,
+        day TEXT NOT NULL,
+        startHour INTEGER NOT NULL
+      );
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_reading_sessions_day ON reading_sessions(day);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_reading_sessions_book ON reading_sessions(bookUid);',
     );
   }
 

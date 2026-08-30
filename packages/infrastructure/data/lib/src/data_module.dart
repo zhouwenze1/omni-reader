@@ -5,11 +5,13 @@ import 'package:path/path.dart' as p;
 import 'db/app_database.dart';
 import 'db/collection_dao.dart';
 import 'db/library_index_dao.dart';
+import 'db/reading_stats_dao.dart';
 import 'repositories/annotation_repository_impl.dart';
 import 'repositories/book_repository_impl.dart';
 import 'repositories/collection_repository_impl.dart';
 import 'repositories/import_repository_impl.dart';
 import 'repositories/progress_repository_impl.dart';
+import 'repositories/reading_stats_repository_impl.dart';
 import 'repositories/settings_repository_impl.dart';
 import 'repositories/toc_repository_impl.dart';
 import 'services/file_service_impl.dart';
@@ -31,6 +33,7 @@ class DataModule {
     required this.collectionRepository,
     required this.settingsRepository,
     required this.importRepository,
+    required this.readingStatsRepository,
   });
 
   final StoragePaths storagePaths;
@@ -45,6 +48,7 @@ class DataModule {
   final CollectionRepository collectionRepository;
   final SettingsRepository settingsRepository;
   final ImportRepository importRepository;
+  final ReadingStatsRepository readingStatsRepository;
 
   static bool _hiveInited = false;
 
@@ -62,6 +66,7 @@ class DataModule {
 
     final libraryIndexDao = LibraryIndexDao(database);
     final collectionDao = CollectionDao(database);
+    final readingStatsDao = ReadingStatsDao(database);
 
     if (!_hiveInited) {
       Hive.init(storagePaths.baseDir.path);
@@ -88,6 +93,7 @@ class DataModule {
       fileService: fileService,
     );
     final collectionRepository = CollectionRepositoryImpl(collectionDao);
+    final readingStatsRepository = ReadingStatsRepositoryImpl(readingStatsDao);
     final settingsRepository = SettingsRepositoryImpl(settingsBox);
     final coverExtractionService = CoverExtractionService(
       storagePaths: storagePaths,
@@ -118,6 +124,7 @@ class DataModule {
       collectionRepository: collectionRepository,
       settingsRepository: settingsRepository,
       importRepository: importRepository,
+      readingStatsRepository: readingStatsRepository,
     );
   }
 }
