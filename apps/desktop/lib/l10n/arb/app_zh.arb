@@ -251,5 +251,94 @@
         "type": "int"
       }
     }
-  }
+  },
+  "statsRangeWeek": "周",
+  "statsRangeMonth": "月",
+  "statsRangeYear": "年",
+  "statsTotalTime": "累计阅读",
+  "statsCurrentStreak": "连续阅读",
+  "statsFinishedBooksTile": "已完成",
+  "statsNotesHighlightsTile": "笔记与高亮",
+  "statsDaysShort": "{days} 天",
+  "@statsDaysShort": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsBooksCountShort": "{count} 本",
+  "@statsBooksCountShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsLongestStreakSuffix": "最长 {days} 天",
+  "@statsLongestStreakSuffix": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsTotalBooksSuffix": "总藏书 {count} 本",
+  "@statsTotalBooksSuffix": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsDaysWithReadingSuffix": "共 {days} 天有阅读",
+  "@statsDaysWithReadingSuffix": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsHighlightsNotesBookmarks": "高亮 {highlights} · 笔记 {notes} · 书签 {bookmarks}",
+  "@statsHighlightsNotesBookmarks": {
+    "placeholders": {
+      "highlights": {
+        "type": "int"
+      },
+      "notes": {
+        "type": "int"
+      },
+      "bookmarks": {
+        "type": "int"
+      }
+    }
+  },
+  "statsTrendSection": "阅读时长",
+  "statsDailyAvg": "日均 {minutes} 分钟",
+  "@statsDailyAvg": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "statsHeatmapSection": "阅读热力图",
+  "statsHourlySection": "时段分布",
+  "statsPeakHour": "最常在 {hour} 点",
+  "@statsPeakHour": {
+    "placeholders": {
+      "hour": {
+        "type": "int"
+      }
+    }
+  },
+  "statsPeakHourNone": "暂无",
+  "statsBooksSection": "书籍排行",
+  "statsLess": "少",
+  "statsMore": "多",
+  "statsDeletedBook": "已删除的书籍",
+  "statsHeatmapWeekdayM": "一",
+  "statsHeatmapWeekdayW": "三",
+  "statsHeatmapWeekdayF": "五",
+  "statsWeekdayList": "一,二,三,四,五,六,日"
 }

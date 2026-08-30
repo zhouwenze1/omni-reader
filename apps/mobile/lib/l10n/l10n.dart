@@ -77,6 +77,55 @@ class MobileStrings {
   String statsHoursMinutes(int hours, int minutes) =>
       _isZh ? '$hours小时$minutes分钟' : '${hours}h ${minutes}m';
   String statsMinutes(int minutes) => _isZh ? '$minutes 分钟' : '$minutes min';
+
+  String get statsRangeWeek => _isZh ? '周' : 'W';
+  String get statsRangeMonth => _isZh ? '月' : 'M';
+  String get statsRangeYear => _isZh ? '年' : 'Y';
+  String get statsTotalTime => _isZh ? '累计阅读' : 'Total reading';
+  String get statsCurrentStreak => _isZh ? '连续阅读' : 'Streak';
+  String get statsFinishedBooksTile => _isZh ? '已完成' : 'Finished';
+  String get statsNotesHighlightsTile =>
+      _isZh ? '笔记与高亮' : 'Notes & highlights';
+  String statsDaysShort(int days) => _isZh ? '$days 天' : '$days d';
+  String statsBooksCountShort(int count) => _isZh ? '$count 本' : '$count';
+  String statsLongestStreakSuffix(int days) =>
+      _isZh ? '最长 $days 天' : 'Longest $days d';
+  String statsTotalBooksSuffix(int count) =>
+      _isZh ? '总藏书 $count 本' : '$count books total';
+  String statsDaysWithReadingSuffix(int days) =>
+      _isZh ? '共 $days 天有阅读' : '$days active days';
+  String statsHighlightsNotesBookmarks(
+    int highlights,
+    int notes,
+    int bookmarks,
+  ) => _isZh
+      ? '高亮 $highlights · 笔记 $notes · 书签 $bookmarks'
+      : 'H $highlights · N $notes · B $bookmarks';
+  String get statsTrendSection => _isZh ? '阅读时长' : 'Reading time';
+  String statsDailyAvg(int minutes) =>
+      _isZh ? '日均 $minutes 分钟' : '$minutes min/day';
+  String get statsHeatmapSection => _isZh ? '阅读热力图' : 'Activity';
+  String get statsHourlySection => _isZh ? '时段分布' : 'By hour';
+  String statsPeakHour(int hour) => _isZh ? '最常在 $hour 点' : 'Peak at ${hour}h';
+  String get statsPeakHourNone => _isZh ? '暂无' : 'None yet';
+  String get statsBooksSection => _isZh ? '书籍排行' : 'Top books';
+  String get statsLess => _isZh ? '少' : 'Less';
+  String get statsMore => _isZh ? '多' : 'More';
+  String get statsDeletedBook => _isZh ? '已删除的书籍' : 'Deleted book';
+  String statsDateLabel(DateTime day) =>
+      _isZh ? '${day.month}月${day.day}日' : '${day.month}/${day.day}';
+  List<String> get statsHeatmapWeekdayLabels => _isZh
+      ? const ['一', '', '三', '', '五', '', '']
+      : const ['M', '', 'W', '', 'F', '', ''];
+  List<String> get statsTrendWeekdayLabels => _isZh
+      ? const ['一', '二', '三', '四', '五', '六', '日']
+      : const ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  String statsMonthLabel(int month) => _isZh ? '$month月' : _enMonths[month - 1];
+
+  static const List<String> _enMonths = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 }
 
 Locale? mobileLocaleFromPreference(String localeCode) {

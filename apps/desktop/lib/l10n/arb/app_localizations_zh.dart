@@ -594,4 +594,102 @@ class AppLocalizationsZh extends AppLocalizations {
   String statsMinutes(int minutes) {
     return '$minutes 分钟';
   }
+
+  @override
+  String get statsRangeWeek => '周';
+
+  @override
+  String get statsRangeMonth => '月';
+
+  @override
+  String get statsRangeYear => '年';
+
+  @override
+  String get statsTotalTime => '累计阅读';
+
+  @override
+  String get statsCurrentStreak => '连续阅读';
+
+  @override
+  String get statsFinishedBooksTile => '已完成';
+
+  @override
+  String get statsNotesHighlightsTile => '笔记与高亮';
+
+  @override
+  String statsDaysShort(int days) {
+    return '$days 天';
+  }
+
+  @override
+  String statsBooksCountShort(int count) {
+    return '$count 本';
+  }
+
+  @override
+  String statsLongestStreakSuffix(int days) {
+    return '最长 $days 天';
+  }
+
+  @override
+  String statsTotalBooksSuffix(int count) {
+    return '总藏书 $count 本';
+  }
+
+  @override
+  String statsDaysWithReadingSuffix(int days) {
+    return '共 $days 天有阅读';
+  }
+
+  @override
+  String statsHighlightsNotesBookmarks(
+      int highlights, int notes, int bookmarks) {
+    return '高亮 $highlights · 笔记 $notes · 书签 $bookmarks';
+  }
+
+  @override
+  String get statsTrendSection => '阅读时长';
+
+  @override
+  String statsDailyAvg(int minutes) {
+    return '日均 $minutes 分钟';
+  }
+
+  @override
+  String get statsHeatmapSection => '阅读热力图';
+
+  @override
+  String get statsHourlySection => '时段分布';
+
+  @override
+  String statsPeakHour(int hour) {
+    return '最常在 $hour 点';
+  }
+
+  @override
+  String get statsPeakHourNone => '暂无';
+
+  @override
+  String get statsBooksSection => '书籍排行';
+
+  @override
+  String get statsLess => '少';
+
+  @override
+  String get statsMore => '多';
+
+  @override
+  String get statsDeletedBook => '已删除的书籍';
+
+  @override
+  String get statsHeatmapWeekdayM => '一';
+
+  @override
+  String get statsHeatmapWeekdayW => '三';
+
+  @override
+  String get statsHeatmapWeekdayF => '五';
+
+  @override
+  String get statsWeekdayList => '一,二,三,四,五,六,日';
 }

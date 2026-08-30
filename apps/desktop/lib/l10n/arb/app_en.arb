@@ -251,5 +251,94 @@
         "type": "int"
       }
     }
-  }
+  },
+  "statsRangeWeek": "W",
+  "statsRangeMonth": "M",
+  "statsRangeYear": "Y",
+  "statsTotalTime": "Total reading",
+  "statsCurrentStreak": "Streak",
+  "statsFinishedBooksTile": "Finished",
+  "statsNotesHighlightsTile": "Notes & highlights",
+  "statsDaysShort": "{days} d",
+  "@statsDaysShort": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsBooksCountShort": "{count}",
+  "@statsBooksCountShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsLongestStreakSuffix": "Longest {days} d",
+  "@statsLongestStreakSuffix": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsTotalBooksSuffix": "{count} books total",
+  "@statsTotalBooksSuffix": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statsDaysWithReadingSuffix": "{days} active days",
+  "@statsDaysWithReadingSuffix": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "statsHighlightsNotesBookmarks": "H {highlights} · N {notes} · B {bookmarks}",
+  "@statsHighlightsNotesBookmarks": {
+    "placeholders": {
+      "highlights": {
+        "type": "int"
+      },
+      "notes": {
+        "type": "int"
+      },
+      "bookmarks": {
+        "type": "int"
+      }
+    }
+  },
+  "statsTrendSection": "Reading time",
+  "statsDailyAvg": "{minutes} min/day",
+  "@statsDailyAvg": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "statsHeatmapSection": "Activity",
+  "statsHourlySection": "By hour",
+  "statsPeakHour": "Peak at {hour}h",
+  "@statsPeakHour": {
+    "placeholders": {
+      "hour": {
+        "type": "int"
+      }
+    }
+  },
+  "statsPeakHourNone": "None yet",
+  "statsBooksSection": "Top books",
+  "statsLess": "Less",
+  "statsMore": "More",
+  "statsDeletedBook": "Deleted book",
+  "statsHeatmapWeekdayM": "M",
+  "statsHeatmapWeekdayW": "W",
+  "statsHeatmapWeekdayF": "F",
+  "statsWeekdayList": "M,T,W,T,F,S,S"
 }

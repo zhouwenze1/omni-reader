@@ -597,4 +597,102 @@ class AppLocalizationsEn extends AppLocalizations {
   String statsMinutes(int minutes) {
     return '$minutes min';
   }
+
+  @override
+  String get statsRangeWeek => 'W';
+
+  @override
+  String get statsRangeMonth => 'M';
+
+  @override
+  String get statsRangeYear => 'Y';
+
+  @override
+  String get statsTotalTime => 'Total reading';
+
+  @override
+  String get statsCurrentStreak => 'Streak';
+
+  @override
+  String get statsFinishedBooksTile => 'Finished';
+
+  @override
+  String get statsNotesHighlightsTile => 'Notes & highlights';
+
+  @override
+  String statsDaysShort(int days) {
+    return '$days d';
+  }
+
+  @override
+  String statsBooksCountShort(int count) {
+    return '$count';
+  }
+
+  @override
+  String statsLongestStreakSuffix(int days) {
+    return 'Longest $days d';
+  }
+
+  @override
+  String statsTotalBooksSuffix(int count) {
+    return '$count books total';
+  }
+
+  @override
+  String statsDaysWithReadingSuffix(int days) {
+    return '$days active days';
+  }
+
+  @override
+  String statsHighlightsNotesBookmarks(
+      int highlights, int notes, int bookmarks) {
+    return 'H $highlights · N $notes · B $bookmarks';
+  }
+
+  @override
+  String get statsTrendSection => 'Reading time';
+
+  @override
+  String statsDailyAvg(int minutes) {
+    return '$minutes min/day';
+  }
+
+  @override
+  String get statsHeatmapSection => 'Activity';
+
+  @override
+  String get statsHourlySection => 'By hour';
+
+  @override
+  String statsPeakHour(int hour) {
+    return 'Peak at ${hour}h';
+  }
+
+  @override
+  String get statsPeakHourNone => 'None yet';
+
+  @override
+  String get statsBooksSection => 'Top books';
+
+  @override
+  String get statsLess => 'Less';
+
+  @override
+  String get statsMore => 'More';
+
+  @override
+  String get statsDeletedBook => 'Deleted book';
+
+  @override
+  String get statsHeatmapWeekdayM => 'M';
+
+  @override
+  String get statsHeatmapWeekdayW => 'W';
+
+  @override
+  String get statsHeatmapWeekdayF => 'F';
+
+  @override
+  String get statsWeekdayList => 'M,T,W,T,F,S,S';
 }

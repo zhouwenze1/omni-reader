@@ -1231,6 +1231,169 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{minutes} min'**
   String statsMinutes(int minutes);
+
+  /// No description provided for @statsRangeWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'W'**
+  String get statsRangeWeek;
+
+  /// No description provided for @statsRangeMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'M'**
+  String get statsRangeMonth;
+
+  /// No description provided for @statsRangeYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Y'**
+  String get statsRangeYear;
+
+  /// No description provided for @statsTotalTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Total reading'**
+  String get statsTotalTime;
+
+  /// No description provided for @statsCurrentStreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak'**
+  String get statsCurrentStreak;
+
+  /// No description provided for @statsFinishedBooksTile.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get statsFinishedBooksTile;
+
+  /// No description provided for @statsNotesHighlightsTile.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes & highlights'**
+  String get statsNotesHighlightsTile;
+
+  /// No description provided for @statsDaysShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} d'**
+  String statsDaysShort(int days);
+
+  /// No description provided for @statsBooksCountShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}'**
+  String statsBooksCountShort(int count);
+
+  /// No description provided for @statsLongestStreakSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'Longest {days} d'**
+  String statsLongestStreakSuffix(int days);
+
+  /// No description provided for @statsTotalBooksSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} books total'**
+  String statsTotalBooksSuffix(int count);
+
+  /// No description provided for @statsDaysWithReadingSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} active days'**
+  String statsDaysWithReadingSuffix(int days);
+
+  /// No description provided for @statsHighlightsNotesBookmarks.
+  ///
+  /// In en, this message translates to:
+  /// **'H {highlights} · N {notes} · B {bookmarks}'**
+  String statsHighlightsNotesBookmarks(
+      int highlights, int notes, int bookmarks);
+
+  /// No description provided for @statsTrendSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading time'**
+  String get statsTrendSection;
+
+  /// No description provided for @statsDailyAvg.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min/day'**
+  String statsDailyAvg(int minutes);
+
+  /// No description provided for @statsHeatmapSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get statsHeatmapSection;
+
+  /// No description provided for @statsHourlySection.
+  ///
+  /// In en, this message translates to:
+  /// **'By hour'**
+  String get statsHourlySection;
+
+  /// No description provided for @statsPeakHour.
+  ///
+  /// In en, this message translates to:
+  /// **'Peak at {hour}h'**
+  String statsPeakHour(int hour);
+
+  /// No description provided for @statsPeakHourNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None yet'**
+  String get statsPeakHourNone;
+
+  /// No description provided for @statsBooksSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Top books'**
+  String get statsBooksSection;
+
+  /// No description provided for @statsLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Less'**
+  String get statsLess;
+
+  /// No description provided for @statsMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get statsMore;
+
+  /// No description provided for @statsDeletedBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted book'**
+  String get statsDeletedBook;
+
+  /// No description provided for @statsHeatmapWeekdayM.
+  ///
+  /// In en, this message translates to:
+  /// **'M'**
+  String get statsHeatmapWeekdayM;
+
+  /// No description provided for @statsHeatmapWeekdayW.
+  ///
+  /// In en, this message translates to:
+  /// **'W'**
+  String get statsHeatmapWeekdayW;
+
+  /// No description provided for @statsHeatmapWeekdayF.
+  ///
+  /// In en, this message translates to:
+  /// **'F'**
+  String get statsHeatmapWeekdayF;
+
+  /// No description provided for @statsWeekdayList.
+  ///
+  /// In en, this message translates to:
+  /// **'M,T,W,T,F,S,S'**
+  String get statsWeekdayList;
 }
 
 class _AppLocalizationsDelegate
