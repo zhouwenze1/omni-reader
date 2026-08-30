@@ -14,6 +14,7 @@ import '../features/settings/pages/app_settings_page.dart';
 import '../features/settings/pages/cloud_settings_page.dart';
 import '../features/settings/pages/reader_global_settings_page.dart';
 import '../features/settings/pages/settings_home_page.dart';
+import '../features/stats/pages/stats_center_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return buildReaderAppRouter(
@@ -32,6 +33,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       readerSettingsBuilder: (context) => const ReaderGlobalSettingsPage(),
       cloudSettingsBuilder: (context) => const CloudSettingsPage(),
       aboutBuilder: (context) => const AboutPage(),
+      statsBuilder: (context) => const StatsCenterPage(),
     ),
   );
 });

@@ -15,6 +15,7 @@ class RoutePaths {
   static const String readerSettings = ReaderRoutePaths.readerSettings;
   static const String cloudSettings = ReaderRoutePaths.cloudSettings;
   static const String about = ReaderRoutePaths.about;
+  static const String stats = ReaderRoutePaths.stats;
 
   static String reader(String uid) => ReaderRoutePaths.reader(uid);
   static String toc(String uid) => ReaderRoutePaths.toc(uid);

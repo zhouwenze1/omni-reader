@@ -57,6 +57,26 @@ class MobileStrings {
   String get highlightAdded => _isZh ? '已添加高亮' : 'Highlight added';
   String get highlightFailed => _isZh ? '高亮操作失败' : 'Highlight failed';
   String get imageLoadFailed => _isZh ? '图片加载失败' : 'Image failed to load';
+
+  // —— 阅读统计(周报卡 v2 + 统计中心)——
+  String get weeklySectionTitle => _isZh ? '本周周报' : 'Weekly report';
+  String get statsCenterTitle => _isZh ? '统计中心' : 'Statistics';
+  String get statsEmptyTitle => _isZh ? '阅读之旅尚未开始' : 'Your journey starts here';
+  String get statsEmptyMessage => _isZh
+      ? '打开一本书开始阅读，这里会出现你的足迹'
+      : 'Open a book and your footprint appears here';
+  String get statsCoreDataTitle => _isZh ? '核心数据' : 'Core';
+  String get statsSecondaryDataTitle => _isZh ? '次要数据' : 'More';
+  String get statsStreakPrefix => _isZh ? '坚持' : 'Streak';
+  String get statsStreakSuffix => _isZh ? '天连续阅读' : 'days in a row';
+  String get statsTotalTimePrefix => _isZh ? '共阅读' : 'Read';
+  String get statsFinishedBooksLabel => _isZh ? '已完成书籍数' : 'Books finished';
+  String get statsNotesHighlightsLabel =>
+      _isZh ? '笔记 / 高亮数' : 'Notes / highlights';
+  String get statsCenterEntry => _isZh ? '统计中心' : 'Statistics center';
+  String statsHoursMinutes(int hours, int minutes) =>
+      _isZh ? '$hours小时$minutes分钟' : '${hours}h ${minutes}m';
+  String statsMinutes(int minutes) => _isZh ? '$minutes 分钟' : '$minutes min';
 }
 
 Locale? mobileLocaleFromPreference(String localeCode) {

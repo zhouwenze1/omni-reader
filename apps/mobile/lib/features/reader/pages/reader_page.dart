@@ -15,6 +15,7 @@ import 'package:shared_ui/shared_ui.dart';
 import 'package:services_search/services_search.dart';
 import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
+import '../../../di/services_providers.dart';
 import '../../../l10n/l10n.dart';
 import '../../library/controller/library_controller.dart';
 import '../../me/controller/me_controller.dart';
@@ -1481,6 +1482,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       providerContainer.invalidate(libraryIndexProvider);
       providerContainer.invalidate(mobileLibraryControllerProvider);
       providerContainer.invalidate(meControllerProvider);
+      providerContainer.invalidate(weeklyReadingSummaryProvider);
     }
     unawaited(_progressWriteQueue.close());
     unawaited(_readerSettingsWriteQueue.close());

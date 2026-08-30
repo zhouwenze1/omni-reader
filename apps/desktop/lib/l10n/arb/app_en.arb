@@ -221,5 +221,35 @@
     "placeholders": {
       "bookUid": {}
     }
+  },
+  "weeklySectionTitle": "Weekly report",
+  "statsCenterTitle": "Statistics",
+  "statsEmptyTitle": "Your journey starts here",
+  "statsEmptyMessage": "Open a book and your footprint appears here",
+  "statsCoreDataTitle": "Core",
+  "statsSecondaryDataTitle": "More",
+  "statsStreakPrefix": "Streak",
+  "statsStreakSuffix": "days in a row",
+  "statsTotalTimePrefix": "Read",
+  "statsFinishedBooksLabel": "Books finished",
+  "statsNotesHighlightsLabel": "Notes / highlights",
+  "statsHoursMinutes": "{hours}h {minutes}m",
+  "@statsHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "statsMinutes": "{minutes} min",
+  "@statsMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   }
 }

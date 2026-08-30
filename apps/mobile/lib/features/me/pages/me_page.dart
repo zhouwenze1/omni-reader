@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:shared_ui/shared_ui.dart';
+import '../../../di/services_providers.dart';
+import '../../../l10n/l10n.dart';
 import '../../../utils/formatters.dart';
 import '../../import_center/pages/import_center_page.dart';
 import '../controller/me_controller.dart';
-import 'stats_detail_page.dart';
 import '../widgets/settings_entry_tile.dart';
-import '../widgets/weekly_report_card.dart';
 
 class MePage extends ConsumerWidget {
   const MePage({super.key});
@@ -17,6 +17,7 @@ class MePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(meControllerProvider);
     final controller = ref.read(meControllerProvider.notifier);
+    final weekly = ref.watch(weeklyReadingSummaryProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
@@ -24,7 +25,7 @@ class MePage extends ConsumerWidget {
         MePageStatus.loading =>
           const Center(child: CircularProgressIndicator()),
         MePageStatus.error => _buildError(state, controller),
-        MePageStatus.ready => _buildContent(context, state),
+        MePageStatus.ready => _buildContent(context, state, weekly),
       },
     );
   }
@@ -48,11 +49,42 @@ class MePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, MeState state) {
+  Widget _buildContent(
+    BuildContext context,
+    MeState state,
+    WeeklyReadingSummary? weekly,
+  ) {
+    final l10n = context.l10n;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        WeeklyReportCard(state: state),
+        Text(
+          l10n.weeklySectionTitle,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        WeeklyReportCardV2(
+          streakDays: weekly?.streakDays ?? 0,
+          weekSeconds: weekly?.weekSeconds ?? 0,
+          completedBooks: state.completedBooks,
+          notesHighlightsCount: state.highlightsCount + state.notesCount,
+          labels: WeeklyReportLabels(
+            coreDataTitle: l10n.statsCoreDataTitle,
+            streakPrefix: l10n.statsStreakPrefix,
+            streakSuffix: l10n.statsStreakSuffix,
+            totalTimePrefix: l10n.statsTotalTimePrefix,
+            secondaryDataTitle: l10n.statsSecondaryDataTitle,
+            finishedBooksLabel: l10n.statsFinishedBooksLabel,
+            notesHighlightsLabel: l10n.statsNotesHighlightsLabel,
+          ),
+          formatDuration: (seconds) => formatReadingDuration(
+            seconds,
+            (hours, minutes) => hours > 0
+                ? l10n.statsHoursMinutes(hours, minutes)
+                : l10n.statsMinutes(minutes),
+          ),
+          onTap: () => context.push(RoutePaths.stats),
+        ),
         const SizedBox(height: 12),
         Text(
           '快捷入口',
@@ -60,23 +92,17 @@ class MePage extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         SettingsEntryTile(
+          icon: Icons.insights,
+          title: l10n.statsCenterEntry,
+          onTap: () => context.push(RoutePaths.stats),
+        ),
+        SettingsEntryTile(
           icon: Icons.file_upload_outlined,
           title: '导入中心',
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const ImportCenterPage(),
-              ),
-            );
-          },
-        ),
-        SettingsEntryTile(
-          icon: Icons.insights_outlined,
-          title: '统计详情',
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => StatsDetailPage(state: state),
               ),
             );
           },

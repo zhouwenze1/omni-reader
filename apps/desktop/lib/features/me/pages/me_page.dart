@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
+import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../controller/me_controller.dart';
 import '../widgets/settings_entry_tile.dart';
-import '../widgets/weekly_report_card.dart';
 
 class MePage extends ConsumerWidget {
   const MePage({super.key});
@@ -17,6 +16,7 @@ class MePage extends ConsumerWidget {
     final state = ref.watch(meControllerProvider);
     final controller = ref.read(meControllerProvider.notifier);
     final l10n = context.l10n;
+    final weekly = ref.watch(weeklyReadingSummaryProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.tabMe)),
@@ -24,7 +24,7 @@ class MePage extends ConsumerWidget {
         MePageStatus.loading =>
           const Center(child: CircularProgressIndicator()),
         MePageStatus.error => _buildError(context, state, controller),
-        MePageStatus.ready => _buildContent(context, state, controller),
+        MePageStatus.ready => _buildContent(context, state, controller, weekly),
       },
     );
   }
@@ -59,17 +59,38 @@ class MePage extends ConsumerWidget {
     BuildContext context,
     MeState state,
     MeController controller,
+    WeeklyReadingSummary? weekly,
   ) {
     final l10n = context.l10n;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        WeeklyReportCard(
-          state: state,
-          formatDateTime: (value) {
-            final localeTag = Localizations.localeOf(context).toLanguageTag();
-            return DateFormat('yyyy-MM-dd HH:mm', localeTag).format(value);
-          },
+        Text(
+          l10n.weeklySectionTitle,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        WeeklyReportCardV2(
+          streakDays: weekly?.streakDays ?? 0,
+          weekSeconds: weekly?.weekSeconds ?? 0,
+          completedBooks: state.completedBooks,
+          notesHighlightsCount: state.highlightsCount + state.notesCount,
+          labels: WeeklyReportLabels(
+            coreDataTitle: l10n.statsCoreDataTitle,
+            streakPrefix: l10n.statsStreakPrefix,
+            streakSuffix: l10n.statsStreakSuffix,
+            totalTimePrefix: l10n.statsTotalTimePrefix,
+            secondaryDataTitle: l10n.statsSecondaryDataTitle,
+            finishedBooksLabel: l10n.statsFinishedBooksLabel,
+            notesHighlightsLabel: l10n.statsNotesHighlightsLabel,
+          ),
+          formatDuration: (seconds) => formatReadingDuration(
+            seconds,
+            (hours, minutes) => hours > 0
+                ? l10n.statsHoursMinutes(hours, minutes)
+                : l10n.statsMinutes(minutes),
+          ),
+          onTap: () => context.push(RoutePaths.stats),
         ),
         const SizedBox(height: 12),
         Text(
@@ -77,6 +98,11 @@ class MePage extends ConsumerWidget {
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 8),
+        SettingsEntryTile(
+          icon: Icons.insights,
+          title: l10n.statsCenterTitle,
+          onTap: () => context.push(RoutePaths.stats),
+        ),
         SettingsEntryTile(
           icon: Icons.settings_outlined,
           title: l10n.appSettings,

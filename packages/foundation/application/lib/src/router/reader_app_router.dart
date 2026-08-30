@@ -15,6 +15,7 @@ class ReaderRoutePaths {
   static const String readerSettings = '/settings/reader';
   static const String cloudSettings = '/settings/cloud';
   static const String about = '/settings/about';
+  static const String stats = '/stats';
 
   static String reader(String uid) => '/reader/$uid';
   static String toc(String uid) => '/reader/$uid/toc';
@@ -42,6 +43,7 @@ class ReaderAppRouterPages {
     required this.readerSettingsBuilder,
     required this.cloudSettingsBuilder,
     required this.aboutBuilder,
+    required this.statsBuilder,
   });
 
   final NavigationShellBuilder homeShellBuilder;
@@ -56,6 +58,7 @@ class ReaderAppRouterPages {
   final PageBuilder readerSettingsBuilder;
   final PageBuilder cloudSettingsBuilder;
   final PageBuilder aboutBuilder;
+  final PageBuilder statsBuilder;
 }
 
 GoRouter buildReaderAppRouter({
@@ -133,6 +136,10 @@ GoRouter buildReaderAppRouter({
       GoRoute(
         path: ReaderRoutePaths.about,
         builder: (context, state) => pages.aboutBuilder(context),
+      ),
+      GoRoute(
+        path: ReaderRoutePaths.stats,
+        builder: (context, state) => pages.statsBuilder(context),
       ),
     ],
   );

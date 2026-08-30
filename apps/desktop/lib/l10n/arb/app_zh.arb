@@ -221,5 +221,35 @@
     "placeholders": {
       "bookUid": {}
     }
+  },
+  "weeklySectionTitle": "本周周报",
+  "statsCenterTitle": "统计中心",
+  "statsEmptyTitle": "阅读之旅尚未开始",
+  "statsEmptyMessage": "打开一本书开始阅读，这里会出现你的足迹",
+  "statsCoreDataTitle": "核心数据",
+  "statsSecondaryDataTitle": "次要数据",
+  "statsStreakPrefix": "坚持",
+  "statsStreakSuffix": "天连续阅读",
+  "statsTotalTimePrefix": "共阅读",
+  "statsFinishedBooksLabel": "已完成书籍数",
+  "statsNotesHighlightsLabel": "笔记 / 高亮数",
+  "statsHoursMinutes": "{hours}小时{minutes}分钟",
+  "@statsHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "statsMinutes": "{minutes} 分钟",
+  "@statsMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   }
 }

@@ -554,4 +554,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String searchInBookComingSoon(Object bookUid) {
     return 'Search page is under development\\nbookUid=$bookUid';
   }
+
+  @override
+  String get weeklySectionTitle => 'Weekly report';
+
+  @override
+  String get statsCenterTitle => 'Statistics';
+
+  @override
+  String get statsEmptyTitle => 'Your journey starts here';
+
+  @override
+  String get statsEmptyMessage => 'Open a book and your footprint appears here';
+
+  @override
+  String get statsCoreDataTitle => 'Core';
+
+  @override
+  String get statsSecondaryDataTitle => 'More';
+
+  @override
+  String get statsStreakPrefix => 'Streak';
+
+  @override
+  String get statsStreakSuffix => 'days in a row';
+
+  @override
+  String get statsTotalTimePrefix => 'Read';
+
+  @override
+  String get statsFinishedBooksLabel => 'Books finished';
+
+  @override
+  String get statsNotesHighlightsLabel => 'Notes / highlights';
+
+  @override
+  String statsHoursMinutes(int hours, int minutes) {
+    return '${hours}h ${minutes}m';
+  }
+
+  @override
+  String statsMinutes(int minutes) {
+    return '$minutes min';
+  }
 }

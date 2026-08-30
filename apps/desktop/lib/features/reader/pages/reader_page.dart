@@ -11,7 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:shared_ui/shared_ui.dart';
 import '../../../di/repositories_providers.dart';
+import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/desktop_reader_settings_dialog.dart';
 import 'package:services_search/services_search.dart';
@@ -32,6 +34,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
   ProgressRepository? _progressRepository;
+  ProviderContainer? _providerContainer;
   AnnotationsStore? _annotationsStore;
   Book? _book;
   ReadingProgress? _progress;
@@ -107,6 +110,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       },
     );
     _init();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _providerContainer ??= ProviderScope.containerOf(context, listen: false);
   }
 
   @override
@@ -387,6 +396,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void dispose() {
     _disposed = true;
     _readingRecorder?.dispose();
+    // 与移动端对齐:退出阅读后让“我的”页/统计相关 provider 立即重算。
+    final providerContainer = _providerContainer;
+    if (providerContainer != null) {
+      providerContainer.invalidate(meControllerProvider);
+      providerContainer.invalidate(weeklyReadingSummaryProvider);
+    }
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close());
     unawaited(_readerSettingsWriteQueue.close());

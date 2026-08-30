@@ -1153,6 +1153,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search page is under development\\nbookUid={bookUid}'**
   String searchInBookComingSoon(Object bookUid);
+
+  /// No description provided for @weeklySectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly report'**
+  String get weeklySectionTitle;
+
+  /// No description provided for @statsCenterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Statistics'**
+  String get statsCenterTitle;
+
+  /// No description provided for @statsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your journey starts here'**
+  String get statsEmptyTitle;
+
+  /// No description provided for @statsEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a book and your footprint appears here'**
+  String get statsEmptyMessage;
+
+  /// No description provided for @statsCoreDataTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Core'**
+  String get statsCoreDataTitle;
+
+  /// No description provided for @statsSecondaryDataTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get statsSecondaryDataTitle;
+
+  /// No description provided for @statsStreakPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak'**
+  String get statsStreakPrefix;
+
+  /// No description provided for @statsStreakSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'days in a row'**
+  String get statsStreakSuffix;
+
+  /// No description provided for @statsTotalTimePrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get statsTotalTimePrefix;
+
+  /// No description provided for @statsFinishedBooksLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Books finished'**
+  String get statsFinishedBooksLabel;
+
+  /// No description provided for @statsNotesHighlightsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes / highlights'**
+  String get statsNotesHighlightsLabel;
+
+  /// No description provided for @statsHoursMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours}h {minutes}m'**
+  String statsHoursMinutes(int hours, int minutes);
+
+  /// No description provided for @statsMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min'**
+  String statsMinutes(int minutes);
 }
 
 class _AppLocalizationsDelegate

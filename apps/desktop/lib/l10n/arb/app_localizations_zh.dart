@@ -551,4 +551,47 @@ class AppLocalizationsZh extends AppLocalizations {
   String searchInBookComingSoon(Object bookUid) {
     return '书内搜索开发中\\nbookUid=$bookUid';
   }
+
+  @override
+  String get weeklySectionTitle => '本周周报';
+
+  @override
+  String get statsCenterTitle => '统计中心';
+
+  @override
+  String get statsEmptyTitle => '阅读之旅尚未开始';
+
+  @override
+  String get statsEmptyMessage => '打开一本书开始阅读，这里会出现你的足迹';
+
+  @override
+  String get statsCoreDataTitle => '核心数据';
+
+  @override
+  String get statsSecondaryDataTitle => '次要数据';
+
+  @override
+  String get statsStreakPrefix => '坚持';
+
+  @override
+  String get statsStreakSuffix => '天连续阅读';
+
+  @override
+  String get statsTotalTimePrefix => '共阅读';
+
+  @override
+  String get statsFinishedBooksLabel => '已完成书籍数';
+
+  @override
+  String get statsNotesHighlightsLabel => '笔记 / 高亮数';
+
+  @override
+  String statsHoursMinutes(int hours, int minutes) {
+    return '$hours小时$minutes分钟';
+  }
+
+  @override
+  String statsMinutes(int minutes) {
+    return '$minutes 分钟';
+  }
 }
