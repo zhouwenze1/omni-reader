@@ -519,14 +519,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   double? _number(dynamic value) => value is num ? value.toDouble() : null;
 
-  Offset _selectionMenuOffset(BuildContext context) {
+  (Offset, double) _selectionMenuLayout(BuildContext context) {
     final viewport = MediaQuery.sizeOf(context);
     final menuWidth = (viewport.width - 16).clamp(360.0, 620.0);
-    return computeMenuOffset(
+    final offset = computeMenuOffset(
       selectionRect: _selectionRect ?? ui.Rect.zero,
       viewport: viewport,
       menuSize: Size(menuWidth, 64),
     );
+    return (offset, menuWidth);
   }
 
   void _dismissSelectionMenu() {
@@ -766,23 +767,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               ),
             ),
           if (_selectionMenuVisible && _selectionRect != null)
-            Positioned(
-              left: _selectionMenuOffset(context).dx,
-              top: _selectionMenuOffset(context).dy,
-              right: 8,
-              child: GestureDetector(
-                onTap: () {},
-                child: SelectionActionMenu(
-                  selectedColor: _editingAnnotation?.color,
-                  onColor: (color) => unawaited(_changeHighlightColor(color)),
-                  onNote: () => unawaited(_handleNoteAction()),
-                  onCopy: () => unawaited(_copySelectionText()),
-                  onDelete: _editingAnnotation == null
-                      ? null
-                      : () => unawaited(_deleteHighlight()),
+            Builder(builder: (context) {
+              final (menuOffset, menuWidth) = _selectionMenuLayout(context);
+              return Positioned(
+                left: menuOffset.dx,
+                top: menuOffset.dy,
+                width: menuWidth,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: SelectionActionMenu(
+                    selectedColor: _editingAnnotation?.color,
+                    onColor: (color) => unawaited(_changeHighlightColor(color)),
+                    onNote: () => unawaited(_handleNoteAction()),
+                    onCopy: () => unawaited(_copySelectionText()),
+                    onDelete: _editingAnnotation == null
+                        ? null
+                        : () => unawaited(_deleteHighlight()),
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
     );
@@ -1277,10 +1281,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     try {
+      final previousLayoutMode = _appliedRendererLayoutMode;
       final nextLayoutMode = _resolveRendererLayoutModeFor(settings.layoutMode);
-      await session.setLayoutMode(nextLayoutMode);
-      _appliedRendererLayoutMode = nextLayoutMode;
+      final layoutChanged = nextLayoutMode != previousLayoutMode;
+      if (layoutChanged) {
+        await session.setLayoutMode(nextLayoutMode);
+        _appliedRendererLayoutMode = nextLayoutMode;
+      }
       await session.setStyle(_rendererStyleFor(settings));
+      if (layoutChanged) {
+        // 布局模式切换会触发渲染器重新排版,若不恢复位置会跳回章首。
+        final locator = _progress?.locator;
+        if (locator != null && mounted) {
+          unawaited(session.goTo(locator));
+        }
+      }
     } catch (error) {
       debugPrint('[desktop-reader][setStyle.error] $error');
     }

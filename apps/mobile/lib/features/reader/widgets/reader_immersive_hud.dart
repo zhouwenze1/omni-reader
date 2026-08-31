@@ -8,6 +8,7 @@ class ReaderImmersiveHud extends StatelessWidget {
     required this.progressText,
     required this.darkMode,
     this.batteryLevel,
+    this.batteryCharging = false,
   });
 
   final String timeText;
@@ -15,6 +16,7 @@ class ReaderImmersiveHud extends StatelessWidget {
   final String progressText;
   final bool darkMode;
   final int? batteryLevel;
+  final bool batteryCharging;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +36,15 @@ class ReaderImmersiveHud extends StatelessWidget {
               Text(timeText),
               if (batteryLevel != null) ...[
                 const SizedBox(width: 12),
-                const Icon(Icons.battery_std, size: 15),
+                Icon(
+                  batteryCharging
+                      ? Icons.battery_charging_full_rounded
+                      : Icons.battery_std,
+                  size: 15,
+                  color: batteryCharging
+                      ? (darkMode ? const Color(0xFF7EE787) : const Color(0xFF2E9E4F))
+                      : null,
+                ),
                 const SizedBox(width: 4),
                 Text('$batteryLevel%'),
               ],

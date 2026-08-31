@@ -17,7 +17,6 @@ import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 import '../../../l10n/l10n.dart';
-import '../../library/controller/library_controller.dart';
 import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/dictionary_sheet.dart';
@@ -54,6 +53,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     'reader_mobile/device_status',
   );
   static const double _immersiveHudReserveHeight = 44;
+  static const Duration _deviceStatusPollInterval = Duration(seconds: 30);
 
   ReaderSession? _session;
   StreamSubscription<ReaderEvent>? _subscription;
@@ -79,6 +79,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   double _sliderProgress = 0;
   DateTime _deviceNow = DateTime.now();
   int? _batteryLevel;
+  bool _batteryCharging = false;
   SystemUiOverlayStyle _restoreOverlayStyle = SystemUiOverlayStyle.dark;
 
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
@@ -486,15 +487,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     _deviceStatusTimer?.cancel();
-    final now = DateTime.now();
-    final nextMinute = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      now.hour,
-      now.minute + 1,
-    );
-    _deviceStatusTimer = Timer(nextMinute.difference(now), () {
+    _deviceStatusTimer = Timer(_deviceStatusPollInterval, () {
       unawaited(
         _refreshDeviceStatus().whenComplete(_scheduleNextDeviceStatusRefresh),
       );
@@ -503,29 +496,33 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Future<void> _refreshDeviceStatus() async {
     final now = DateTime.now();
-    final batteryLevel = await _readBatteryLevel();
+    final battery = await _readBatteryStatus();
     if (!mounted) {
       return;
     }
     setState(() {
       _deviceNow = now;
-      _batteryLevel = batteryLevel ?? _batteryLevel;
+      _batteryLevel = battery.$1 ?? _batteryLevel;
+      _batteryCharging = battery.$2;
     });
   }
 
-  Future<int?> _readBatteryLevel() async {
+  Future<(int?, bool)> _readBatteryStatus() async {
     try {
-      final level = await _deviceStatusChannel.invokeMethod<int>(
-        'getBatteryLevel',
-      );
-      if (level == null || level < 0 || level > 100) {
-        return null;
+      final status = await _deviceStatusChannel
+          .invokeMethod<Map<Object?, Object?>>('getBatteryStatus');
+      if (status == null) {
+        return (null, false);
       }
-      return level;
+      final level = status['level'];
+      final validLevel =
+          level is int && level >= 0 && level <= 100 ? level : null;
+      final charging = status['charging'] == true;
+      return (validLevel, charging);
     } on MissingPluginException {
-      return null;
+      return (null, false);
     } on PlatformException {
-      return null;
+      return (null, false);
     }
   }
 
@@ -772,12 +769,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     try {
+      final previousLayoutMode = _appliedRendererLayoutMode;
       final nextLayoutMode = _resolveRendererLayoutModeFor(settings.layoutMode);
-      await session.setLayoutMode(nextLayoutMode);
-      _appliedRendererLayoutMode = nextLayoutMode;
+      final layoutChanged = nextLayoutMode != previousLayoutMode;
+      if (layoutChanged) {
+        await session.setLayoutMode(nextLayoutMode);
+        _appliedRendererLayoutMode = nextLayoutMode;
+      }
       final nextStyle = _readerStyleFor(settings);
-      await session.setStyle(nextStyle);
-      _appliedReaderStyleSignature = _readerStyleSignature(nextStyle);
+      final styleSignature = _readerStyleSignature(nextStyle);
+      if (styleSignature != _appliedReaderStyleSignature) {
+        await session.setStyle(nextStyle);
+        _appliedReaderStyleSignature = styleSignature;
+      }
+      if (layoutChanged) {
+        // 布局模式切换会触发渲染器重新排版,若不恢复位置会跳回章首。
+        // 用当前 relocated locator 重新定位,保持阅读位置。
+        final locator = _progress?.locator;
+        if (locator != null && mounted) {
+          unawaited(session.goTo(locator));
+        }
+      }
       if (mounted) {
         setState(() {});
       }
@@ -1031,15 +1043,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return value is num ? value.toDouble() : null;
   }
 
-  Offset _selectionMenuOffset(BuildContext context) {
+  (Offset, double) _selectionMenuLayout(BuildContext context) {
     final rect = _selectionRect ?? ui.Rect.zero;
     final viewport = MediaQuery.sizeOf(context);
     final menuWidth = (viewport.width - 16).clamp(240.0, 460.0);
-    return computeMenuOffset(
+    final offset = computeMenuOffset(
       selectionRect: rect,
       viewport: viewport,
       menuSize: Size(menuWidth, 64),
     );
+    return (offset, menuWidth);
   }
 
   void _dismissSelectionMenu() {
@@ -1480,7 +1493,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final providerContainer = _providerContainer;
     if (providerContainer != null) {
       providerContainer.invalidate(libraryIndexProvider);
-      providerContainer.invalidate(mobileLibraryControllerProvider);
+      // 不 invalidate 书架控制器:重建会丢掉用户当前选中的合集。
+      // 书架页在 reader 返回后自行 refresh,进度数据同步由它负责。
       providerContainer.invalidate(meControllerProvider);
       providerContainer.invalidate(weeklyReadingSummaryProvider);
       providerContainer.invalidate(statsCenterProvider);
@@ -1582,6 +1596,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             immersiveOverlay: ReaderImmersiveHud(
               timeText: TimeOfDay.fromDateTime(_deviceNow).format(context),
               batteryLevel: _batteryLevel,
+              batteryCharging: _batteryCharging,
               progress: _sliderProgress,
               progressText: _buildImmersiveProgressText(),
               darkMode: chromePalette.isDark,
@@ -1626,23 +1641,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               ),
             ),
           if (_selectionMenuVisible && _selectionRect != null)
-            Positioned(
-              left: _selectionMenuOffset(context).dx,
-              top: _selectionMenuOffset(context).dy,
-              right: 8,
-              child: GestureDetector(
-                onTap: () {},
-                child: SelectionActionMenu(
-                  selectedColor: _editingAnnotation?.color,
-                  onColor: (color) => unawaited(_changeHighlightColor(color)),
-                  onNote: () => unawaited(_handleNoteAction()),
-                  onCopy: () => unawaited(_copySelectionText()),
-                  onDelete: _editingAnnotation == null
-                      ? null
-                      : () => unawaited(_deleteHighlight()),
+            Builder(builder: (context) {
+              final (menuOffset, menuWidth) = _selectionMenuLayout(context);
+              return Positioned(
+                left: menuOffset.dx,
+                top: menuOffset.dy,
+                width: menuWidth,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: SelectionActionMenu(
+                    selectedColor: _editingAnnotation?.color,
+                    onColor: (color) => unawaited(_changeHighlightColor(color)),
+                    onNote: () => unawaited(_handleNoteAction()),
+                    onCopy: () => unawaited(_copySelectionText()),
+                    onDelete: _editingAnnotation == null
+                        ? null
+                        : () => unawaited(_deleteHighlight()),
+                  ),
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
     );

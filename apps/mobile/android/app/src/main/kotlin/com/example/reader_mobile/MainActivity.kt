@@ -28,6 +28,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getBatteryLevel" -> result.success(readBatteryLevel())
+                "getBatteryStatus" -> result.success(readBatteryStatus())
                 else -> result.notImplemented()
             }
         }
@@ -69,6 +70,18 @@ class MainActivity : FlutterActivity() {
         val capacity = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
             ?: return null
         return capacity.takeIf { it >= 0 }
+    }
+
+    // 返回 map: {level: Int, charging: Boolean}
+    private fun readBatteryStatus(): Map<String, Any?> {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val level = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            ?: return mapOf("level" to null, "charging" to false)
+        val charging = batteryManager.isCharging
+        return mapOf(
+            "level" to level.takeIf { it >= 0 },
+            "charging" to charging,
+        )
     }
 
     private fun openFolderImportPicker(

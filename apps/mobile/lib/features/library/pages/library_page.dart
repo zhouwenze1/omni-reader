@@ -23,6 +23,14 @@ class LibraryPage extends ConsumerStatefulWidget {
 
 class _LibraryPageState extends ConsumerState<LibraryPage> {
   bool _filtersExpanded = false;
+  final ScrollController _collectionStripController = ScrollController();
+  final Map<int, GlobalKey> _collectionChipKeys = <int, GlobalKey>{};
+
+  @override
+  void dispose() {
+    _collectionStripController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -176,17 +184,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     selectionMode: state.isSelectionMode,
                                     multiSelected: state.selectedBookUids
                                         .contains(entry.bookUid),
-                                    onTap: () {
-                                      if (state.isSelectionMode) {
-                                        controller.toggleSelectedBook(
-                                          entry.bookUid,
-                                        );
-                                        return;
-                                      }
-                                      context.push(
-                                        RoutePaths.reader(entry.bookUid),
-                                      );
-                                    },
+                                    onTap: () => _openBook(context, state, controller, entry.bookUid),
                                     onLongPress: () =>
                                         controller.enterSelectionMode(
                                       seedBookUid: entry.bookUid,
@@ -207,17 +205,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                                     selectionMode: state.isSelectionMode,
                                     multiSelected: state.selectedBookUids
                                         .contains(entry.bookUid),
-                                    onTap: () {
-                                      if (state.isSelectionMode) {
-                                        controller.toggleSelectedBook(
-                                          entry.bookUid,
-                                        );
-                                        return;
-                                      }
-                                      context.push(
-                                        RoutePaths.reader(entry.bookUid),
-                                      );
-                                    },
+                                    onTap: () => _openBook(context, state, controller, entry.bookUid),
                                     onLongPress: () =>
                                         controller.enterSelectionMode(
                                       seedBookUid: entry.bookUid,
@@ -277,6 +265,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         ),
       ),
       child: SingleChildScrollView(
+        controller: _collectionStripController,
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
@@ -284,13 +273,57 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
               final selected = collection.id == state.selectedCollectionId;
               final count =
                   state.collectionBookUids[collection.id]?.length ?? 0;
+              final isDefault = collection.id == state.defaultCollectionId;
+              final chipKey = _collectionChipKeys.putIfAbsent(
+                collection.id,
+                GlobalKey.new,
+              );
+              if (selected) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || !_collectionChipKeys.containsKey(collection.id)) {
+                    return;
+                  }
+                  final key = _collectionChipKeys[collection.id];
+                  final box = key?.currentContext?.findRenderObject();
+                  if (box is! RenderBox) {
+                    return;
+                  }
+                  final scrollable = Scrollable.of(key!.currentContext!);
+                  final position = scrollable.position;
+                  final renderBox = scrollable.context.findRenderObject() as RenderBox;
+                  final viewportWidth = renderBox.size.width;
+                  final chipOffset = box.localToGlobal(Offset.zero, ancestor: renderBox).dx;
+                  final chipWidth = box.size.width;
+                  if (chipOffset < 0 ||
+                      chipOffset + chipWidth > viewportWidth) {
+                    position.animateTo(
+                      position.pixels +
+                          chipOffset -
+                          (viewportWidth - chipWidth) / 2,
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
+                });
+              }
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text('${collection.name} ($count)'),
-                  selected: selected,
-                  onSelected: (_) =>
-                      controller.setCollectionFilter(collection.id),
+                child: GestureDetector(
+                  onLongPress: isDefault
+                      ? null
+                      : () => _showCollectionLongPressMenu(
+                            context,
+                            controller,
+                            collection,
+                            count,
+                          ),
+                  child: ChoiceChip(
+                    key: chipKey,
+                    label: Text('${collection.name} ($count)'),
+                    selected: selected,
+                    onSelected: (_) =>
+                        controller.setCollectionFilter(collection.id),
+                  ),
                 ),
               );
             }),
@@ -309,6 +342,60 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _showCollectionLongPressMenu(
+    BuildContext context,
+    MobileLibraryController controller,
+    Collection collection,
+    int count,
+  ) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(
+                  collection.name,
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
+                ),
+                subtitle: Text('\u5171 $count \u672c\u4e66'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.drive_file_rename_outline),
+                title: const Text('\u91cd\u547d\u540d'),
+                onTap: () => Navigator.of(sheetContext).pop('rename'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('\u5220\u9664'),
+                onTap: () => Navigator.of(sheetContext).pop('delete'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (action == null || !context.mounted) {
+      return;
+    }
+    if (action == 'rename') {
+      await _showRenameCollectionDialog(context, controller, collection);
+    } else if (action == 'delete') {
+      final confirmed = await _confirmDeleteCollection(
+        context,
+        collection,
+        count,
+      );
+      if (confirmed == true) {
+        await controller.deleteCollection(collection.id);
+      }
+    }
   }
 
   Widget _buildFilterPanel(
@@ -770,6 +857,24 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       await controller.deleteBooks(state.selectedBookUids);
       controller.exitSelectionMode();
     }
+  }
+
+  Future<void> _openBook(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+    String bookUid,
+  ) async {
+    if (state.isSelectionMode) {
+      controller.toggleSelectedBook(bookUid);
+      return;
+    }
+    await context.push(RoutePaths.reader(bookUid));
+    if (!mounted) {
+      return;
+    }
+    // 从阅读返回后刷新书库(进度变化),但不重置用户选中的合集。
+    await controller.refresh();
   }
 
   Future<void> _openImportCenter(BuildContext context) async {
