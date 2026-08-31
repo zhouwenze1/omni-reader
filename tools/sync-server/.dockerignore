@@ -1,0 +1,8 @@
+sync-server.exe
+*.db
+*.log
+config.json
+deploy/
+Dockerfile
+docker-compose.yml
+.dockerignore

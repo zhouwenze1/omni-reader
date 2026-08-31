@@ -38,20 +38,42 @@ func defaultConfig() Config {
 	return Config{Port: 8080, DBPath: "sync.db", DeviceInactiveDays: 180, DeviceCleanupMinute: 4}
 }
 
+// envOverrides 用环境变量覆盖配置(Docker 部署优先用环境变量,不依赖挂载 config.json)。
+func envOverrides(cfg *Config) {
+	if v := os.Getenv("SYNC_TOKEN"); v != "" {
+		cfg.Token = v
+	}
+	if v := os.Getenv("SYNC_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			cfg.Port = p
+		}
+	}
+	if v := os.Getenv("SYNC_DB_PATH"); v != "" {
+		cfg.DBPath = v
+	}
+	if v := os.Getenv("SYNC_DEVICE_INACTIVE_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.DeviceInactiveDays = n
+		}
+	}
+}
+
 func loadConfig(path string) (Config, error) {
 	cfg := defaultConfig()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return cfg, nil // 缺配置用默认值
+			envOverrides(&cfg)
+			return cfg, nil // 缺配置用默认值+环境变量
 		}
 		return cfg, err
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return cfg, err
 	}
+	envOverrides(&cfg)
 	if cfg.Token == "" {
-		return cfg, errors.New("config.json: token must not be empty")
+		return cfg, errors.New("config.json: token must not be empty (or set SYNC_TOKEN)")
 	}
 	if cfg.DeviceInactiveDays <= 0 {
 		cfg.DeviceInactiveDays = 180
