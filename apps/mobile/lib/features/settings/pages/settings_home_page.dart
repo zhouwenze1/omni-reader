@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:shared_ui/shared_ui.dart';
+import '../../../di/services_providers.dart';
 import 'backup_import_page.dart';
 import 'cache_manage_page.dart';
 import 'cloud_options_page.dart';
 import 'reading_assist_settings_page.dart';
 
-class SettingsHomePage extends StatelessWidget {
+class SettingsHomePage extends ConsumerWidget {
   const SettingsHomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -46,6 +48,19 @@ class SettingsHomePage extends StatelessWidget {
             icon: Icons.cloud_outlined,
             title: '云端设置',
             onTap: () => context.push(RoutePaths.cloudSettings),
+          ),
+          _entry(
+            context,
+            icon: Icons.sync_outlined,
+            title: '阅读同步',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      SyncSettingsPage(service: ref.read(syncServiceProvider)),
+                ),
+              );
+            },
           ),
           _entry(
             context,

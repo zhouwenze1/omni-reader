@@ -18,6 +18,8 @@ dependencies:
     path: ../foundation/application
   foundation_domain:
     path: ../foundation/domain
+  services_sync:
+    path: ../infrastructure/services_sync
   kernel:
     path: ../engines/kernel
   engine_epub:
