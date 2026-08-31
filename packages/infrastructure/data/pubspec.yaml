@@ -17,6 +17,8 @@ dependencies:
     path: ../../foundation/domain
   reader_parser_core:
     path: ../../parsers/reader_parser_core
+  services_sync:
+    path: ../services_sync
   archive: ^4.0.7
   collection: ^1.18.0
   crypto: ^3.0.6

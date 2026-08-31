@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:foundation_domain/domain.dart';
+import 'package:infrastructure_data/data.dart';
 import 'package:services_search/services_search.dart';
+import 'package:services_sync/services_sync.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../features/me/controller/me_controller.dart';
 import 'providers.dart';
@@ -14,6 +16,21 @@ final importServiceProvider = Provider((ref) {
 final bookSearchServiceProvider = Provider<BookSearchService>((ref) {
   return BookSearchService(
     booksRootPath: ref.watch(dataModuleProvider).storagePaths.booksRoot.path,
+  );
+});
+
+/// 阅读进度同步服务。
+final syncServiceProvider = Provider<ProgressSyncService>((ref) {
+  final dataModule = ref.watch(dataModuleProvider);
+  final syncConfigStore = HiveSyncConfigStore(dataModule.settingsBox);
+  final syncSource = ProgressSyncSourceImpl(
+    progressRepository: dataModule.progressRepository,
+    bookRepository: dataModule.bookRepository,
+  );
+  return ProgressSyncService(
+    api: SyncApiClient(),
+    source: syncSource,
+    configStore: syncConfigStore,
   );
 });
 

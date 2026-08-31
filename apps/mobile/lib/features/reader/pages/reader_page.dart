@@ -177,7 +177,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         return;
       }
 
-      final progress = await progressRepository.getProgress(widget.bookUid);
+      var progress = await progressRepository.getProgress(widget.bookUid);
+      if (!mounted) {
+        return;
+      }
+      // 打开图书时按需同步这一本书:远端 updatedAt 更新则接上上次阅读位置。
+      final remoteProgress = await ref
+          .read(syncServiceProvider)
+          .pullBookOnOpen(widget.bookUid);
+      if (remoteProgress != null) {
+        progress = remoteProgress;
+      }
       if (!mounted) {
         return;
       }
@@ -1499,7 +1509,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       providerContainer.invalidate(weeklyReadingSummaryProvider);
       providerContainer.invalidate(statsCenterProvider);
     }
-    unawaited(_progressWriteQueue.close());
+    unawaited(_progressWriteQueue.close().then((_) {
+      // 进度 flush 后推送该书到同步服务器。
+      final container = _providerContainer;
+      if (container == null) return;
+      final syncService = container.read(syncServiceProvider);
+      unawaited(syncService.pushBookOnExit(widget.bookUid));
+    }));
     unawaited(_readerSettingsWriteQueue.close());
     final subscription = _subscription;
     if (subscription != null) {

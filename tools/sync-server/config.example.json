@@ -1,0 +1,7 @@
+{
+  "token": "change-me-to-your-secret-token",
+  "port": 8080,
+  "db_path": "/opt/sync-server/sync.db",
+  "device_inactive_days": 180,
+  "device_cleanup_minute": 4
+}

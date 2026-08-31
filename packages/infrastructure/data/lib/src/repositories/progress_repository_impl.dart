@@ -47,4 +47,24 @@ class ProgressRepositoryImpl implements ProgressRepository {
       lastOpenedAt: progress.lastReadAt,
     );
   }
+
+  @override
+  Future<List<ReadingProgress>> listProgress() async {
+    final libraryRoot = _storagePaths.libraryRoot.path;
+    final bookDirs = await _fileService.listDirs(libraryRoot);
+    final result = <ReadingProgress>[];
+    for (final bookUid in bookDirs) {
+      final json = await _fileService.readJson(
+        p.join(libraryRoot, bookUid, 'progress.json'),
+      );
+      if (json != null) {
+        try {
+          result.add(ReadingProgress.fromJson(json));
+        } catch (_) {
+          // 进度文件损坏时跳过,不阻塞同步。
+        }
+      }
+    }
+    return result;
+  }
 }

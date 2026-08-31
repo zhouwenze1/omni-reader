@@ -14,3 +14,4 @@ export 'src/services/fingerprint_service_impl.dart';
 export 'src/services/epub_file_scanner.dart';
 export 'src/services/storage_paths.dart';
 export 'src/services/cover_extraction_service.dart';
+export 'src/sync/sync_adapters.dart';

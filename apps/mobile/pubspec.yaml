@@ -29,6 +29,8 @@ dependencies:
     path: ../../packages/infrastructure/data
   services_search:
     path: ../../packages/infrastructure/services_search
+  services_sync:
+    path: ../../packages/infrastructure/services_sync
   kernel:
     path: ../../packages/engines/kernel
   engine_epub:

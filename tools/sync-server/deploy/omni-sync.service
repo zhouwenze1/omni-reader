@@ -1,0 +1,19 @@
+[Unit]
+Description=Omni Reader progress sync server
+After=network.target
+
+[Service]
+Type=simple
+User=sync
+Group=sync
+WorkingDirectory=/opt/sync-server
+ExecStart=/opt/sync-server/sync-server
+Restart=always
+RestartSec=5
+# 硬化:只读运行目录,仅 db 目录可写
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/opt/sync-server
+
+[Install]
+WantedBy=multi-user.target

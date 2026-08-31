@@ -14,6 +14,7 @@ workspace:
   - packages/foundation/application
   - packages/infrastructure/data
   - packages/infrastructure/services_search
+  - packages/infrastructure/services_sync
   - packages/infrastructure/bridge_web
   - packages/engines/kernel
   - packages/engines/epub
@@ -38,6 +39,7 @@ melos:
     - packages/foundation/application
     - packages/infrastructure/data
     - packages/infrastructure/services_search
+    - packages/infrastructure/services_sync
     - packages/infrastructure/bridge_web
     - packages/engines/kernel
     - packages/engines/epub

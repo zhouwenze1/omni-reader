@@ -34,6 +34,7 @@ class DataModule {
     required this.settingsRepository,
     required this.importRepository,
     required this.readingStatsRepository,
+    required this.settingsBox,
   });
 
   final StoragePaths storagePaths;
@@ -49,6 +50,9 @@ class DataModule {
   final SettingsRepository settingsRepository;
   final ImportRepository importRepository;
   final ReadingStatsRepository readingStatsRepository;
+
+  /// 全局 Hive 设置盒(同步配置等共享键值复用)。
+  final Box<dynamic> settingsBox;
 
   static bool _hiveInited = false;
 
@@ -125,6 +129,7 @@ class DataModule {
       settingsRepository: settingsRepository,
       importRepository: importRepository,
       readingStatsRepository: readingStatsRepository,
+      settingsBox: settingsBox,
     );
   }
 }
