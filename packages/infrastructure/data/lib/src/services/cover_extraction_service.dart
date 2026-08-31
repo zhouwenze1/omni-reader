@@ -66,7 +66,7 @@ class CoverExtractionService {
         return null;
       }
 
-      return _writeCoverBytes(
+      return await _writeCoverBytes(
         tempBookDir: tempBookDir,
         relativeCoverPath: relativeCoverPath,
         bytes: bytes,
