@@ -162,11 +162,13 @@ void main() {
 
   test('streak counts consecutive days anchored on today or yesterday',
       () async {
+    // dayAt(0, 10) 即"今天 10:00",在 UTC 上午运行的 CI 上会落在未来,
+    // 被 recordSession 的未来时段防御逻辑丢弃。用当天零点保证任何时区都安全。
     for (final daysAgo in [0, 1, 2]) {
       await repo.recordSession(
         bookUid: 'b1',
-        startedAt: dayAt(daysAgo, 10),
-        endedAt: dayAt(daysAgo, 10).add(const Duration(seconds: 30)),
+        startedAt: dayAt(daysAgo, 0),
+        endedAt: dayAt(daysAgo, 0).add(const Duration(seconds: 30)),
       );
     }
     final streak = await repo.streak();
