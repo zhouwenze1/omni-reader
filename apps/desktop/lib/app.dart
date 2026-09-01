@@ -88,41 +88,22 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
           color: Theme.of(context).colorScheme.surface,
           child: Column(
             children: [
-              // 阅读时隐藏顶部标题栏,沉浸式阅读;退出时平滑滑入,避免画面突跳。
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  return SizeTransition(
-                    sizeFactor: animation,
-                    axisAlignment: -1,
-                    child: FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    ),
-                  );
-                },
-                child: inReader
-                    ? const SizedBox.shrink(
-                        key: ValueKey('reader-caption-hide'))
-                    : SizedBox(
-                        key: const ValueKey('reader-caption-show'),
-                        height: kWindowCaptionHeight,
-                        child: ClipRect(
-                          child: WindowCaption(
-                            brightness: captionTheme.brightness,
-                            backgroundColor: captionTheme.backgroundColor,
-                            title: Text(
-                              'Reader Desktop',
-                              style: TextStyle(
-                                color: captionTheme.foregroundColor,
-                              ),
-                            ),
-                          ),
-                        ),
+              // 阅读时隐藏顶部标题栏(直接切换,无动画);非阅读时标题栏独占
+              // 顶部区域,内容区从其下方开始,退出阅读只是上方多出标题栏。
+              if (!inReader)
+                SizedBox(
+                  height: kWindowCaptionHeight,
+                  child: WindowCaption(
+                    brightness: captionTheme.brightness,
+                    backgroundColor: captionTheme.backgroundColor,
+                    title: Text(
+                      'Reader Desktop',
+                      style: TextStyle(
+                        color: captionTheme.foregroundColor,
                       ),
-              ),
+                    ),
+                  ),
+                ),
               Expanded(child: content),
             ],
           ),
