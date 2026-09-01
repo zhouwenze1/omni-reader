@@ -692,4 +692,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get statsWeekdayList => '一,二,三,四,五,六,日';
+
+  @override
+  String get importUnsupportedFormat => '不支持的格式，请拖入 EPUB/PDF/ZIP 等书籍文件';
+
+  @override
+  String get dropToImport => '松开导入书籍文件';
+
+  @override
+  String get readingNowSubtitle => '继续你上次停下的地方，再往下读一点。';
+
+  @override
+  String get recentReadingTitle => '最近阅读';
 }

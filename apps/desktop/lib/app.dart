@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
+import 'package:go_router/go_router.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'features/settings/controller/settings_controller.dart';
@@ -19,17 +20,48 @@ class ReaderDesktopApp extends ConsumerStatefulWidget {
 class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
     with WindowListener {
   bool _closing = false;
+  // 阅读页隐藏应用顶部标题栏,进入沉浸式阅读;退出阅读页恢复。
+  bool _inReader = false;
 
   @override
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    _subscribeRouteChanges();
   }
 
   @override
   void dispose() {
     windowManager.removeListener(this);
+    _router?.routerDelegate.removeListener(_onRouteChanged);
     super.dispose();
+  }
+
+  GoRouter? _router;
+
+  void _subscribeRouteChanges() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final router = ref.read(appRouterProvider);
+      _router = router;
+      router.routerDelegate.addListener(_onRouteChanged);
+      _onRouteChanged();
+    });
+  }
+
+  void _onRouteChanged() {
+    final router = _router;
+    if (router == null || !mounted) {
+      return;
+    }
+    final location = router.routerDelegate.currentConfiguration.uri.path;
+    final inReader = location == '/reader' || location.startsWith('/reader/');
+    debugPrint('[desktop][route] location=$location inReader=$inReader');
+    if (inReader != _inReader) {
+      setState(() => _inReader = inReader);
+    }
   }
 
   @override
@@ -85,19 +117,21 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
           color: Theme.of(context).colorScheme.surface,
           child: Column(
             children: [
-              SizedBox(
-                height: kWindowCaptionHeight,
-                child: WindowCaption(
-                  brightness: captionTheme.brightness,
-                  backgroundColor: captionTheme.backgroundColor,
-                  title: Text(
-                    'Reader Desktop',
-                    style: TextStyle(
-                      color: captionTheme.foregroundColor,
+              // 阅读时隐藏顶部标题栏,沉浸式阅读;其余页面保留系统风格标题栏。
+              if (!_inReader)
+                SizedBox(
+                  height: kWindowCaptionHeight,
+                  child: WindowCaption(
+                    brightness: captionTheme.brightness,
+                    backgroundColor: captionTheme.backgroundColor,
+                    title: Text(
+                      'Reader Desktop',
+                      style: TextStyle(
+                        color: captionTheme.foregroundColor,
+                      ),
                     ),
                   ),
                 ),
-              ),
               Expanded(child: content),
             ],
           ),

@@ -695,4 +695,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statsWeekdayList => 'M,T,W,T,F,S,S';
+
+  @override
+  String get importUnsupportedFormat =>
+      'Unsupported format. Drop EPUB/PDF/ZIP or other book files.';
+
+  @override
+  String get dropToImport => 'Drop to import books';
+
+  @override
+  String get readingNowSubtitle =>
+      'Pick up where you left off and keep reading.';
+
+  @override
+  String get recentReadingTitle => 'Recent Reading';
 }

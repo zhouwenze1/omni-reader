@@ -592,12 +592,89 @@ class LibraryPageActions {
     }
 
     final appSettings = ref.read(settingsControllerProvider).app;
-    final controller = ref.read(desktopLibraryControllerProvider.notifier);
     final currentState = ref.read(desktopLibraryControllerProvider);
     final currentCollectionId = folderCollection?.id ??
         currentState.selectedCollectionId ??
         currentState.defaultCollectionId;
 
+    final summary = await importPaths(
+      ref: ref,
+      paths: paths,
+      options: options,
+      debugMode: appSettings.debugImport,
+      targetCollectionId: currentCollectionId,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final message =
+        '${l10n.imported}: ${summary.importedCount}, ${l10n.alreadyImported}: ${summary.alreadyCount}, ${l10n.importFailed}: ${summary.failedCount}';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 拖拽导入入口:不做文件选择器,直接把拖入的路径导入。
+  static Future<void> importDroppedFiles(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> paths,
+  ) async {
+    if (paths.isEmpty || !context.mounted) {
+      return;
+    }
+    final l10n = context.l10n;
+    final filtered = paths
+        .where((path) => EpubFileScanner.isSupportedBookPath(path))
+        .toList();
+    if (filtered.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.importUnsupportedFormat),
+          ),
+        );
+      }
+      return;
+    }
+
+    final options = await _showImportOptionsDialog(context, filtered);
+    if (options == null) {
+      return;
+    }
+
+    final appSettings = ref.read(settingsControllerProvider).app;
+    final currentState = ref.read(desktopLibraryControllerProvider);
+    final currentCollectionId =
+        currentState.selectedCollectionId ?? currentState.defaultCollectionId;
+
+    final summary = await importPaths(
+      ref: ref,
+      paths: filtered,
+      options: options,
+      debugMode: appSettings.debugImport,
+      targetCollectionId: currentCollectionId,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final message =
+        '${l10n.imported}: ${summary.importedCount}, ${l10n.alreadyImported}: ${summary.alreadyCount}, ${l10n.importFailed}: ${summary.failedCount}';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static Future<ImportSummary> importPaths({
+    required WidgetRef ref,
+    required List<String> paths,
+    required ImportBookOptions options,
+    required bool debugMode,
+    required int? targetCollectionId,
+  }) async {
+    final controller = ref.read(desktopLibraryControllerProvider.notifier);
     var importedCount = 0;
     var alreadyCount = 0;
     var failedCount = 0;
@@ -607,7 +684,7 @@ class LibraryPageActions {
       final result =
           await ref.read(importRepositoryProvider).importBookFromFile(
                 path,
-                debugMode: appSettings.debugImport,
+                debugMode: debugMode,
                 options: options,
               );
       if (result.alreadyImported) {
@@ -622,24 +699,21 @@ class LibraryPageActions {
       }
     }
 
-    if (currentCollectionId != null && importedBookUids.isNotEmpty) {
+    if (targetCollectionId != null && importedBookUids.isNotEmpty) {
       await controller.addBooksToCollection(
-        currentCollectionId,
+        targetCollectionId,
         importedBookUids,
       );
-      await controller.setCollectionFilter(currentCollectionId);
+      await controller.setCollectionFilter(targetCollectionId);
     } else {
       await controller.refresh();
     }
 
-    if (!context.mounted) {
-      return;
-    }
-
-    final message =
-        '${l10n.imported}: $importedCount, ${l10n.alreadyImported}: $alreadyCount, ${l10n.importFailed}: $failedCount';
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    return ImportSummary(
+      importedCount: importedCount,
+      alreadyCount: alreadyCount,
+      failedCount: failedCount,
+    );
   }
 
   static Future<_LibraryImportKind?> _showImportModeDialog(
@@ -784,3 +858,16 @@ class LibraryPageActions {
 }
 
 enum _LibraryImportKind { files, folder, folderOneLevel }
+
+/// 一次批量导入的结果汇总。
+class ImportSummary {
+  const ImportSummary({
+    required this.importedCount,
+    required this.alreadyCount,
+    required this.failedCount,
+  });
+
+  final int importedCount;
+  final int alreadyCount;
+  final int failedCount;
+}

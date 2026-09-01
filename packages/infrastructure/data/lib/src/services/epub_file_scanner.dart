@@ -6,8 +6,30 @@ import 'package:path/path.dart' as p;
 class EpubFileScanner {
   const EpubFileScanner._();
 
+  /// 导入器支持的全部扩展名(与桌面端文件选择器的 allowedExtensions 一致)。
+  static const List<String> supportedExtensions = [
+    'epub',
+    'pdf',
+    'ldf',
+    'zip',
+    'cbz',
+    'webpub',
+    'lpf',
+    'mp3',
+    'm4b',
+  ];
+
   static bool isEpubPath(String path) {
     return p.extension(path.trim()).toLowerCase() == '.epub';
+  }
+
+  /// 是否为导入器支持的书文件(拖拽导入按此过滤)。
+  static bool isSupportedBookPath(String path) {
+    final ext = p.extension(path.trim()).toLowerCase();
+    if (ext.isEmpty) {
+      return false;
+    }
+    return supportedExtensions.contains(ext.substring(1));
   }
 
   static Future<List<String>> collectRecursively(String directoryPath) async {

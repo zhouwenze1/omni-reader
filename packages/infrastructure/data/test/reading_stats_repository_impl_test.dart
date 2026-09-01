@@ -115,8 +115,10 @@ void main() {
 
   test('monthlySeconds groups by yyyy-MM', () async {
     final now = DateTime.now();
-    final thisMonth = DateTime(now.year, now.month, 5, 10);
-    final lastMonth = DateTime(now.year, now.month - 1, 10, 10);
+    // 用“今天”和“上个月 1 号”作为两个月的锚点,避免月初运行时
+    // 本月固定日(如 5 日)落在未来被 recordSession 的时钟防御丢弃。
+    final thisMonth = DateTime(now.year, now.month, now.day, 10);
+    final lastMonth = DateTime(now.year, now.month - 1, 1, 10);
 
     await repo.recordSession(
       bookUid: 'b1',

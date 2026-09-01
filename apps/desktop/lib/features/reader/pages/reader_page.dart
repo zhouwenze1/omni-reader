@@ -13,6 +13,7 @@ import 'package:shared_ui/shared_ui.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../utils/window_chrome.dart';
 import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/desktop_reader_settings_dialog.dart';
@@ -40,6 +41,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReadingProgress? _progress;
   String? _error;
   bool _loading = true;
+  // 桌面端阅读默认隐藏悬浮工具栏,点屏幕中央切换显隐;退出按钮在工具栏内。
   bool _chromeVisible = false;
   bool _tocPanelOpen = false;
   bool _searchPanelOpen = false;
@@ -78,6 +80,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Annotation? _editingAnnotation;
   int _selectionGeneration = 0;
   bool _annotationActionInFlight = false;
+  // 进度条拖动中:临时进度(0..1)仅用于本地预览,松手后才真正 seek。
+  double? _dragProgression;
 
   @override
   void initState() {
@@ -120,8 +124,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
+    // 桌面端:仅真正进入后台(最小化/隐藏/关闭)才暂停计时。忽略 inactive
+    // (窗口失焦)——Windows 上失焦风暴会让 pause/resume 高频切换,把连续
+    // 阅读切成几秒的碎片段,导致阅读时长被严重低估。
+    if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       unawaited(_progressWriteQueue.flush());
@@ -155,9 +161,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
       var progress = await progressRepository.getProgress(widget.bookUid);
       // 打开图书时按需同步这一本书:远端 updatedAt 更新则接上上次阅读位置。
-      final remoteProgress = await ref
-          .read(syncServiceProvider)
-          .pullBookOnOpen(widget.bookUid);
+      final remoteProgress =
+          await ref.read(syncServiceProvider).pullBookOnOpen(widget.bookUid);
       if (remoteProgress != null) {
         progress = remoteProgress;
       }
@@ -261,6 +266,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+
+      // 进入阅读:隐藏 Windows 原生标题栏,沉浸式阅读。
+      unawaited(WindowChrome.setImmersive(true));
 
       // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
       _readingRecorder = ReadingSessionRecorder(
@@ -402,6 +410,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    // 退出阅读:恢复 Windows 原生标题栏。
+    unawaited(WindowChrome.setImmersive(false));
     _readingRecorder?.dispose();
     // 与移动端对齐:退出阅读后让“我的”页/统计相关 provider 立即重算。
     final providerContainer = _providerContainer;
@@ -1147,8 +1157,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _buildBottomToolbar(BuildContext context) {
     final l10n = context.l10n;
-    final progressPercent =
-        ((_progress?.progression ?? 0) * 100).clamp(0, 100).toStringAsFixed(1);
+    final progressPercent = _dragProgression ?? (_progress?.progression ?? 0);
+    final percentLabel =
+        (progressPercent * 100).clamp(0, 100).toStringAsFixed(1);
 
     return IgnorePointer(
       ignoring: !_chromeVisible,
@@ -1176,10 +1187,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     icon: const Icon(Icons.chevron_left, color: Colors.white),
                   ),
                   Expanded(
-                    child: Text(
-                      l10n.readingProgress(progressPercent),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 52,
+                          child: Text(
+                            '$percentLabel%',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            min: 0,
+                            max: 1,
+                            value: progressPercent.clamp(0.0, 1.0),
+                            activeColor: Colors.white,
+                            inactiveColor: Colors.white24,
+                            onChangeStart: (_) {
+                              _dragProgression = progressPercent;
+                            },
+                            onChanged: (value) {
+                              setState(() => _dragProgression = value);
+                            },
+                            onChangeEnd: (value) {
+                              setState(() => _dragProgression = null);
+                              unawaited(
+                                _session?.seekToProgression(value),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(

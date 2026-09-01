@@ -556,6 +556,22 @@ class EpubReaderSession extends ReaderSession {
     await bridge.open(url: url, locator: normalized);
   }
 
+  @override
+  Future<void> seekToProgression(double progression) async {
+    final runtime = await _runtimeFuture;
+    final positionIndex = runtime.positionIndex;
+    if (positionIndex == null) {
+      return;
+    }
+    final locator = positionIndex.resolveLocatorForTotalProgression(
+      progression.clamp(0.0, 1.0),
+    );
+    if (locator == null) {
+      return;
+    }
+    await goTo(locator);
+  }
+
   static const String _searchHighlightUid = 'search-hit-temp';
 
   @override

@@ -340,5 +340,9 @@
   "statsHeatmapWeekdayM": "M",
   "statsHeatmapWeekdayW": "W",
   "statsHeatmapWeekdayF": "F",
-  "statsWeekdayList": "M,T,W,T,F,S,S"
+  "statsWeekdayList": "M,T,W,T,F,S,S",
+  "importUnsupportedFormat": "Unsupported format. Drop EPUB/PDF/ZIP or other book files.",
+  "dropToImport": "Drop to import books",
+  "readingNowSubtitle": "Pick up where you left off and keep reading.",
+  "recentReadingTitle": "Recent Reading"
 }

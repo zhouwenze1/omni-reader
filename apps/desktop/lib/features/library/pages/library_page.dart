@@ -1,3 +1,4 @@
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
@@ -18,11 +19,18 @@ import '../widgets/library_selection_action_bar.dart';
 import '../widgets/shelf_toolbar.dart';
 import 'library_page_actions.dart';
 
-class LibraryPage extends ConsumerWidget {
+class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends ConsumerState<LibraryPage> {
+  bool _dropHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
     final state = ref.watch(desktopLibraryControllerProvider);
     final controller = ref.read(desktopLibraryControllerProvider.notifier);
@@ -46,15 +54,82 @@ class LibraryPage extends ConsumerWidget {
           ],
         ),
       ),
-      body: switch (state.status) {
-        LibraryPageStatus.loading =>
-          const Center(child: CircularProgressIndicator()),
-        LibraryPageStatus.error =>
-          Center(child: Text(state.errorMessage ?? l10n.loadingFailed)),
-        LibraryPageStatus.empty ||
-        LibraryPageStatus.normal =>
-          _buildMainLayout(context, ref, state, controller, dataModule),
-      },
+      body: DropTarget(
+        onDragEntered: (_) {
+          setState(() => _dropHovering = true);
+        },
+        onDragExited: (_) {
+          setState(() => _dropHovering = false);
+        },
+        onDragDone: (details) {
+          setState(() => _dropHovering = false);
+          final paths = details.files
+              .map((file) => file.path)
+              .where((path) => path.isNotEmpty)
+              .toList();
+          if (paths.isNotEmpty) {
+            LibraryPageActions.importDroppedFiles(context, ref, paths);
+          }
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: switch (state.status) {
+                LibraryPageStatus.loading =>
+                  const Center(child: CircularProgressIndicator()),
+                LibraryPageStatus.error =>
+                  Center(child: Text(state.errorMessage ?? l10n.loadingFailed)),
+                LibraryPageStatus.empty ||
+                LibraryPageStatus.normal =>
+                  _buildMainLayout(context, ref, state, controller, dataModule),
+              },
+            ),
+            if (_dropHovering)
+              Positioned.fill(
+                child: Container(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.12),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 28,
+                        vertical: 18,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.18),
+                            blurRadius: 24,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.drive_folder_upload_outlined,
+                            size: 44,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            l10n.dropToImport,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

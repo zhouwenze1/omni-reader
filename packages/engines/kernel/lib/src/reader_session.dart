@@ -55,6 +55,10 @@ abstract class ReaderSession {
 
   Future<void> goTo(Locator locator);
 
+  /// Jumps to a position in the book by total progression (0.0–1.0).
+  /// Engines without progression support ignore this call.
+  Future<void> seekToProgression(double progression) async {}
+
   /// Highlights a search hit inside the already-open chapter using a
   /// text-quote anchor. Engines without search support ignore this call.
   /// Applies a temporary search-hit highlight and reports whether the

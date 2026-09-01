@@ -1394,6 +1394,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'M,T,W,T,F,S,S'**
   String get statsWeekdayList;
+
+  /// No description provided for @importUnsupportedFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported format. Drop EPUB/PDF/ZIP or other book files.'**
+  String get importUnsupportedFormat;
+
+  /// No description provided for @dropToImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop to import books'**
+  String get dropToImport;
+
+  /// No description provided for @readingNowSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick up where you left off and keep reading.'**
+  String get readingNowSubtitle;
+
+  /// No description provided for @recentReadingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Reading'**
+  String get recentReadingTitle;
 }
 
 class _AppLocalizationsDelegate
