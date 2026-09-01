@@ -6,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'di/providers.dart';
+import 'utils/window_chrome.dart';
 
 Future<void> bootstrapDesktopApp() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +20,10 @@ Future<void> bootstrapDesktopApp() async {
   );
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.setPreventClose(true);
+    // 彻底移除 Windows 原生标题栏(WS_CAPTION 等),窗口永久无边框,
+    // 由 Flutter 自绘的 WindowCaption 承担标题栏(含拖动+窗口按钮)。
+    // 阅读时 WindowCaption 平滑滑入/滑出,避免退出阅读时原生标题栏瞬跳。
+    await WindowChrome.setImmersive(true);
     await windowManager.show();
     await windowManager.focus();
   });

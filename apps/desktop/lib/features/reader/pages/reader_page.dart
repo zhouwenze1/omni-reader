@@ -10,10 +10,10 @@ import 'package:foundation_domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:shared_ui/shared_ui.dart';
+import '../../../di/providers.dart';
 import '../../../di/repositories_providers.dart';
 import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../utils/window_chrome.dart';
 import '../../me/controller/me_controller.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../widgets/desktop_reader_settings_dialog.dart';
@@ -267,14 +267,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _loading = false;
       });
 
-      // 进入阅读:隐藏 Windows 原生标题栏,沉浸式阅读。
-      unawaited(WindowChrome.setImmersive(true));
+      // 进入阅读:标记阅读态,应用顶部 WindowCaption 标题栏平滑滑出。
+      ref.read(readerActiveProvider.notifier).state = true;
 
       // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
       _readingRecorder = ReadingSessionRecorder(
         bookUid: widget.bookUid,
         onSegment: (startedAt, endedAt) {
-          ref
+          // 用 _providerContainer 而非 ref:心跳回调可能晚于 widget dispose,
+          // 此时 ref 已失效会导致记录丢失(此前实测阅读时长被严重低估)。
+          final container = _providerContainer;
+          if (container == null) {
+            return;
+          }
+          container
               .read(readingStatsRepositoryProvider)
               .recordSession(
                 bookUid: widget.bookUid,
@@ -410,8 +416,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
-    // 退出阅读:恢复 Windows 原生标题栏。
-    unawaited(WindowChrome.setImmersive(false));
+    // 退出阅读:清除阅读态,应用顶部 WindowCaption 标题栏平滑滑入。
+    _providerContainer?.read(readerActiveProvider.notifier).state = false;
     _readingRecorder?.dispose();
     // 与移动端对齐:退出阅读后让“我的”页/统计相关 provider 立即重算。
     final providerContainer = _providerContainer;
