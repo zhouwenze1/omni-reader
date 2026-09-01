@@ -24,7 +24,8 @@ class MePage extends ConsumerWidget {
         MePageStatus.loading =>
           const Center(child: CircularProgressIndicator()),
         MePageStatus.error => _buildError(context, state, controller),
-        MePageStatus.ready => _buildContent(context, state, controller, weekly),
+        MePageStatus.ready =>
+          _buildContent(context, state, controller, weekly, ref),
       },
     );
   }
@@ -60,6 +61,7 @@ class MePage extends ConsumerWidget {
     MeState state,
     MeController controller,
     WeeklyReadingSummary? weekly,
+    WidgetRef ref,
   ) {
     final l10n = context.l10n;
     return ListView(
@@ -107,6 +109,16 @@ class MePage extends ConsumerWidget {
           icon: Icons.settings_outlined,
           title: l10n.appSettings,
           onTap: () => context.push(RoutePaths.appSettings),
+        ),
+        SettingsEntryTile(
+          icon: Icons.sync,
+          title: '阅读同步',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  SyncSettingsPage(service: ref.read(syncServiceProvider)),
+            ),
+          ),
         ),
         SettingsEntryTile(
           icon: Icons.tune,
