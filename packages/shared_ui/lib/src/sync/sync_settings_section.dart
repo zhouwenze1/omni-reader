@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:services_sync/services_sync.dart';
 
-/// 云端设置页内的"阅读进度同步"配置区。
+/// 云端设置页内的"阅读同步"配置区。
 ///
-/// 卡片式设计:渐变头部 + 状态徽章 + 圆角输入框 + 渐变同步按钮,
-/// 直接嵌入设置页,不再是独立页面。
+/// 简洁设计:一个可展开的设置项,点击展开显示服务器地址/Token/设备 ID
+/// 与同步按钮,再点收起;不点击不显示内容。
 class SyncSettingsSection extends StatefulWidget {
   const SyncSettingsSection({super.key, required this.service});
 
@@ -92,284 +92,84 @@ class _SyncSettingsSectionState extends State<SyncSettingsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final config = _config;
     final synced = config.lastSyncAt != null;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 10),
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 0,
-      color: colorScheme.surfaceContainerLowest,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ExpansionTile(
+        leading: const Icon(Icons.sync),
+        title: const Text('阅读同步'),
+        subtitle: Text(synced ? '上次同步:${config.lastSyncAt!.toLocal()}' : '未配置'),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 渐变头部
-          Container(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primaryContainer,
-                  colorScheme.surfaceContainerHighest,
-                ],
+          TextField(
+            controller: _serverUrlController,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: '服务器地址',
+              hintText: 'http://192.168.1.100:8080',
+              prefixIcon: Icon(Icons.dns_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _tokenController,
+            obscureText: _obscureToken,
+            decoration: InputDecoration(
+              labelText: '同步 Token',
+              prefixIcon: const Icon(Icons.key_outlined),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscureToken
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                ),
+                onPressed: () => setState(() => _obscureToken = !_obscureToken),
               ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.sync_rounded,
-                    color: colorScheme.onPrimary,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '阅读进度同步',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '多设备间同步阅读位置,自动续读',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _StatusBadge(synced: synced, syncing: _syncing),
-              ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _deviceIdController,
+            readOnly: true,
+            decoration: const InputDecoration(
+              labelText: '设备 ID',
+              helperText: '首次保存自动生成,用于服务器区分设备',
+              prefixIcon: Icon(Icons.phone_android_outlined),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SyncField(
-                  controller: _serverUrlController,
-                  icon: Icons.dns_outlined,
-                  label: '服务器地址',
-                  hint: 'http://192.168.1.100:8080',
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 12),
-                _SyncField(
-                  controller: _tokenController,
-                  icon: Icons.key_outlined,
-                  label: '同步 Token',
-                  obscure: _obscureToken,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureToken
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 20,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscureToken = !_obscureToken),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _SyncField(
-                  controller: _deviceIdController,
-                  icon: Icons.phone_android_outlined,
-                  label: '设备 ID',
-                  helper: '首次保存自动生成,用于服务器区分设备',
-                  readOnly: true,
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _syncing ? null : _syncNow,
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: _syncing
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.cloud_sync_outlined, size: 20),
-                              const SizedBox(width: 8),
-                              Text(
-                                '立即同步',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _syncMessage ??
-                      (synced
-                          ? '上次同步:${config.lastSyncAt!.toLocal()}'
-                          : '从未同步'),
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: _syncMessage?.contains('失败') == true
-                        ? colorScheme.error
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 44,
+            child: FilledButton.icon(
+              onPressed: _syncing ? null : _syncNow,
+              icon: _syncing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              label: Text(_syncing ? '同步中...' : '立即同步'),
             ),
           ),
+          if (_syncMessage != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _syncMessage!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: _syncMessage!.contains('失败')
+                        ? Theme.of(context).colorScheme.error
+                        : null,
+                  ),
+            ),
+          ],
         ],
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.synced, required this.syncing});
-
-  final bool synced;
-  final bool syncing;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final Color background;
-    final Color foreground;
-    final String label;
-    if (syncing) {
-      background = colorScheme.surface.withValues(alpha: 0.8);
-      foreground = colorScheme.primary;
-      label = '同步中';
-    } else if (synced) {
-      background = colorScheme.primary.withValues(alpha: 0.12);
-      foreground = colorScheme.primary;
-      label = '已连接';
-    } else {
-      background = colorScheme.surface.withValues(alpha: 0.7);
-      foreground = colorScheme.onSurfaceVariant;
-      label = '未配置';
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (syncing)
-            const SizedBox(
-              width: 10,
-              height: 10,
-              child: CircularProgressIndicator(strokeWidth: 1.8),
-            )
-          else
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: foreground,
-                shape: BoxShape.circle,
-              ),
-            ),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SyncField extends StatelessWidget {
-  const _SyncField({
-    required this.controller,
-    required this.icon,
-    required this.label,
-    this.hint,
-    this.helper,
-    this.obscure = false,
-    this.readOnly = false,
-    this.suffixIcon,
-    this.keyboardType,
-  });
-
-  final TextEditingController controller;
-  final IconData icon;
-  final String label;
-  final String? hint;
-  final String? helper;
-  final bool obscure;
-  final bool readOnly;
-  final Widget? suffixIcon;
-  final TextInputType? keyboardType;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      readOnly: readOnly,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        helperText: helper,
-        prefixIcon: Icon(icon, size: 20),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: colorScheme.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outlineVariant),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.outlineVariant),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-        ),
       ),
     );
   }
