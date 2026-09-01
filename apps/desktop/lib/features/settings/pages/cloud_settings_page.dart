@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../controller/settings_controller.dart';
 import 'package:shared_ui/shared_ui.dart';
@@ -56,6 +57,7 @@ class CloudSettingsPage extends ConsumerWidget {
               ),
             ],
           ),
+          SyncSettingsSection(service: ref.read(syncServiceProvider)),
           SettingsGroup(
             title: l10n.advancedOptions,
             children: [

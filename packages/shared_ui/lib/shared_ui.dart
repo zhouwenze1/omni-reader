@@ -20,3 +20,4 @@ export 'src/widgets/progress_badge.dart';
 export 'src/widgets/settings_tile.dart';
 export 'src/widgets/weekly_report_card_v2.dart';
 export 'src/sync/sync_settings_page.dart';
+export 'src/sync/sync_settings_section.dart';

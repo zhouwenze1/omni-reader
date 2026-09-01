@@ -111,16 +111,6 @@ class MePage extends ConsumerWidget {
           onTap: () => context.push(RoutePaths.appSettings),
         ),
         SettingsEntryTile(
-          icon: Icons.sync,
-          title: '阅读同步',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  SyncSettingsPage(service: ref.read(syncServiceProvider)),
-            ),
-          ),
-        ),
-        SettingsEntryTile(
           icon: Icons.tune,
           title: l10n.readerSettings,
           onTap: () => context.push(RoutePaths.readerSettings),
