@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -78,7 +79,7 @@ func TestPushPullRoundTrip(t *testing.T) {
 	}
 }
 
-func TestLastWriteWins(t *testing.T) {
+func TestArrivalOrderWins(t *testing.T) {
 	srv := newTestServer(t)
 	// 旧的先写入
 	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
@@ -108,6 +109,122 @@ func TestLastWriteWins(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].UpdatedAt != 1725000009000 || items[0].Progression != 0.9 {
 		t.Fatalf("want newest record, got %+v", items)
+	}
+	// 即使客户端时间更旧,后到达的内容仍然胜出。
+	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+		"deviceId": "dev1",
+		"items":    []ProgressItem{item("book-a", 1, 0.2)},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("older timestamp push failed: %d", rec.Code)
+	}
+	items, err = srv.store.pullByBook("book-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].UpdatedAt != 1 || items[0].Progression != 0.2 {
+		t.Fatalf("want arrival-order record, got %+v", items)
+	}
+}
+
+func TestPushSameContentIsIdempotent(t *testing.T) {
+	srv := newTestServer(t)
+	body := map[string]any{
+		"deviceId": "dev1",
+		"items":    []ProgressItem{item("book-a", 100, 0.4)},
+	}
+	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first push failed: %d", rec.Code)
+	}
+	body["items"] = []ProgressItem{item("book-a", 1, 0.4)}
+	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("repeat push failed: %d", rec.Code)
+	}
+	var result map[string]int
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal push response: %v", err)
+	}
+	if result["accepted"] != 1 || result["changed"] != 0 {
+		t.Fatalf("want accepted=1 changed=0, got %+v", result)
+	}
+	var changes int
+	if err := srv.store.db.QueryRow(`SELECT COUNT(*) FROM sync_changes`).Scan(&changes); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 1 {
+		t.Fatalf("same content should create one change, got %d", changes)
+	}
+}
+
+func TestCursorPullIgnoresClientTime(t *testing.T) {
+	srv := newTestServer(t)
+	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+		"deviceId": "dev1",
+		"items":    []ProgressItem{item("book-a", 9999999999999, 0.1)},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first push failed: %d", rec.Code)
+	}
+	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+		"deviceId": "dev2",
+		"items":    []ProgressItem{item("book-b", 1, 0.2)},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second push failed: %d", rec.Code)
+	}
+
+	rec = doJSON(t, srv.auth(srv.handlePull), "GET", "/api/sync/pull?deviceId=dev1&cursor=1", "test-token", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cursor pull failed: %d", rec.Code)
+	}
+	var result PullResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal cursor pull: %v", err)
+	}
+	if result.Cursor != 2 || len(result.Items) != 1 || result.Items[0].BookUID != "book-b" {
+		t.Fatalf("unexpected cursor result: cursor=%d items=%+v", result.Cursor, result.Items)
+	}
+}
+
+func TestLegacyDatabaseMigrationBackfillsCursorChanges(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`
+CREATE TABLE progress_sync (
+  book_uid TEXT PRIMARY KEY,
+  locator TEXT NOT NULL,
+  progression REAL NOT NULL,
+  updated_at INTEGER NOT NULL,
+  last_read_at INTEGER,
+  device_id TEXT NOT NULL
+);
+INSERT INTO progress_sync (book_uid, locator, progression, updated_at, device_id)
+VALUES ('book-a', '{"href":"chap.xhtml"}', 0.3, 100, 'dev1');
+`)
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := openStore(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.db.Close() })
+	items, cursor, err := store.pullByCursor(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cursor != 1 || len(items) != 1 || items[0].BookUID != "book-a" {
+		t.Fatalf("unexpected migrated changes: cursor=%d items=%+v", cursor, items)
 	}
 }
 

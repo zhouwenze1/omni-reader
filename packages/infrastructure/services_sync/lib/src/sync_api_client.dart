@@ -3,29 +3,41 @@ import 'dart:io';
 
 import 'package:foundation_domain/domain.dart';
 
-/// Progress sync API 返回的数据模型。
+/// Progress push API 返回的数据模型。
+class SyncPushResult {
+  const SyncPushResult({required this.accepted, required this.changed});
+
+  final int accepted;
+  final int changed;
+}
+
+/// Progress pull API 返回的数据模型。
 class SyncPullResult {
-  const SyncPullResult({required this.items, required this.serverTime});
+  const SyncPullResult({
+    required this.items,
+    required this.serverTime,
+    required this.cursor,
+  });
 
   final List<ReadingProgress> items;
   final DateTime serverTime;
+  final int? cursor;
 }
 
 /// 同步 API 客户端,用 dart:io HttpClient 与自建 Go 服务器通信。
 class SyncApiClient {
-  SyncApiClient({HttpClient? httpClient})
-      : _http = httpClient ?? HttpClient();
+  SyncApiClient({HttpClient? httpClient}) : _http = httpClient ?? HttpClient();
 
   final HttpClient _http;
 
   /// 批量推送进度。
-  Future<int> push({
+  Future<SyncPushResult> push({
     required String serverUrl,
     required String token,
     required String deviceId,
     required List<ReadingProgress> items,
   }) async {
-    final url = Uri.parse('$serverUrl/api/sync/push');
+    final url = _endpoint(serverUrl, '/api/sync/push');
     final body = jsonEncode({
       'deviceId': deviceId,
       'items': items.map((p) => _progressToJson(p)).toList(),
@@ -39,7 +51,9 @@ class SyncApiClient {
     if (response.statusCode != 200) {
       throw SyncApiException(response.statusCode, json['error'] as String?);
     }
-    return (json['accepted'] as num?)?.toInt() ?? 0;
+    final accepted = (json['accepted'] as num?)?.toInt() ?? 0;
+    final changed = (json['changed'] as num?)?.toInt() ?? accepted;
+    return SyncPushResult(accepted: accepted, changed: changed);
   }
 
   /// 拉取增量。
@@ -48,15 +62,19 @@ class SyncApiClient {
     required String token,
     required String deviceId,
     DateTime? after,
+    int? cursor,
     String? bookUid,
   }) async {
     final params = <String, String>{'deviceId': deviceId};
     if (bookUid != null) {
       params['bookUid'] = bookUid;
+    } else if (cursor != null) {
+      params['cursor'] = '$cursor';
     } else if (after != null) {
       params['after'] = after.toUtc().toIso8601String();
     }
-    final url = Uri.parse('$serverUrl/api/sync/pull').replace(queryParameters: params);
+    final url =
+        _endpoint(serverUrl, '/api/sync/pull').replace(queryParameters: params);
     final request = await _http.getUrl(url);
     _auth(request, token);
     final response = await request.close();
@@ -66,19 +84,32 @@ class SyncApiClient {
     }
     final items = (json['items'] as List)
         .cast<Map<String, dynamic>>()
-        .map((m) => ReadingProgress.fromJson(m))
+        .map(_progressFromJson)
         .toList();
     final serverTime = DateTime.fromMillisecondsSinceEpoch(
       (json['serverTime'] as num).toInt(),
+      isUtc: true,
     );
-    return SyncPullResult(items: items, serverTime: serverTime);
+    final cursorRaw = json['cursor'];
+    final responseCursor = cursorRaw is num ? cursorRaw.toInt() : null;
+    return SyncPullResult(
+      items: items,
+      serverTime: serverTime,
+      cursor: responseCursor,
+    );
   }
 
   void _auth(HttpClientRequest request, String token) {
     request.headers.set('Authorization', 'Bearer $token');
   }
 
-  Future<Map<String, dynamic>> _parseResponse(HttpClientResponse response) async {
+  Uri _endpoint(String serverUrl, String path) {
+    final base = serverUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+    return Uri.parse('$base$path');
+  }
+
+  Future<Map<String, dynamic>> _parseResponse(
+      HttpClientResponse response) async {
     final body = await response.transform(utf8.decoder).join();
     if (body.isEmpty) return <String, dynamic>{};
     return jsonDecode(body) as Map<String, dynamic>;
@@ -92,6 +123,17 @@ class SyncApiClient {
       'updatedAt': p.updatedAt.millisecondsSinceEpoch,
       'lastReadAt': p.lastReadAt?.millisecondsSinceEpoch,
     };
+  }
+
+  ReadingProgress _progressFromJson(Map<String, dynamic> json) {
+    final rawLocator = json['locator'];
+    if (rawLocator is String) {
+      return ReadingProgress.fromJson({
+        ...json,
+        'locator': jsonDecode(rawLocator),
+      });
+    }
+    return ReadingProgress.fromJson(json);
   }
 }
 

@@ -56,16 +56,18 @@ decisions: D1 Go服务端(Ubuntu VPS); D2 只同步阅读进度; D3 退出推送
 
 ```
 GET  /health                          → {"ok": true}
-POST /api/sync/push                   → 批量推送本设备进度变更
+POST /api/sync/push                   → 批量推送本设备进度变更(内容变化才写入)
       请求: {"deviceId": "uuid", "items": [{bookUid, locator, progression, updatedAt, lastReadAt}, ...]}
-      响应: {"accepted": N}            → 已按 updatedAt 后写赢合并
-GET  /api/sync/pull?after=<ISO-8601>&deviceId=<uuid>
-      响应: {"items": [...], "serverTime": "<ISO-8601>"}
-      语义: 返回服务器上 updatedAt > after 的所有记录
+      响应: {"accepted": N, "changed": M} → accepted 为处理数, changed 为实际变化数
+GET  /api/sync/pull?cursor=<整数>&deviceId=<uuid>
+      响应: {"items": [...], "cursor": N, "serverTime": <epoch-ms>}
+      语义: 返回服务端 seq > cursor 的变更,按 seq 顺序返回
 ```
 
+旧客户端的 `after` 参数保留兼容,新客户端使用服务端 cursor,不依赖设备时间。
+
 - token 校验:请求头 `Authorization: Bearer <token>`,token 在服务器 `config.json` 中配置(个人单用户,不做多租户)
-- 时间基准:统一用 UTC ISO-8601 毫秒精度;客户端比较用服务器返回的 `serverTime` 校准本地时钟偏移(见 5.4)
+- `updatedAt` / `lastReadAt` 继续使用 UTC epoch-ms 记录;增量同步使用服务端 cursor,不做客户端时钟校准
 
 ### 4.3 数据模型(SQLite)
 
@@ -76,9 +78,21 @@ CREATE TABLE IF NOT EXISTS progress_sync (
   progression  REAL NOT NULL,
   updated_at   INTEGER NOT NULL,        -- epoch ms(UTC)
   last_read_at INTEGER,                 -- epoch ms,可空
-  device_id    TEXT NOT NULL            -- 最后一次写入方
+  device_id    TEXT NOT NULL,           -- 最后一次写入方
+  content_hash TEXT NOT NULL            -- locator + progression 的内容指纹
 );
 CREATE INDEX IF NOT EXISTS idx_progress_updated ON progress_sync(updated_at);
+
+CREATE TABLE IF NOT EXISTS sync_changes (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_uid     TEXT NOT NULL,
+  locator      TEXT NOT NULL,
+  progression  REAL NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  last_read_at INTEGER,
+  device_id    TEXT NOT NULL,
+  content_hash TEXT NOT NULL
+);
 
 -- 设备活跃表:每设备 last_seen_at 用于闲置清理
 CREATE TABLE IF NOT EXISTS sync_devices (
@@ -88,13 +102,14 @@ CREATE TABLE IF NOT EXISTS sync_devices (
 CREATE INDEX IF NOT EXISTS idx_devices_seen ON sync_devices(last_seen_at);
 ```
 
-- 按 `book_uid` 主键 upsert,`updated_at` 新者覆盖——天然实现后写赢
+- 按 `book_uid` 主键保存当前状态;内容指纹相同时不新增变更,不使用 `updated_at` 判定新旧
+- 内容不同时按服务端到达顺序追加 `sync_changes`,后到达者覆盖当前状态
 - 服务器不感知设备间冲突(进度是单值,后写赢足够;标注类才需要多值合并,不在本期)
 - **设备废弃**:每次 push/pull 更新 `sync_devices.last_seen_at`;服务器启动时及每日定时清理 `last_seen_at < now - deviceInactiveDays` 的设备(默认 180 天,config 可配),被清理设备下次再同步即重新注册
 
 ### 4.4 pull 单书过滤
 
-`GET /api/sync/pull` 增加可选 `bookUid` 参数:指定时只返回该书的记录(用于打开图书时按需拉取),省略时返回 `updated_at > after` 的全部增量。单书拉取不受 `after` 限制(打开书时必须拿到该书最新进度,即使本地游标已落后)。
+`GET /api/sync/pull` 增加可选 `bookUid` 参数:指定时只返回该书的当前记录(用于打开图书时按需拉取),省略时按 `cursor` 返回变更日志增量。单书拉取不推进全局 cursor,因此即使本地游标已落后也能拿到该书最新进度。
 
 ### 4.4 配置与部署
 
@@ -109,30 +124,31 @@ CREATE INDEX IF NOT EXISTS idx_devices_seen ON sync_devices(last_seen_at);
 - `packages/infrastructure/sync/`(或挂在 data 包内新增 `lib/src/sync/`)——建议独立小包 `services_sync`,理由:data 包是基础设施聚合,同步服务是独立关注点,与现有 `services_search` 并列
 - 内容:
   - `progress_sync_service.dart` — 核心:push/pull/增量游标/冲突合并/失败重试
-  - `progress_sync_config.dart` — 服务器地址、token、deviceId、lastSyncAt(存 Hive,挂 CloudOptions 同 key 风格)
+  - `progress_sync_config.dart` — 服务器地址、token、deviceId、cursor、每书内容哈希、lastSyncAt(存 Hive)
   - `progress_sync_api_client.dart` — HTTP 封装(用 `package:http` 或 Dart `HttpClient`)
 
 ### 5.2 设备 ID
 
-- 首启生成随机 UUID v4,存 Hive(`settings.sync.v1` 的 `deviceId` 字段)
+- 首启生成随机 UUID v4,存 Hive(`settings.sync.v2` 的 `deviceId` 字段;兼容读取 v1)
 - 双端一致方案,无需原生代码;设备 ID 仅用于服务器区分推送来源/调试
 
 ### 5.3 同步时机
 
 | 时机 | 动作 | 说明 |
 | --- | --- | --- |
-| **打开图书时(新增)** | 对该书先 pull 后 push | 打开前 `pull?bookUid=<uid>` 拉该书远端进度,若远端 `updatedAt` 更新则应用(接到上次阅读位置);读完退出时由 dispose 推送覆盖 |
+| **打开图书时(新增)** | 正常状态先推送本地未同步内容再 pull;首次迁移以服务器为基线 | 打开前 `pull?bookUid=<uid>` 拉该书当前进度,按内容指纹判断是否需要写入;读完退出时由 dispose 推送变化 |
 | 阅读页 dispose(进度 flush 后) | push 该书变更 | 双端 reader_page dispose 处接入,只推当前读的这本书 |
 | App 启动(书架页加载后) | pull 增量 → 写本地 | 入口:移动端书架页 init/桌面端 library load 后 |
 | 设置页"手动同步"按钮 | push + pull 一次 | 双端设置页新增"同步"入口 |
 | 失败 | 静默重试,下个触发点自动再试 | 绝不阻塞阅读 |
 
-### 5.4 增量游标与时钟
+### 5.4 增量游标与内容指纹
 
-- 本地存 `lastSyncAt`(上次成功 pull 的服务器时间)
-- push 前:客户端从 `progress.json` 文件 mtime 或内存快照取 `updatedAt > lastSyncAt` 的记录
-- pull 后:用服务器返回 `serverTime` 更新 `lastSyncAt`,避免客户端时钟不准导致漏拉
-- 冲突:同 bookUid 时 `updatedAt` 大者胜(客户端与服务器同一规则)
+- 本地存服务端 `cursor` 和每本书最近一次已确认的内容哈希
+- 哈希只包含 `locator` 与 `progression`,不包含 `updatedAt`、`lastReadAt`
+- push 前枚举本地进度并按哈希筛选,只发送变化项
+- pull 后所有本地写入完成才保存服务端 cursor;`lastSyncAt` 仅用于展示
+- 冲突:同 bookUid 内容不同则按服务端到达顺序胜出,不比较设备时间
 
 ### 5.5 书不在本地书架
 
@@ -148,7 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_devices_seen ON sync_devices(last_seen_at);
 
 1. 平板读某书到 42%,退出 → 电脑设置页点"手动同步" → 打开同一本书,进度为 42%(±1 页)
 2. 电脑读到 50%,退出 → 平板打开同一本书(不点任何同步),自动拉到 50% 接上上次位置
-3. 双端同时改同一本书(先后写入):后写入者(updatedAt 大)覆盖先写者,无丢失
+3. 双端同时改同一本书(先后到达服务器):后到达者覆盖先到达者,不依赖设备时间
 4. 服务器 token 错误:push/pull 返回 401,客户端静默失败不崩溃,阅读不受影响
 5. 服务器不可达:阅读照常,同步状态显示"上次失败",恢复后自动补同步
 6. 本地无某本书时 pull 到该进度:静默跳过,导入书后进度接上

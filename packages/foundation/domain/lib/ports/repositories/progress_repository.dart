@@ -5,6 +5,6 @@ abstract class ProgressRepository {
 
   Future<void> saveProgress(ReadingProgress progress);
 
-  /// 枚举所有有进度记录的书(用于同步推送全量变更)。
+  /// 枚举所有有进度记录的书,供同步服务计算本地内容变化。
   Future<List<ReadingProgress>> listProgress();
 }

@@ -1,7 +1,7 @@
 # Omni Reader 进度同步服务器
 
 Go 单二进制 HTTP 服务,配合 Flutter 双端(移动/桌面)"阅读同步"功能使用。
-SQLite 存储,last-write-wins 合并,设备闲置自动清理。
+SQLite 存储,按内容变化写入变更日志,使用服务端 cursor 增量拉取,设备闲置自动清理。
 
 ## 快速开始(Docker 推荐)
 
@@ -49,11 +49,17 @@ sudo systemctl daemon-reload && sudo systemctl enable --now omni-sync
 ```
 GET  /health                          # 健康检查(无需 token)
 POST /api/sync/push                   # 批量推送进度
-GET  /api/sync/pull?after=&deviceId=  # 拉增量(updatedAt > after)
-GET  /api/sync/pull?bookUid=&deviceId= # 拉单书(不受 after 限制)
+GET  /api/sync/pull?cursor=&deviceId=  # 按服务端 seq 拉增量
+GET  /api/sync/pull?bookUid=&deviceId= # 拉单书当前状态,不推进全局 cursor
 ```
 
 除 `/health` 外均需请求头 `Authorization: Bearer <token>`。
+
+推送仍使用原有进度字段。服务端只在 `locator` 或 `progression` 变化时写入
+`progress_sync` 和 `sync_changes`;重复推送相同阅读位置是幂等操作。
+
+旧客户端的 `after` 参数仍保留兼容,新客户端必须使用 `cursor`。升级服务端时会
+把已有 `progress_sync` 记录迁移为初始变更日志,不会删除已有进度。
 
 ## 测试
 

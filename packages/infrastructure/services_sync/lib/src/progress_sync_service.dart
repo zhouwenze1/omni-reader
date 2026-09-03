@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:foundation_domain/domain.dart';
 
+import 'content_hasher.dart';
 import 'sync_api_client.dart';
 import 'sync_ports.dart';
 
@@ -29,48 +30,97 @@ class ProgressSyncService {
   final ProgressSyncSource _source;
   final SyncConfigStore _configStore;
 
-  /// 单次同步操作的超时:打开图书/退出阅读不能因服务器慢而卡住。
+  /// 同步不能阻塞阅读,网络请求只在后台等待有限时间。
   static const Duration _timeout = Duration(seconds: 8);
 
   /// 读取当前配置。
   SyncConfig getConfig() => _configStore.load();
 
-  /// 保存配置(服务器地址/token 等)。
-  Future<void> saveConfig(SyncConfig config) => _configStore.save(config);
+  /// 保存配置。服务器身份变化后必须重新建立同步基线。
+  Future<void> saveConfig(SyncConfig config) async {
+    final current = _configStore.load();
+    final identityChanged =
+        current.serverUrl.trim() != config.serverUrl.trim() ||
+            current.token != config.token ||
+            current.deviceId != config.deviceId;
+    final next = identityChanged
+        ? config.copyWith(
+            clearLastSyncAt: true,
+            clearCursor: true,
+            clearSyncedContentHashes: true,
+          )
+        : config;
+    await _configStore.save(next);
+  }
 
-  /// 打开图书前:拉取该书远端进度,若远端 updatedAt 更新则写入本地,并返回
-  /// 远端进度(供调用方接管初始位置)。超时/失败时返回 null,不阻塞阅读。
-  Future<ReadingProgress?> pullBookOnOpen(String bookUid) async {
+  /// 打开图书前拉取该书的最新进度。
+  ///
+  /// 已建立游标后,本地有未同步内容时先推送,再读取服务器当前值;
+  /// 首次迁移则让服务器已有值作为基线,避免覆盖旧服务器数据。
+  Future<ReadingProgress?> pullBookOnOpen(String bookUid) {
+    return _pullBookOnOpen(bookUid);
+  }
+
+  /// 阅读页退出后,只推送内容指纹发生变化的书籍。
+  Future<SyncResult> pushBookOnExit(String bookUid) {
+    return _pushBookOnExit(bookUid);
+  }
+
+  /// 应用启动/手动同步:增量推送本地变化,再按服务端游标拉取变化。
+  Future<SyncResult> syncAll() {
+    return _syncAllInternal();
+  }
+
+  Future<ReadingProgress?> _pullBookOnOpen(String bookUid) async {
     final config = _configStore.load();
     if (!config.isConfigured) return null;
 
     try {
+      var state = config;
+
+      // 迁移完成后,本地尚未确认的内容先到达服务器,遵循服务器到达顺序。
+      if (state.cursor != null) {
+        final local = await _source.getProgress(bookUid);
+        if (local != null) {
+          final localHash = readingProgressContentHash(local);
+          if (state.syncedContentHashes[bookUid] != localHash) {
+            final pushed = await _push(state, [local]);
+            if (pushed.accepted > 0) {
+              await _saveHashes(<String, String>{bookUid: localHash});
+            }
+          }
+        }
+      }
+
       final result = await _api
           .pull(
-            serverUrl: config.serverUrl,
-            token: config.token,
-            deviceId: config.deviceId,
+            serverUrl: state.serverUrl,
+            token: state.token,
+            deviceId: state.deviceId,
             bookUid: bookUid,
           )
           .timeout(_timeout);
       if (result.items.isEmpty) return null;
 
       final remote = result.items.first;
+      final remoteHash = readingProgressContentHash(remote);
       final local = await _source.getProgress(bookUid);
-
-      // 远端更新,则写入本地后返回。
-      if (local == null || remote.updatedAt.isAfter(local.updatedAt)) {
+      final localHash =
+          local == null ? null : readingProgressContentHash(local);
+      if (localHash != remoteHash) {
         await _source.saveProgress(remote);
+        await _saveHashes(<String, String>{bookUid: remoteHash});
         return remote;
       }
+
+      await _saveHashes(<String, String>{bookUid: remoteHash});
       return null;
     } catch (_) {
-      return null; // 静默失败,不阻塞打开图书
+      return null;
     }
   }
 
-  /// 阅读页退出后:推送该书的本地进度到服务器。
-  Future<SyncResult> pushBookOnExit(String bookUid) async {
+  Future<SyncResult> _pushBookOnExit(String bookUid) async {
     final config = _configStore.load();
     if (!config.isConfigured) return const SyncResult();
 
@@ -78,22 +128,22 @@ class ProgressSyncService {
       final local = await _source.getProgress(bookUid);
       if (local == null) return const SyncResult();
 
-      final accepted = await _api
-          .push(
-            serverUrl: config.serverUrl,
-            token: config.token,
-            deviceId: config.deviceId,
-            items: [local],
-          )
-          .timeout(_timeout);
-      return SyncResult(pushed: accepted);
+      final localHash = readingProgressContentHash(local);
+      if (config.syncedContentHashes[bookUid] == localHash) {
+        return const SyncResult();
+      }
+
+      final result = await _push(config, [local]);
+      if (result.accepted > 0) {
+        await _saveHashes(<String, String>{bookUid: localHash});
+      }
+      return SyncResult(pushed: result.changed);
     } catch (_) {
-      return const SyncResult(); // 静默失败,下次再试
+      return const SyncResult();
     }
   }
 
-  /// 应用启动/手动同步:推送所有本地变更,拉取所有远端增量,按 updatedAt 合并。
-  Future<SyncResult> syncAll() async {
+  Future<SyncResult> _syncAllInternal() async {
     final config = _configStore.load();
     if (!config.isConfigured) return const SyncResult();
 
@@ -101,51 +151,147 @@ class ProgressSyncService {
     var pulled = 0;
 
     try {
-      // 1. 推送本地所有有进度的书
-      final all = await _source.listAllProgress();
-      if (all.isNotEmpty) {
-        final accepted = await _api
-            .push(
-              serverUrl: config.serverUrl,
-              token: config.token,
-              deviceId: config.deviceId,
-              items: all,
-            )
-            .timeout(_timeout);
-        pushed = accepted;
+      var state = config;
+
+      // 旧配置没有游标时先拉取服务器现有状态,只把本地独有内容推上去。
+      if (state.cursor == null) {
+        final baseline = await _pull(
+          state,
+          cursor: 0,
+        );
+        final baselineCursor = baseline.cursor;
+        if (baselineCursor == null) {
+          throw StateError('sync server does not support cursor pull');
+        }
+
+        final hashes = <String, String>{};
+        for (final remote in baseline.items) {
+          if (!await _source.hasBook(remote.bookUid)) continue;
+
+          final remoteHash = readingProgressContentHash(remote);
+          final local = await _source.getProgress(remote.bookUid);
+          final localHash =
+              local == null ? null : readingProgressContentHash(local);
+          if (localHash != remoteHash) {
+            await _source.saveProgress(remote);
+            pulled++;
+          }
+          hashes[remote.bookUid] = remoteHash;
+        }
+
+        await _configStore.save(
+          state.copyWith(
+            cursor: baselineCursor,
+            lastSyncAt: baseline.serverTime,
+            syncedContentHashes: hashes,
+          ),
+        );
+        state = _configStore.load();
       }
 
-      // 2. 拉取远端增量
-      final result = await _api
-          .pull(
-            serverUrl: config.serverUrl,
-            token: config.token,
-            deviceId: config.deviceId,
-            after: config.lastSyncAt,
-          )
-          .timeout(_timeout);
+      final localItems = await _source.listAllProgress();
+      final localHashes = <String, String>{};
+      final changedItems = <ReadingProgress>[];
+      for (final local in localItems) {
+        final hash = readingProgressContentHash(local);
+        localHashes[local.bookUid] = hash;
+        if (state.syncedContentHashes[local.bookUid] != hash) {
+          changedItems.add(local);
+        }
+      }
 
-      // 3. 逐条合并(远端更新才写本地)
+      if (changedItems.isNotEmpty) {
+        final result = await _push(state, changedItems);
+        pushed = result.changed;
+        if (result.accepted == changedItems.length) {
+          final hashes = <String, String>{
+            ...state.syncedContentHashes,
+            for (final item in changedItems)
+              item.bookUid: localHashes[item.bookUid]!,
+          };
+          await _configStore.save(
+            state.copyWith(syncedContentHashes: hashes),
+          );
+          state = _configStore.load();
+        }
+      }
+
+      final result = await _pull(
+        state,
+        cursor: state.cursor ?? 0,
+      );
+      final nextCursor = result.cursor;
+      if (nextCursor == null) {
+        throw StateError('sync server did not return a cursor');
+      }
+
+      final hashes = <String, String>{...state.syncedContentHashes};
       for (final remote in result.items) {
-        if (!await _source.hasBook(remote.bookUid)) {
-          continue; // 本地没这本书,静默跳过
-        }
+        if (!await _source.hasBook(remote.bookUid)) continue;
+
+        final remoteHash = readingProgressContentHash(remote);
         final local = await _source.getProgress(remote.bookUid);
-        if (local == null || remote.updatedAt.isAfter(local.updatedAt)) {
-          await _source.saveProgress(remote);
-          pulled++;
+        final localHash =
+            local == null ? null : readingProgressContentHash(local);
+
+        if (localHash == remoteHash) {
+          hashes[remote.bookUid] = remoteHash;
+          continue;
         }
+
+        await _source.saveProgress(remote);
+        hashes[remote.bookUid] = remoteHash;
+        pulled++;
       }
 
-      // 4. 推进游标
-      if (result.serverTime.isAfter(config.lastSyncAt ?? DateTime.utc(1970))) {
-        await _configStore.save(config.copyWith(lastSyncAt: result.serverTime));
-      }
-
+      await _configStore.save(
+        state.copyWith(
+          cursor: nextCursor,
+          lastSyncAt: result.serverTime,
+          syncedContentHashes: hashes,
+        ),
+      );
       return SyncResult(pushed: pushed, pulled: pulled);
     } catch (_) {
-      // 静默失败,下次再试
       return SyncResult(pushed: pushed, pulled: pulled);
     }
+  }
+
+  Future<SyncPushResult> _push(
+    SyncConfig config,
+    List<ReadingProgress> items,
+  ) {
+    return _api
+        .push(
+          serverUrl: config.serverUrl,
+          token: config.token,
+          deviceId: config.deviceId,
+          items: items,
+        )
+        .timeout(_timeout);
+  }
+
+  Future<SyncPullResult> _pull(
+    SyncConfig config, {
+    required int cursor,
+  }) {
+    return _api
+        .pull(
+          serverUrl: config.serverUrl,
+          token: config.token,
+          deviceId: config.deviceId,
+          cursor: cursor,
+        )
+        .timeout(_timeout);
+  }
+
+  Future<void> _saveHashes(Map<String, String> updates) async {
+    final current = _configStore.load();
+    final hashes = <String, String>{
+      ...current.syncedContentHashes,
+      ...updates,
+    };
+    final next = current.copyWith(syncedContentHashes: hashes);
+    await _configStore.save(next);
   }
 }

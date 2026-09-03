@@ -17,6 +17,7 @@ class ReaderBridgeService {
   final void Function(ReaderEvent event) _emitEvent;
 
   Future<void> _commandTail = Future<void>.value();
+  bool _debug = false;
 
   Future<bool> waitUntilReaderAvailable({
     Duration timeout = const Duration(seconds: 12),
@@ -55,14 +56,19 @@ class ReaderBridgeService {
         ArgumentError.value(method, 'method', 'Unsupported renderer command'),
       );
     }
-    return _enqueue(() => _invokeCommand(command, payload));
+    return _enqueue(
+      () => _invokeCommand(command, payload),
+      label: command.wireName,
+    );
   }
 
   Future<void> init({required bool debug}) async {
+    _debug = debug;
     await _enqueue(
       () => _invokeCommand(RendererCommand.init, <String, dynamic>{
         'debug': debug,
       }),
+      label: RendererCommand.init.wireName,
     );
   }
 
@@ -77,6 +83,7 @@ class ReaderBridgeService {
     Map<String, dynamic>? transitionConfig,
     bool? debug,
   }) async {
+    if (debug != null) _debug = debug;
     final payload = <String, dynamic>{};
     if (layoutMode != null) {
       payload['layoutMode'] = layoutMode;
@@ -108,7 +115,10 @@ class ReaderBridgeService {
     if (payload.isEmpty) {
       return;
     }
-    await _enqueue(() => _invokeCommand(RendererCommand.configure, payload));
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.configure, payload),
+      label: RendererCommand.configure.wireName,
+    );
   }
 
   Future<void> open({
@@ -122,21 +132,29 @@ class ReaderBridgeService {
         if (locator != null) 'locator': locator,
         if (highlights != null) 'highlights': highlights,
       }),
+      label: RendererCommand.open.wireName,
     );
   }
 
   Future<void> navigate(RendererNavigatePayload payload) async {
     await _enqueue(
       () => _invokeCommand(RendererCommand.navigate, payload.toJson()),
+      label: RendererCommand.navigate.wireName,
     );
   }
 
   Future<void> clearSelection() async {
-    await _enqueue(() => _invokeCommand(RendererCommand.clearSelection));
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.clearSelection),
+      label: RendererCommand.clearSelection.wireName,
+    );
   }
 
   Future<void> reset() async {
-    await _enqueue(() => _invokeCommand(RendererCommand.reset));
+    await _enqueue(
+      () => _invokeCommand(RendererCommand.reset),
+      label: RendererCommand.reset.wireName,
+    );
   }
 
   Future<Map<String, dynamic>?> getSelectionAnchor([
@@ -144,30 +162,35 @@ class ReaderBridgeService {
   ]) {
     return _enqueue(
       () => _invokeCommand(RendererCommand.getSelectionAnchor, payload),
+      label: RendererCommand.getSelectionAnchor.wireName,
     );
   }
 
   Future<Map<String, dynamic>?> applyHighlight(Map<String, dynamic> payload) {
     return _enqueue(
       () => _invokeCommand(RendererCommand.applyHighlight, payload),
+      label: RendererCommand.applyHighlight.wireName,
     );
   }
 
   Future<Map<String, dynamic>?> applyHighlights(Map<String, dynamic> payload) {
     return _enqueue(
       () => _invokeCommand(RendererCommand.applyHighlights, payload),
+      label: RendererCommand.applyHighlights.wireName,
     );
   }
 
   Future<Map<String, dynamic>?> removeHighlight(Map<String, dynamic> payload) {
     return _enqueue(
       () => _invokeCommand(RendererCommand.removeHighlight, payload),
+      label: RendererCommand.removeHighlight.wireName,
     );
   }
 
   Future<Map<String, dynamic>?> updateHighlight(Map<String, dynamic> payload) {
     return _enqueue(
       () => _invokeCommand(RendererCommand.updateHighlight, payload),
+      label: RendererCommand.updateHighlight.wireName,
     );
   }
 
@@ -177,6 +200,7 @@ class ReaderBridgeService {
   ]) async {
     final controller = _controllerProvider();
     final method = command.wireName;
+    final jsStopwatch = Stopwatch()..start();
     final asyncResult = await controller.callAsyncJavaScript(
       functionBody: '''
         const api = window.reader;
@@ -208,6 +232,7 @@ class ReaderBridgeService {
         'payload': payload,
       },
     );
+    jsStopwatch.stop();
 
     final result = asyncResult?.error == null
         ? asyncResult?.value
@@ -217,17 +242,20 @@ class ReaderBridgeService {
             'method': method,
           });
     final normalized = _normalizeResult(result);
-    _emitEvent(
-      ReaderEvent(
-        type: ReaderEventType.log,
-        payload: <String, dynamic>{
-          'phase': 'invokeReader',
-          'method': method,
-          if (payload != null) 'payload': payload,
-          'result': normalized ?? result,
-        },
-      ),
-    );
+    if (_debug) {
+      _emitEvent(
+        ReaderEvent(
+          type: ReaderEventType.log,
+          payload: <String, dynamic>{
+            'phase': 'invokeReader',
+            'method': method,
+            'jsExecutionMs': jsStopwatch.elapsedMicroseconds / 1000,
+            if (payload != null) 'payload': payload,
+            'result': normalized ?? result,
+          },
+        ),
+      );
+    }
 
     if (normalized != null &&
         normalized['ok'] == false &&
@@ -238,8 +266,8 @@ class ReaderBridgeService {
           payload: <String, dynamic>{
             'phase': 'invokeReader',
             'method': method,
-            if (payload != null) 'payload': payload,
             'result': normalized,
+            if (_debug && payload != null) 'payload': payload,
           },
           message:
               'window.reader.$method failed: ${normalized['error'].toString()}',
@@ -250,8 +278,30 @@ class ReaderBridgeService {
     return normalized;
   }
 
-  Future<T> _enqueue<T>(Future<T> Function() operation) {
-    final task = _commandTail.then((_) => operation());
+  Future<T> _enqueue<T>(
+    Future<T> Function() operation, {
+    String? label,
+  }) {
+    final queuedAt = Stopwatch()..start();
+    final task = _commandTail.then((_) {
+      final queueWaitMs = queuedAt.elapsedMicroseconds / 1000;
+      final startedAt = Stopwatch()..start();
+      return operation().whenComplete(() {
+        startedAt.stop();
+        if (!_debug) return;
+        _emitEvent(
+          ReaderEvent(
+            type: ReaderEventType.log,
+            payload: <String, dynamic>{
+              'phase': 'bridgeTiming',
+              'method': label,
+              'queueWaitMs': queueWaitMs,
+              'totalMs': queueWaitMs + startedAt.elapsedMicroseconds / 1000,
+            },
+          ),
+        );
+      });
+    });
     _commandTail = task.then<void>(
       (_) {},
       onError: (Object _, StackTrace __) {},

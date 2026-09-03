@@ -7,13 +7,14 @@ import 'package:services_sync/services_sync.dart';
 class HiveSyncConfigStore implements SyncConfigStore {
   HiveSyncConfigStore(this._box);
 
-  static const String _key = 'settings.sync.v1';
+  static const String _key = 'settings.sync.v2';
+  static const String _legacyKey = 'settings.sync.v1';
 
   final Box<dynamic> _box;
 
   @override
   SyncConfig load() {
-    final raw = _box.get(_key);
+    final raw = _box.get(_key) ?? _box.get(_legacyKey);
     if (raw is Map) {
       final map = raw.map((k, v) => MapEntry('$k', v));
       final serverUrl = map['serverUrl']?.toString() ?? '';
@@ -21,13 +22,24 @@ class HiveSyncConfigStore implements SyncConfigStore {
       final deviceId = map['deviceId']?.toString() ?? '';
       final lastSyncAtRaw = map['lastSyncAt'];
       final lastSyncAt = lastSyncAtRaw is int
-          ? DateTime.fromMillisecondsSinceEpoch(lastSyncAtRaw)
+          ? DateTime.fromMillisecondsSinceEpoch(lastSyncAtRaw, isUtc: true)
           : null;
+      final cursorRaw = map['cursor'];
+      final cursor = cursorRaw is num ? cursorRaw.toInt() : null;
+      final hashesRaw = map['syncedContentHashes'];
+      final syncedContentHashes = hashesRaw is Map
+          ? <String, String>{
+              for (final entry in hashesRaw.entries)
+                '${entry.key}': '${entry.value}',
+            }
+          : const <String, String>{};
       return SyncConfig(
         serverUrl: serverUrl,
         token: token,
         deviceId: deviceId,
         lastSyncAt: lastSyncAt,
+        cursor: cursor,
+        syncedContentHashes: syncedContentHashes,
       );
     }
     return const SyncConfig(serverUrl: '', token: '', deviceId: '');
@@ -40,6 +52,8 @@ class HiveSyncConfigStore implements SyncConfigStore {
       'token': config.token,
       'deviceId': config.deviceId,
       'lastSyncAt': config.lastSyncAt?.millisecondsSinceEpoch,
+      'cursor': config.cursor,
+      'syncedContentHashes': config.syncedContentHashes,
     });
   }
 }
