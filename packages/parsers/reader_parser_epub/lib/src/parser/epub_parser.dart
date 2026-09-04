@@ -2,14 +2,12 @@ import 'package:reader_parser_core/reader_parser_core.dart';
 import 'package:xml/xml.dart';
 
 import '../models/epub_book_package.dart';
-import 'epub_toc_reconciler.dart';
 import 'epub_parser_options.dart';
 
 class EpubParser implements FormatParser<EpubBookPackage> {
   EpubParser({this.options = const EpubParserOptions()});
 
   static const _containerPath = 'META-INF/container.xml';
-  static const EpubTocReconciler _tocReconciler = EpubTocReconciler();
 
   final EpubParserOptions options;
 
@@ -84,14 +82,9 @@ class EpubParser implements FormatParser<EpubBookPackage> {
         navPath: navPath,
         ncxPath: ncxPath,
       );
-      final toc = options.enableSmartTocReconciliation
-          ? await _tocReconciler.reconcile(
-              toc: rawToc,
-              readingOrder: readingOrder,
-              resourceSource: source,
-              contentRoot: contentRoot,
-            )
-          : rawToc;
+      // Navigation documents are authoritative. Repairing or synthesizing an
+      // EPUB belongs to the import boundary, not to the read-only parser.
+      final toc = rawToc;
 
       return EpubBookPackage(
         sourcePath: sourcePath,

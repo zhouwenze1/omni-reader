@@ -14,12 +14,18 @@ class EpubBookImportAdapter implements BookImportPort {
   Future<EpubImportResult> importEpubPackage({
     required String epubFilePath,
     required String bookUuid,
-    bool enableSmartTocReconciliation = true,
+    EpubImportRepairMode repairMode = EpubImportRepairMode.repair,
+    @Deprecated('Use repairMode instead.') bool? enableSmartTocReconciliation,
   }) async {
+    final resolvedRepairMode = enableSmartTocReconciliation == null
+        ? repairMode
+        : enableSmartTocReconciliation
+            ? EpubImportRepairMode.repair
+            : EpubImportRepairMode.none;
     final package = await _importService.importEpub(
       epubFilePath: epubFilePath,
       bookUuid: bookUuid,
-      enableSmartTocReconciliation: enableSmartTocReconciliation,
+      repairMode: resolvedRepairMode,
     );
     return EpubImportResult(
       title: package.title,

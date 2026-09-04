@@ -1,3 +1,5 @@
+import '../../models/import_models.dart';
+
 /// Domain-facing snapshot of an imported EPUB package.
 ///
 /// Deliberately decoupled from engine and parser package types so that
@@ -32,6 +34,7 @@ abstract class BookImportPort {
   Future<EpubImportResult> importEpubPackage({
     required String epubFilePath,
     required String bookUuid,
-    bool enableSmartTocReconciliation = true,
+    EpubImportRepairMode repairMode = EpubImportRepairMode.repair,
+    @Deprecated('Use repairMode instead.') bool? enableSmartTocReconciliation,
   });
 }

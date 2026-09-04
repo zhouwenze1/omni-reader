@@ -1,56 +1,84 @@
+import 'dart:io';
+
+import 'package:foundation_domain/domain.dart';
+import 'package:path/path.dart' as p;
+import 'package:reader_epub_repair/reader_epub_repair.dart';
 import 'package:reader_parser_epub/reader_parser_epub.dart';
 
 import 'book_package.dart';
 import 'book_storage_service.dart';
 
 class EpubImportService {
-  EpubImportService({required BookStorageService storageService})
-      : _storageService = storageService;
+  EpubImportService({
+    required BookStorageService storageService,
+    EpubRepairer? repairer,
+  })  : _storageService = storageService,
+        _repairer = repairer ?? const EpubRepairer();
 
   final BookStorageService _storageService;
+  final EpubRepairer _repairer;
 
   Future<BookPackage> importEpub({
     required String epubFilePath,
     required String bookUuid,
-    bool enableSmartTocReconciliation = true,
+    EpubImportRepairMode repairMode = EpubImportRepairMode.repair,
+    @Deprecated('Use repairMode instead.') bool? enableSmartTocReconciliation,
   }) async {
-    final parser = EpubParser(
-      options: EpubParserOptions(
-        enableSmartTocReconciliation: enableSmartTocReconciliation,
-      ),
-    );
-    final parsedPackage = await parser.parseFromFile(epubFilePath);
-
+    final resolvedRepairMode = enableSmartTocReconciliation == null
+        ? repairMode
+        : enableSmartTocReconciliation
+            ? EpubImportRepairMode.repair
+            : EpubImportRepairMode.none;
+    String parsePath = epubFilePath;
+    Directory? repairTempDir;
     try {
-      final enrichedPackage = await EpubArtifactGenerator().generateArtifacts(
-        parsedPackage,
-      );
-      final artifactFiles = _buildPersistedArtifactFiles(enrichedPackage);
-      final package = _toBookPackage(
-        bookUuid: bookUuid,
-        parsedPackage: enrichedPackage,
-      );
-
-      await _storageService.prepareBookDirs(bookUuid);
-      try {
-        await _storageService.saveArchive(
-          bookUuid,
-          sourceFilePath: epubFilePath,
+      if (resolvedRepairMode == EpubImportRepairMode.repair) {
+        repairTempDir = await Directory.systemTemp.createTemp(
+          'reader_epub_repair_',
         );
-        await _storageService.savePackage(package);
-        await _storageService.deleteArtifactIfExists(bookUuid, 'content.json');
-        await _storageService.saveArtifactFileMap(
-          bookUuid,
-          artifactFiles,
+        final repairedPath = p.join(repairTempDir.path, 'book.epub');
+        await _repairer.repair(
+          epubFilePath,
+          outputPath: repairedPath,
         );
-      } catch (_) {
-        await _storageService.clearBook(bookUuid);
-        rethrow;
+        parsePath = repairedPath;
       }
 
-      return package;
+      final parser = EpubParser();
+      final parsedPackage = await parser.parseFromFile(parsePath);
+      try {
+        final enrichedPackage = await EpubArtifactGenerator().generateArtifacts(
+          parsedPackage,
+        );
+        final artifactFiles = _buildPersistedArtifactFiles(enrichedPackage);
+        final package = _toBookPackage(
+          bookUuid: bookUuid,
+          parsedPackage: enrichedPackage,
+        );
+        await _storageService.prepareBookDirs(bookUuid);
+        try {
+          await _storageService.saveArchive(
+            bookUuid,
+            sourceFilePath: parsePath,
+          );
+          await _storageService.savePackage(package);
+          await _storageService.deleteArtifactIfExists(bookUuid, 'content.json');
+          await _storageService.saveArtifactFileMap(
+            bookUuid,
+            artifactFiles,
+          );
+        } catch (_) {
+          await _storageService.clearBook(bookUuid);
+          rethrow;
+        }
+        return package;
+      } finally {
+        await parsedPackage.close();
+      }
     } finally {
-      await parsedPackage.close();
+      if (repairTempDir != null && await repairTempDir.exists()) {
+        await repairTempDir.delete(recursive: true);
+      }
     }
   }
 

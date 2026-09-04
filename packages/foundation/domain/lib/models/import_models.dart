@@ -1,18 +1,30 @@
 enum ImportTaskStatus { pending, success, failed, alreadyImported }
 
+enum EpubImportRepairMode { none, repair }
+
 class ImportBookOptions {
   const ImportBookOptions({
-    this.enableSmartTocReconciliation = true,
-  });
+    EpubImportRepairMode? repairMode,
+    @Deprecated('Use repairMode instead.') bool? enableSmartTocReconciliation,
+  }) : repairMode = enableSmartTocReconciliation == null
+           ? repairMode ?? EpubImportRepairMode.repair
+           : enableSmartTocReconciliation
+               ? EpubImportRepairMode.repair
+               : EpubImportRepairMode.none;
 
-  final bool enableSmartTocReconciliation;
+  final EpubImportRepairMode repairMode;
+
+  @Deprecated('Use repairMode instead.')
+  bool get enableSmartTocReconciliation =>
+      repairMode == EpubImportRepairMode.repair;
 
   ImportBookOptions copyWith({
-    bool? enableSmartTocReconciliation,
+    EpubImportRepairMode? repairMode,
+    @Deprecated('Use repairMode instead.') bool? enableSmartTocReconciliation,
   }) {
     return ImportBookOptions(
-      enableSmartTocReconciliation:
-          enableSmartTocReconciliation ?? this.enableSmartTocReconciliation,
+      repairMode: repairMode ?? this.repairMode,
+      enableSmartTocReconciliation: enableSmartTocReconciliation,
     );
   }
 }

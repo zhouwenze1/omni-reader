@@ -19,6 +19,8 @@ dependencies:
     path: ../../parsers/reader_parser_core
   reader_parser_epub:
     path: ../../parsers/reader_parser_epub
+  reader_epub_repair:
+    path: ../../../../reader-epub-repair
   flutter_inappwebview: ^6.1.5
   mime: ^1.0.6
   path: ^1.9.1
@@ -28,7 +30,7 @@ dependencies:
 flutter:
   assets:
     - assets/renderer/assets/index-DNsThFnT.css
-    - assets/renderer/assets/index-RnI2dPqa.js
+    - assets/renderer/assets/index-zAf6W3ha.js
     - assets/renderer/favicon.ico
     - assets/renderer/index.html
     - assets/renderer/renderer-manifest.json

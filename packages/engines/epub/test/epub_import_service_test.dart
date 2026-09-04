@@ -3,12 +3,13 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:engine_epub/engine_epub.dart';
+import 'package:foundation_domain/domain.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
   group('EpubImportService', () {
-    test('respects smart toc reconciliation switch during import', () async {
+    test('preserves valid navigation during import repair', () async {
       final tempRoot = await Directory.systemTemp.createTemp(
         'epub_import_service_test_',
       );
@@ -25,12 +26,12 @@ void main() {
       final smartPackage = await service.importEpub(
         epubFilePath: epubPath,
         bookUuid: 'smart_on',
-        enableSmartTocReconciliation: true,
+        repairMode: EpubImportRepairMode.repair,
       );
       final plainPackage = await service.importEpub(
         epubFilePath: epubPath,
         bookUuid: 'smart_off',
-        enableSmartTocReconciliation: false,
+        repairMode: EpubImportRepairMode.none,
       );
 
       expect(smartPackage.spineItems.length, 5);
@@ -60,18 +61,12 @@ void main() {
 
       expect(smartPackage.toc.map((item) => item.title), <String>[
         'Part 1',
-        'Chapter 1',
-        'Chapter 2',
         'Part 2',
-        'Chapter 3',
       ]);
-      expect(smartPackage.toc.map((item) => item.level), <int>[0, 1, 1, 0, 1]);
+      expect(smartPackage.toc.map((item) => item.level), <int>[0, 0]);
       expect(smartPackage.toc.map((item) => item.parentId), <String?>[
         null,
-        'toc_0',
-        'toc_0',
         null,
-        'toc_1',
       ]);
 
       expect(plainPackage.toc.map((item) => item.title), <String>[
