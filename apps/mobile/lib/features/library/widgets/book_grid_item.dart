@@ -91,6 +91,27 @@ class BookGridItem extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (!selectionMode && !entry.isAvailableLocally)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer
+                                .withValues(alpha: 0.95),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Icon(
+                            Icons.cloud_outlined,
+                            size: 14,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
                     if (selectionMode)
                       Positioned(
                         right: 0,

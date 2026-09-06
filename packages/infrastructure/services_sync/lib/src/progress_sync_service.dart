@@ -8,12 +8,17 @@ import 'sync_ports.dart';
 
 /// 同步操作结果。
 class SyncResult {
-  const SyncResult({this.pushed = 0, this.pulled = 0});
+  const SyncResult({this.pushed = 0, this.pulled = 0, this.error});
 
   final int pushed;
   final int pulled;
 
+  /// 非空表示本次同步失败(同步服务内部不抛出,把失败带回给调用方展示)。
+  final String? error;
+
   bool get hasChanges => pushed > 0 || pulled > 0;
+
+  bool get hasError => error != null;
 }
 
 /// 阅读进度同步服务。负责协调本地进度 ↔ 远程服务器的双向同步。
@@ -48,6 +53,10 @@ class ProgressSyncService {
             clearLastSyncAt: true,
             clearCursor: true,
             clearSyncedContentHashes: true,
+            clearEntityCursors: true,
+            clearStyleSyncedHash: true,
+            clearStyleSyncedAt: true,
+            clearStatsPushedUntil: true,
           )
         : config;
     await _configStore.save(next);
@@ -73,7 +82,7 @@ class ProgressSyncService {
 
   Future<ReadingProgress?> _pullBookOnOpen(String bookUid) async {
     final config = _configStore.load();
-    if (!config.isConfigured) return null;
+    if (!config.autoSyncActive) return null;
 
     try {
       var state = config;
@@ -122,7 +131,7 @@ class ProgressSyncService {
 
   Future<SyncResult> _pushBookOnExit(String bookUid) async {
     final config = _configStore.load();
-    if (!config.isConfigured) return const SyncResult();
+    if (!config.autoSyncActive) return const SyncResult();
 
     try {
       final local = await _source.getProgress(bookUid);
@@ -252,8 +261,9 @@ class ProgressSyncService {
         ),
       );
       return SyncResult(pushed: pushed, pulled: pulled);
-    } catch (_) {
-      return SyncResult(pushed: pushed, pulled: pulled);
+    } catch (error) {
+      // 失败必须可见:调用方(设置页)据此提示,而不是伪装成"已同步 0 条"。
+      return SyncResult(pushed: pushed, pulled: pulled, error: error.toString());
     }
   }
 

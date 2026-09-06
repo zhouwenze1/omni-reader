@@ -11,15 +11,19 @@ import (
 	"time"
 )
 
-func newTestServer(t *testing.T) *Server {
+func newTestServer(t *testing.T) (*Server, int64) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	store, err := openStore(dbPath)
+	srv, err := NewServer(Config{
+		LegacyToken: "test-token",
+		Port:        8080,
+		DBPath:      dbPath,
+	})
 	if err != nil {
-		t.Fatalf("openStore: %v", err)
+		t.Fatalf("NewServer: %v", err)
 	}
-	t.Cleanup(func() { store.db.Close() })
-	return &Server{cfg: Config{Token: "test-token", Port: 8080}, store: store}
+	t.Cleanup(func() { srv.store.db.Close() })
+	return srv, 1
 }
 
 func item(uid string, updatedAt int64, progression float64) ProgressItem {
@@ -32,41 +36,62 @@ func item(uid string, updatedAt int64, progression float64) ProgressItem {
 	}
 }
 
-func doJSON(t *testing.T, handler http.HandlerFunc, method, path, token string, body any) *httptest.ResponseRecorder {
+// doAPI 通过真实路由发请求(支持 {uid} 路径参数)。
+func doAPI(t *testing.T, srv *Server, method, path, token string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	req := newRequest(t, method, path, token, body)
+	rec := httptest.NewRecorder()
+	srv.routes().ServeHTTP(rec, req)
+	return rec
+}
+
+func newRequest(t *testing.T, method, path, token string, body any) *http.Request {
 	t.Helper()
 	var buf bytes.Buffer
-	if body != nil {
-		_ = json.NewEncoder(&buf).Encode(body)
+	switch b := body.(type) {
+	case nil:
+	case string:
+		buf.WriteString(b) // 原始文本体
+	case []byte:
+		buf.Write(b) // 原始字节体(文件/二进制上传测试用)
+	default:
+		_ = json.NewEncoder(&buf).Encode(b)
 	}
 	req := httptest.NewRequest(method, path, &buf)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	rec := httptest.NewRecorder()
-	handler(rec, req)
-	return rec
+	return req
 }
 
 func TestAuthRejectsMissingToken(t *testing.T) {
-	srv := newTestServer(t)
-	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "", nil)
+	srv, _ := newTestServer(t)
+	rec := doAPI(t, srv, "POST", "/api/sync/push", "", nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rec.Code)
 	}
 }
 
+func TestUnknownTokenRejected(t *testing.T) {
+	srv, _ := newTestServer(t)
+	rec := doAPI(t, srv, "GET", "/api/sync/pull?deviceId=dev1", "no-such-token", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 for unknown token, got %d", rec.Code)
+	}
+}
+
 func TestPushPullRoundTrip(t *testing.T) {
-	srv := newTestServer(t)
+	srv, _ := newTestServer(t)
 	pushBody := map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.42)},
 	}
-	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", pushBody)
+	rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", pushBody)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("push: want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, srv.auth(srv.handlePull), "GET", "/api/sync/pull?deviceId=dev1&after=1970-01-01T00:00:00Z", "test-token", nil)
+	rec = doAPI(t, srv, "GET", "/api/sync/pull?deviceId=dev1&after=1970-01-01T00:00:00Z", "test-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("pull: want 200, got %d", rec.Code)
 	}
@@ -79,10 +104,53 @@ func TestPushPullRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUsersAreIsolated(t *testing.T) {
+	srv, uid := newTestServer(t)
+	other, err := srv.store.createUser("other", "other-token", time.Now().UnixMilli())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	push := func(token string) *httptest.ResponseRecorder {
+		return doAPI(t, srv, "POST", "/api/sync/push", token, map[string]any{
+			"deviceId": "dev1",
+			"items":    []ProgressItem{item("book-a", 100, 0.5)},
+		})
+	}
+	if rec := push("test-token"); rec.Code != http.StatusOK {
+		t.Fatalf("user1 push failed: %s", rec.Body.String())
+	}
+	if rec := push("other-token"); rec.Code != http.StatusOK {
+		t.Fatalf("user2 push failed: %s", rec.Body.String())
+	}
+
+	// 各自只能看到自己的书。
+	items, err := srv.store.pullByBook(uid, "book-a")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("user1 should see book-a: %v %v", items, err)
+	}
+	items, err = srv.store.pullByBook(other.ID, "book-a")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("user2 should see its own book-a: %v %v", items, err)
+	}
+
+	// 删除 user2 不影响 user1。
+	if err := srv.store.deleteUser(other.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := srv.store.userByToken("other-token"); ok {
+		t.Fatal("deleted user token must be rejected")
+	}
+	items, err = srv.store.pullByBook(uid, "book-a")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("user1 data must survive user2 deletion: %v %v", items, err)
+	}
+}
+
 func TestArrivalOrderWins(t *testing.T) {
-	srv := newTestServer(t)
+	srv, uid := newTestServer(t)
 	// 旧的先写入
-	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.1)},
 	})
@@ -90,12 +158,12 @@ func TestArrivalOrderWins(t *testing.T) {
 		t.Fatalf("first push failed: %d", rec.Code)
 	}
 	// 旧 updatedAt 重推不覆盖
-	doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.99)},
 	})
 	// 新 updatedAt 覆盖
-	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000009000, 0.9)},
 	})
@@ -103,7 +171,7 @@ func TestArrivalOrderWins(t *testing.T) {
 		t.Fatalf("newer push failed: %d", rec.Code)
 	}
 
-	items, err := srv.store.pullByBook("book-a")
+	items, err := srv.store.pullByBook(uid, "book-a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,14 +179,14 @@ func TestArrivalOrderWins(t *testing.T) {
 		t.Fatalf("want newest record, got %+v", items)
 	}
 	// 即使客户端时间更旧,后到达的内容仍然胜出。
-	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1, 0.2)},
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("older timestamp push failed: %d", rec.Code)
 	}
-	items, err = srv.store.pullByBook("book-a")
+	items, err = srv.store.pullByBook(uid, "book-a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,17 +196,17 @@ func TestArrivalOrderWins(t *testing.T) {
 }
 
 func TestPushSameContentIsIdempotent(t *testing.T) {
-	srv := newTestServer(t)
+	srv, _ := newTestServer(t)
 	body := map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 100, 0.4)},
 	}
-	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", body)
+	rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("first push failed: %d", rec.Code)
 	}
 	body["items"] = []ProgressItem{item("book-a", 1, 0.4)}
-	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", body)
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("repeat push failed: %d", rec.Code)
 	}
@@ -159,15 +227,15 @@ func TestPushSameContentIsIdempotent(t *testing.T) {
 }
 
 func TestCursorPullIgnoresClientTime(t *testing.T) {
-	srv := newTestServer(t)
-	rec := doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	srv, _ := newTestServer(t)
+	rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 9999999999999, 0.1)},
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("first push failed: %d", rec.Code)
 	}
-	rec = doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev2",
 		"items":    []ProgressItem{item("book-b", 1, 0.2)},
 	})
@@ -175,7 +243,7 @@ func TestCursorPullIgnoresClientTime(t *testing.T) {
 		t.Fatalf("second push failed: %d", rec.Code)
 	}
 
-	rec = doJSON(t, srv.auth(srv.handlePull), "GET", "/api/sync/pull?deviceId=dev1&cursor=1", "test-token", nil)
+	rec = doAPI(t, srv, "GET", "/api/sync/pull?deviceId=dev1&cursor=1", "test-token", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("cursor pull failed: %d", rec.Code)
 	}
@@ -214,12 +282,12 @@ VALUES ('book-a', '{"href":"chap.xhtml"}', 0.3, 100, 'dev1');
 		t.Fatal(err)
 	}
 
-	store, err := openStore(dbPath)
+	srv, err := NewServer(Config{LegacyToken: "test-token", DBPath: dbPath})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.db.Close() })
-	items, cursor, err := store.pullByCursor(0)
+	t.Cleanup(func() { srv.store.db.Close() })
+	items, cursor, err := srv.store.pullByCursor(1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,8 +297,8 @@ VALUES ('book-a', '{"href":"chap.xhtml"}', 0.3, 100, 'dev1');
 }
 
 func TestPullIncrementalFiltersByAfter(t *testing.T) {
-	srv := newTestServer(t)
-	doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	srv, uid := newTestServer(t)
+	doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items": []ProgressItem{
 			item("book-a", 1725000000000, 0.1),
@@ -238,7 +306,7 @@ func TestPullIncrementalFiltersByAfter(t *testing.T) {
 		},
 	})
 	// after 卡在两条之间:只应返回 book-b
-	items, err := srv.store.pullIncremental(1725000005000)
+	items, err := srv.store.pullIncremental(uid, 1725000005000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,8 +316,8 @@ func TestPullIncrementalFiltersByAfter(t *testing.T) {
 }
 
 func TestCleanupInactiveDevices(t *testing.T) {
-	srv := newTestServer(t)
-	doJSON(t, srv.auth(srv.handlePush), "POST", "/api/sync/push", "test-token", map[string]any{
+	srv, uid := newTestServer(t)
+	doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.1)},
 	})
@@ -266,7 +334,7 @@ func TestCleanupInactiveDevices(t *testing.T) {
 		t.Fatalf("want 1 removed, got %d", removed)
 	}
 	// 清理后再 touch 重新注册
-	if err := srv.store.touchDevice("dev1", now); err != nil {
+	if err := srv.store.touchDevice(uid, "dev1", now); err != nil {
 		t.Fatal(err)
 	}
 	var count int

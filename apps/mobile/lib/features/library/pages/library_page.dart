@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation_domain/domain.dart';
@@ -5,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:infrastructure_data/data.dart';
 
 import '../../../di/providers.dart';
+import '../../../di/services_providers.dart';
+import '../../../features/settings/controller/settings_controller.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../../import_center/pages/import_center_page.dart';
 import '../controller/library_controller.dart';
@@ -21,15 +25,45 @@ class LibraryPage extends ConsumerStatefulWidget {
   ConsumerState<LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends ConsumerState<LibraryPage> {
+class _LibraryPageState extends ConsumerState<LibraryPage>
+    with WidgetsBindingObserver {
   bool _filtersExpanded = false;
   final ScrollController _collectionStripController = ScrollController();
   final Map<int, GlobalKey> _collectionChipKeys = <int, GlobalKey>{};
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 启动/回前台:重试待传 + 合并云端书单 + 自动释放冷书(静默)。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _cloudMaintenance());
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _collectionStripController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _cloudMaintenance();
+    }
+  }
+
+  void _cloudMaintenance() {
+    unawaited(
+      ref
+          .read(bookCloudManagerProvider)
+          .runAutomaticMaintenance()
+          .then((_) => ref.read(mobileLibraryControllerProvider.notifier).refresh()),
+    );
+    // 标注/阅读设置/统计的双向同步(静默,失败下个触发点重试)。
+    unawaited(ref.read(dataSyncServiceProvider).syncAll().then((_) {
+      ref.invalidate(settingsControllerProvider);
+    }));
   }
 
   @override
@@ -90,6 +124,20 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                     ),
                   ),
                   icon: const Icon(Icons.search),
+                ),
+                IconButton(
+                  tooltip: '释放本地空间',
+                  onPressed: state.selectedBookUids.isEmpty
+                      ? null
+                      : () => _releaseSelectedSpace(context, state, controller),
+                  icon: const Icon(Icons.cloud_upload_outlined),
+                ),
+                IconButton(
+                  tooltip: '固定在本地',
+                  onPressed: state.selectedBookUids.isEmpty
+                      ? null
+                      : () => _pinSelectedLocal(context, state, controller),
+                  icon: const Icon(Icons.push_pin_outlined),
                 ),
                 IconButton(
                   onPressed: () => _openImportCenter(context),
@@ -854,8 +902,56 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       ),
     );
     if (confirmed == true) {
+      final manager = ref.read(bookCloudManagerProvider);
+      for (final bookUid in state.selectedBookUids) {
+        try {
+          await manager.deleteCloudBook(bookUid);
+        } catch (_) {
+          // 云端删除失败不阻塞本地删除(下次全量备份不会复活该书,
+          // 该书在服务器上的清单条目会在其它设备删除时收敛)。
+        }
+      }
       await controller.deleteBooks(state.selectedBookUids);
       controller.exitSelectionMode();
+    }
+  }
+
+  /// 批量释放选中书籍的本地大文件(仅 epub 且已备份的书生效)。
+  Future<void> _releaseSelectedSpace(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) async {
+    final manager = ref.read(bookCloudManagerProvider);
+    var released = 0;
+    for (final bookUid in state.selectedBookUids) {
+      if (await manager.evictBook(bookUid)) {
+        released++;
+      }
+    }
+    await controller.refresh();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已释放 $released 本书的本地空间')),
+      );
+    }
+  }
+
+  /// 批量固定选中的书:自动清理永不释放。
+  Future<void> _pinSelectedLocal(
+    BuildContext context,
+    MobileLibraryState state,
+    MobileLibraryController controller,
+  ) async {
+    final port = ref.read(bookCloudLibraryPortProvider);
+    for (final bookUid in state.selectedBookUids) {
+      await port.setPinLocal(bookUid, pinned: true);
+    }
+    await controller.refresh();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已固定在本地,自动清理不会释放这些书')),
+      );
     }
   }
 

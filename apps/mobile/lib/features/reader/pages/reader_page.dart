@@ -65,6 +65,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReadingProgress? _progress;
   String? _error;
   bool _loading = true;
+  String? _restoreStatus;
   bool _chromeVisible = true;
   bool _isProgressDragging = false;
   bool _exitInFlight = false;
@@ -177,14 +178,56 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         return;
       }
 
+      // 云端书:本地大文件已释放时先取回再打开。
+      final indexEntry = await ref
+          .read(bookCloudLibraryPortProvider)
+          .findByBookUid(widget.bookUid);
+      if (indexEntry != null &&
+          indexEntry.format == 'epub' &&
+          !indexEntry.isAvailableLocally) {
+        setState(() {
+          _loading = true;
+          _restoreStatus = '正在从云端取回…';
+        });
+        try {
+          await ref.read(bookCloudManagerProvider).restoreBook(
+                widget.bookUid,
+                onProgress: (received, total) {
+                  if (!mounted) return;
+                  final receivedText = (received / 1048576).toStringAsFixed(1);
+                  final totalText = total == null
+                      ? ''
+                      : ' / ${(total / 1048576).toStringAsFixed(1)}MB';
+                  setState(() {
+                    _restoreStatus = '正在从云端取回… $receivedText$totalText';
+                  });
+                },
+              );
+        } catch (error) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _restoreStatus = null;
+            _error = '取回失败:$error';
+          });
+          return;
+        }
+        if (!mounted) return;
+        setState(() {
+          _restoreStatus = null;
+        });
+      }
+
       var progress = await progressRepository.getProgress(widget.bookUid);
       if (!mounted) {
         return;
       }
       // 打开图书时按需同步这一本书:远端 updatedAt 更新则接上上次阅读位置。
-      final remoteProgress = await ref
-          .read(syncServiceProvider)
-          .pullBookOnOpen(widget.bookUid);
+      final remoteProgress =
+          await ref.read(syncServiceProvider).pullBookOnOpen(widget.bookUid);
+      unawaited(
+        ref.read(dataSyncServiceProvider).pullBookOnOpen(widget.bookUid),
+      );
       if (remoteProgress != null) {
         progress = remoteProgress;
       }
@@ -223,6 +266,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         }
 
         if (event.type == ReaderEventType.relocated && event.locator != null) {
+          final relocatedHref = _hrefOf(event);
+          if (relocatedHref.isNotEmpty) {
+            ref.read(readerCurrentHrefProvider(book.uid).notifier).state =
+                relocatedHref;
+          }
           final progression = ReaderEventParser.resolveProgression(
             payload: event.payload,
             locatorLocations: event.locator!.locations,
@@ -289,6 +337,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+      _setCurrentReaderHref(book.uid, progress?.locator.href);
 
       // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
       _readingRecorder = ReadingSessionRecorder(
@@ -711,6 +760,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _progressWriteQueue.schedule(progress);
   }
 
+  void _setCurrentReaderHref(String bookUid, String? href) {
+    final normalized = _normalizeHrefKey(href);
+    if (normalized.isEmpty) {
+      return;
+    }
+    ref.read(readerCurrentHrefProvider(bookUid).notifier).state = normalized;
+  }
+
   Future<void> _jumpToProgress(double value) async {
     final session = _session;
     if (session == null) {
@@ -1056,11 +1113,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   (Offset, double) _selectionMenuLayout(BuildContext context) {
     final rect = _selectionRect ?? ui.Rect.zero;
     final viewport = MediaQuery.sizeOf(context);
-    final menuWidth = (viewport.width - 16).clamp(240.0, 460.0);
+    final menuWidth = (viewport.width - 16).clamp(240.0, 360.0);
     final offset = computeMenuOffset(
       selectionRect: rect,
       viewport: viewport,
-      menuSize: Size(menuWidth, 64),
+      menuSize: Size(menuWidth, 52),
     );
     return (offset, menuWidth);
   }
@@ -1515,6 +1572,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       if (container == null) return;
       final syncService = container.read(syncServiceProvider);
       unawaited(syncService.pushBookOnExit(widget.bookUid));
+      // 标注/统计/设置的合书推送。
+      unawaited(
+        container.read(dataSyncServiceProvider).pushOnReaderExit(widget.bookUid),
+      );
     }));
     unawaited(_readerSettingsWriteQueue.close());
     final subscription = _subscription;
@@ -1532,6 +1593,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    if (_restoreStatus != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(_restoreStatus!),
+            ],
+          ),
+        ),
+      );
+    }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -1539,7 +1614,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.reader)),
-        body: Center(child: Text(_error!)),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _error = null;
+                    _loading = true;
+                  });
+                  _init();
+                },
+                child: const Text('重试'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 

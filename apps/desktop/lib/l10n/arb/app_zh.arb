@@ -344,5 +344,18 @@
   "importUnsupportedFormat": "不支持的格式，请拖入 EPUB/PDF/ZIP 等书籍文件",
   "dropToImport": "松开导入书籍文件",
   "readingNowSubtitle": "继续你上次停下的地方，再往下读一点。",
-  "recentReadingTitle": "最近阅读"
+  "recentReadingTitle": "最近阅读",
+  "cloudBadgeLabel": "云端",
+  "releaseLocalSpace": "释放本地空间",
+  "pinToLocal": "固定在本地",
+  "cloudBackupTitle": "书库云备份",
+  "backupNow": "立即备份未备份的书",
+  "wifiOnlyTransfer": "仅 Wi-Fi 上传/下载",
+  "autoReleaseOldBooks": "自动释放未读书(天)",
+  "backedUpLabel": "已备份",
+  "pendingUploadLabel": "待上传",
+  "cloudOnlyLabel": "仅云端",
+  "releaseDone": "已释放本地空间",
+  "backupDone": "备份完成",
+  "actionFailed": "操作失败"
 }

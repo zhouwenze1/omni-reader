@@ -17,7 +17,7 @@ class AppDatabase extends GeneratedDatabase {
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -36,6 +36,12 @@ class AppDatabase extends GeneratedDatabase {
           }
           if (from < 4) {
             await _upgradeToV4();
+          }
+          if (from < 5) {
+            await _upgradeToV5();
+          }
+          if (from < 6) {
+            await _upgradeToV6();
           }
         },
         beforeOpen: (details) async {
@@ -68,7 +74,10 @@ class AppDatabase extends GeneratedDatabase {
         importedAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL,
         lastOpenedAt INTEGER NULL,
-        cachedProgress REAL NULL
+        cachedProgress REAL NULL,
+        cloudStatus TEXT NOT NULL DEFAULT 'none',
+        evictedAt INTEGER NULL,
+        pinLocal INTEGER NOT NULL DEFAULT 0
       );
     ''');
   }
@@ -147,6 +156,34 @@ class AppDatabase extends GeneratedDatabase {
     await _createReadingSessionsTable();
   }
 
+  /// v6: reading_sessions 加入 deviceId(阅读统计跨设备按"设备-会话"合并)。
+  Future<void> _upgradeToV6() async {
+    if (!await _hasColumn('reading_sessions', 'deviceId')) {
+      await customStatement(
+        "ALTER TABLE reading_sessions ADD COLUMN deviceId TEXT NOT NULL DEFAULT '';",
+      );
+    }
+  }
+
+  /// v5: library_index 加入云端书库状态(cloudStatus/evictedAt/pinLocal)。
+  Future<void> _upgradeToV5() async {
+    if (!await _hasColumn('library_index', 'cloudStatus')) {
+      await customStatement(
+        "ALTER TABLE library_index ADD COLUMN cloudStatus TEXT NOT NULL DEFAULT 'none';",
+      );
+    }
+    if (!await _hasColumn('library_index', 'evictedAt')) {
+      await customStatement(
+        'ALTER TABLE library_index ADD COLUMN evictedAt INTEGER NULL;',
+      );
+    }
+    if (!await _hasColumn('library_index', 'pinLocal')) {
+      await customStatement(
+        'ALTER TABLE library_index ADD COLUMN pinLocal INTEGER NOT NULL DEFAULT 0;',
+      );
+    }
+  }
+
   Future<void> _createReadingSessionsTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS reading_sessions (
@@ -156,7 +193,8 @@ class AppDatabase extends GeneratedDatabase {
         endedAt INTEGER NOT NULL,
         seconds INTEGER NOT NULL,
         day TEXT NOT NULL,
-        startHour INTEGER NOT NULL
+        startHour INTEGER NOT NULL,
+        deviceId TEXT NOT NULL DEFAULT ''
       );
     ''');
     await customStatement(

@@ -18,15 +18,57 @@ class ReadingStatsDao {
     required int seconds,
     required String day,
     required int startHour,
+    String deviceId = '',
   }) async {
     await _db.customStatement(
       '''
       INSERT INTO reading_sessions
-        (bookUid, startedAt, endedAt, seconds, day, startHour)
-      VALUES (?, ?, ?, ?, ?, ?)
+        (bookUid, startedAt, endedAt, seconds, day, startHour, deviceId)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ''',
-      [bookUid, startedAtMs, endedAtMs, seconds, day, startHour],
+      [bookUid, startedAtMs, endedAtMs, seconds, day, startHour, deviceId],
     );
+  }
+
+  /// startedAt 不早于 [sinceMs] 的会话(统计同步推送用)。
+  Future<List<ReadingSessionRecord>> sessionsSince(int sinceMs) async {
+    final rows = await _db.customSelect(
+      '''
+      SELECT bookUid, startedAt, endedAt, seconds, day, startHour, deviceId
+      FROM reading_sessions
+      WHERE startedAt >= ?
+      ORDER BY startedAt ASC
+      ''',
+      variables: [Variable.withInt(sinceMs)],
+    ).get();
+    return rows
+        .map((row) => ReadingSessionRecord(
+              deviceId: (row.data['deviceId'] as String?) ?? '',
+              bookUid: row.data['bookUid'] as String,
+              startedAtMs: (row.data['startedAt'] as num).toInt(),
+              endedAtMs: (row.data['endedAt'] as num).toInt(),
+              seconds: (row.data['seconds'] as num).toInt(),
+              day: row.data['day'] as String,
+              startHour: (row.data['startHour'] as num).toInt(),
+            ))
+        .toList();
+  }
+
+  Future<bool> hasSession({
+    required String deviceId,
+    required int startedAtMs,
+  }) async {
+    final row = await _db.customSelect(
+      '''
+      SELECT COUNT(*) AS c FROM reading_sessions
+      WHERE deviceId = ? AND startedAt = ?
+      ''',
+      variables: [
+        Variable.withString(deviceId),
+        Variable.withInt(startedAtMs),
+      ],
+    ).getSingle();
+    return (row.data['c'] as num).toInt() > 0;
   }
 
   Future<int> totalSeconds() async {

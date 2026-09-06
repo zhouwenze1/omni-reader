@@ -29,6 +29,8 @@ class BookListItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
+      // 悬停/聚焦不改变卡片底色,避免与页面其他区域产生色差。
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: Container(
         decoration: BoxDecoration(
           color: multiSelected
@@ -62,10 +64,23 @@ class BookListItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    entry.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!entry.isAvailableLocally)
+                        Icon(
+                          Icons.cloud_outlined,
+                          size: 14,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

@@ -209,7 +209,7 @@ class ImportCenterPage extends ConsumerWidget {
       return const ImportBookOptions();
     }
 
-    var enableSmartToc = true;
+    var repairEpub = true;
     final isZh =
         Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
               'zh',
@@ -227,18 +227,18 @@ class ImportCenterPage extends ConsumerWidget {
               children: [
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
-                  value: enableSmartToc,
+                  value: repairEpub,
                   title: Text(
-                    isZh ? '智能修复目录结构' : 'Smart TOC reconciliation',
+                    isZh ? '自动修复 EPUB 结构' : 'Repair EPUB structure',
                   ),
                   subtitle: Text(
                     isZh
-                        ? '自动补齐缺失的章节目录，并尽量挂到合适的父级节点下。'
-                        : 'Fill missing spine chapters and attach them to likely section parents.',
+                        ? '修复常见 EPUB 格式问题，同时保留原有目录、资源和章节顺序。'
+                        : 'Repair common EPUB format issues while preserving navigation, resources, and reading order.',
                   ),
                   onChanged: (value) {
                     setState(() {
-                      enableSmartToc = value;
+                      repairEpub = value;
                     });
                   },
                 ),
@@ -253,7 +253,9 @@ class ImportCenterPage extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pop(
                     ImportBookOptions(
-                      enableSmartTocReconciliation: enableSmartToc,
+                      repairMode: repairEpub
+                          ? EpubImportRepairMode.repair
+                          : EpubImportRepairMode.none,
                     ),
                   );
                 },

@@ -6,9 +6,12 @@ import 'package:services_sync/services_sync.dart';
 /// 简洁设计:一个可展开的设置项,点击展开显示服务器地址/Token/设备 ID
 /// 与同步按钮,再点收起;不点击不显示内容。
 class SyncSettingsSection extends StatefulWidget {
-  const SyncSettingsSection({super.key, required this.service});
+  const SyncSettingsSection({super.key, required this.service, this.dataSync});
 
   final ProgressSyncService service;
+
+  /// 非空时"立即同步"同时同步标注/设置/统计(v2 实体)。
+  final DataSyncService? dataSync;
 
   @override
   State<SyncSettingsSection> createState() => _SyncSettingsSectionState();
@@ -70,11 +73,23 @@ class _SyncSettingsSectionState extends State<SyncSettingsSection> {
     });
     try {
       final result = await widget.service.syncAll();
+      var pushed = result.pushed;
+      var pulled = result.pulled;
+      Object? dataSyncError = result.error;
+      final dataSync = widget.dataSync;
+      if (dataSync != null) {
+        final dataResult = await dataSync.syncAll();
+        pushed += dataResult.pushed;
+        pulled += dataResult.pulled;
+        dataSyncError ??= dataResult.error;
+      }
       if (!mounted) {
         return;
       }
       setState(() {
-        _syncMessage = '已同步:推送 ${result.pushed} 条,拉取 ${result.pulled} 条';
+        _syncMessage = dataSyncError != null
+            ? '同步失败:$dataSyncError'
+            : '已同步:推送 $pushed 条,拉取 $pulled 条';
       });
     } catch (error) {
       if (!mounted) {
@@ -101,11 +116,31 @@ class _SyncSettingsSectionState extends State<SyncSettingsSection> {
       child: ExpansionTile(
         leading: const Icon(Icons.sync),
         title: const Text('阅读同步'),
-        subtitle: Text(synced ? '上次同步:${config.lastSyncAt!.toLocal()}' : '未配置'),
+        subtitle: Text(
+          synced
+              ? '上次同步:${config.lastSyncAt!.toLocal()}'
+              : (config.isConfigured ? '已配置,尚未成功同步' : '未配置'),
+        ),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('自动同步'),
+            subtitle: Text(
+              config.isConfigured ? '启动/开关书时自动同步' : '未配置服务器,自动同步不可用',
+            ),
+            value: config.isConfigured && config.autoSync,
+            onChanged: config.isConfigured
+                ? (value) async {
+                    await widget.service.saveConfig(
+                      widget.service.getConfig().copyWith(autoSync: value),
+                    );
+                    setState(() {});
+                  }
+                : null,
+          ),
           TextField(
             controller: _serverUrlController,
             keyboardType: TextInputType.url,

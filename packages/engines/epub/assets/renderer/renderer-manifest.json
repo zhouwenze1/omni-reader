@@ -1,7 +1,7 @@
 {
   "renderer": "vue-book-renderer",
-  "rendererCommit": "8c12d060005d27b53e2727ea1ef45b88bb52552a",
-  "rendererDirty": true,
+  "rendererCommit": "218cf342fedfae8287cef24206bcd14d5bcfef23",
+  "rendererDirty": false,
   "files": {
     "assets/index-DNsThFnT.css": {
       "bytes": 94,

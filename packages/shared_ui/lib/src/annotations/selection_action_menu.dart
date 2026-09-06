@@ -20,14 +20,29 @@ class SelectionActionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isChinese = Localizations.localeOf(
+      context,
+    ).languageCode.toLowerCase().startsWith('zh');
+    final colorLabels = <String, String>{
+      AnnotationPalette.yellow:
+          isChinese ? '黄色高亮' : 'Yellow highlight',
+      AnnotationPalette.green: isChinese ? '绿色高亮' : 'Green highlight',
+      AnnotationPalette.blue: isChinese ? '蓝色高亮' : 'Blue highlight',
+      AnnotationPalette.pink: isChinese ? '粉色高亮' : 'Pink highlight',
+      AnnotationPalette.purple: isChinese ? '紫色高亮' : 'Purple highlight',
+    };
     final colors = AnnotationPalette.colors.map((color) {
       final selected = color == selectedColor;
       return IconButton(
-        tooltip: color,
+        tooltip: colorLabels[color] ?? color,
+        constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        splashRadius: 18,
         onPressed: () => onColor(color),
         icon: Container(
-          width: 26,
-          height: 26,
+          width: 22,
+          height: 22,
           decoration: BoxDecoration(
             color: AnnotationPalette.toColor(color),
             shape: BoxShape.circle,
@@ -42,6 +57,10 @@ class SelectionActionMenu extends StatelessWidget {
       );
     }).toList();
 
+    final noteLabel = isChinese ? '添加笔记' : 'Add note';
+    final copyLabel = isChinese ? '复制' : 'Copy';
+    final deleteLabel = isChinese ? '删除高亮' : 'Delete highlight';
+
     return Material(
       elevation: 8,
       color: Theme.of(context).colorScheme.surface,
@@ -49,25 +68,46 @@ class SelectionActionMenu extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               ...colors,
               const SizedBox(width: 4),
               IconButton(
-                tooltip: 'Note',
+                tooltip: noteLabel,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 18,
                 onPressed: onNote,
                 icon: const Icon(Icons.edit_note_outlined),
               ),
               IconButton(
-                tooltip: 'Copy',
+                tooltip: copyLabel,
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 18,
                 onPressed: onCopy,
                 icon: const Icon(Icons.copy_outlined),
               ),
               if (onDelete != null)
                 IconButton(
-                  tooltip: 'Delete highlight',
+                  tooltip: deleteLabel,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 36,
+                    height: 36,
+                  ),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  splashRadius: 18,
                   onPressed: onDelete,
                   icon: const Icon(Icons.delete_outline),
                 ),

@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation_domain/domain.dart';
 
-
 import 'package:reader_desktop/features/reader/widgets/desktop_toc_panel.dart';
 import 'package:reader_desktop/l10n/app_localizations.dart';
+import 'package:shared_ui/shared_ui.dart';
 
 void main() {
   group('DesktopTocPanel', () {
@@ -47,6 +47,9 @@ void main() {
         ProviderScope(
           overrides: [
             tocPanelItemsProvider('book1').overrideWith((ref) => sampleItems),
+            readerCurrentHrefProvider('book1').overrideWith(
+              (ref) => 'chapter1.xhtml#s1',
+            ),
           ],
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -68,6 +71,10 @@ void main() {
       expect(find.text('Chapter 1'), findsOneWidget);
       expect(find.text('  Section 1.1'), findsOneWidget);
       expect(find.text('  Section 1.2'), findsOneWidget);
+      expect(
+        tester.widget<ListTile>(find.byKey(const ValueKey('2'))).selected,
+        isTrue,
+      );
 
       // 有点击回调的项可以点击
       await tester.tap(find.text('Chapter 1'));

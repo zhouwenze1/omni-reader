@@ -25,44 +25,45 @@ class LibrarySelectionActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    // Wrap 而非 Row:窄窗口/高 DPI 下按钮放不下时会自动换行,避免互相叠压。
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text(l10n.selectedBooksCount(selectedCount)),
-          const SizedBox(width: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(l10n.selectedBooksCount(selectedCount)),
+          ),
           OutlinedButton(
             onPressed: onSelectAll,
             child: Text(l10n.selectAll),
           ),
-          const SizedBox(width: 8),
           OutlinedButton(
             onPressed: onClear,
             child: Text(l10n.clear),
           ),
-          const SizedBox(width: 8),
           OutlinedButton.icon(
             onPressed: selectedCount == 0 ? null : onAddToCollection,
             icon: const Icon(Icons.playlist_add),
             label: Text(l10n.addToCollection),
           ),
-          const SizedBox(width: 8),
           OutlinedButton.icon(
             onPressed: selectedCount == 0 ? null : onMoveToCollection,
             icon: const Icon(Icons.drive_file_move_outline),
             label: Text(l10n.moveToCollection),
           ),
-          const SizedBox(width: 8),
           FilledButton.tonalIcon(
             onPressed: selectedCount == 0 ? null : onDeleteSelected,
             icon: const Icon(Icons.delete_outline),
             label: Text(l10n.deleteSelected),
           ),
-          const Spacer(),
           TextButton(
             onPressed: onExit,
             child: Text(l10n.exit),

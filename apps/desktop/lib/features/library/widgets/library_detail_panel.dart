@@ -19,6 +19,8 @@ class LibraryDetailPanel extends StatelessWidget {
     required this.onRemoveBookFromCollection,
     required this.onMoveSelected,
     required this.onDeleteSelected,
+    required this.onReleaseSelected,
+    required this.onPinSelected,
     required this.onExitSelectionMode,
   });
 
@@ -33,6 +35,8 @@ class LibraryDetailPanel extends StatelessWidget {
       onRemoveBookFromCollection;
   final VoidCallback onMoveSelected;
   final VoidCallback onDeleteSelected;
+  final VoidCallback onReleaseSelected;
+  final VoidCallback onPinSelected;
   final VoidCallback onExitSelectionMode;
 
   @override
@@ -58,6 +62,24 @@ class LibraryDetailPanel extends StatelessWidget {
                 onPressed: selectedCount == 0 ? null : onMoveSelected,
                 icon: const Icon(Icons.drive_file_move_outline),
                 label: Text(l10n.moveToCollection),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: selectedCount == 0 ? null : onReleaseSelected,
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: Text(l10n.releaseLocalSpace),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: selectedCount == 0 ? null : onPinSelected,
+                icon: const Icon(Icons.push_pin_outlined),
+                label: Text(l10n.pinToLocal),
               ),
             ),
             const SizedBox(height: 8),
@@ -130,16 +152,18 @@ class LibraryDetailPanel extends StatelessWidget {
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: _buildCollectionChips(l10n, state, entry),
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: () => onShowBookCollections(entry),
-              icon: const Icon(Icons.playlist_add),
-              label: Text(l10n.manageCollection),
-            ),
+            children: [
+              ..._buildCollectionChips(l10n, state, entry),
+              OutlinedButton.icon(
+                onPressed: () => onShowBookCollections(entry),
+                icon: const Icon(Icons.playlist_add),
+                label: Text(l10n.manageCollection),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+              ),
+            ],
           ),
           const Spacer(),
           Row(

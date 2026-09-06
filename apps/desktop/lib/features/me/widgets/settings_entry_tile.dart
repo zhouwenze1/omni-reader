@@ -18,6 +18,10 @@ class SettingsEntryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
+        // 悬停不改变卡片底色,避免与页面其他区域产生色差。
+        hoverColor: Colors.transparent,
+        focusColor: Colors.transparent,
+        splashColor: Colors.transparent,
         leading: Icon(icon),
         title: Text(title),
         subtitle: subtitle == null ? null : Text(subtitle!),

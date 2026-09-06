@@ -9,11 +9,15 @@ import '../db/reading_stats_dao.dart';
 /// day 桶在写入时由会话起点计算并冗余存储(day/startHour 列),
 /// 查询端因此不需要 SQLite 日期函数,避免时区/本地化差异。
 class ReadingStatsRepositoryImpl implements ReadingStatsRepository {
-  ReadingStatsRepositoryImpl(this._dao);
+  ReadingStatsRepositoryImpl(this._dao, {String Function()? deviceId})
+      : _deviceId = deviceId ?? (() => '');
 
   static const String deletedBookTitle = '已删除的书籍';
 
   final ReadingStatsDao _dao;
+
+  /// 本机设备 ID(统计会话归属,跨设备合并用)。
+  final String Function() _deviceId;
 
   @override
   Future<void> recordSession({
@@ -39,6 +43,33 @@ class ReadingStatsRepositoryImpl implements ReadingStatsRepository {
       seconds: seconds,
       day: formatDay(startedAt),
       startHour: startedAt.hour,
+      deviceId: _deviceId(),
+    );
+  }
+
+  @override
+  Future<List<ReadingSessionRecord>> sessionsSince(int sinceMs) {
+    return _dao.sessionsSince(sinceMs);
+  }
+
+  @override
+  Future<bool> hasSession({
+    required String deviceId,
+    required int startedAtMs,
+  }) {
+    return _dao.hasSession(deviceId: deviceId, startedAtMs: startedAtMs);
+  }
+
+  @override
+  Future<void> insertSyncedSession(ReadingSessionRecord record) {
+    return _dao.insertSession(
+      bookUid: record.bookUid,
+      startedAtMs: record.startedAtMs,
+      endedAtMs: record.endedAtMs,
+      seconds: record.seconds,
+      day: record.day,
+      startHour: record.startHour,
+      deviceId: record.deviceId,
     );
   }
 

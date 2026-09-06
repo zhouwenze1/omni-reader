@@ -96,14 +96,27 @@ class LibraryIndexDao {
     return _mapEntry(rows.first);
   }
 
+  Future<LibraryIndexEntry?> findByBookUid(String bookUid) async {
+    final rows = await _db.customSelect(
+      'SELECT * FROM library_index WHERE bookUid = ? LIMIT 1',
+      variables: [Variable.withString(bookUid)],
+    ).get();
+
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _mapEntry(rows.first);
+  }
+
   Future<void> upsert(LibraryIndexEntry entry) async {
     final authorsJson = jsonEncode(entry.authors);
     await _db.customStatement(
       '''
       INSERT INTO library_index (
         bookUid, fingerprint, format, title, authorsJson, categoryId, coverRelPath,
-        importedAt, updatedAt, lastOpenedAt, cachedProgress
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        importedAt, updatedAt, lastOpenedAt, cachedProgress,
+        cloudStatus, evictedAt, pinLocal
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(bookUid) DO UPDATE SET
         fingerprint=excluded.fingerprint,
         format=excluded.format,
@@ -114,7 +127,10 @@ class LibraryIndexDao {
         importedAt=excluded.importedAt,
         updatedAt=excluded.updatedAt,
         lastOpenedAt=excluded.lastOpenedAt,
-        cachedProgress=excluded.cachedProgress
+        cachedProgress=excluded.cachedProgress,
+        cloudStatus=excluded.cloudStatus,
+        evictedAt=excluded.evictedAt,
+        pinLocal=excluded.pinLocal
       ''',
       [
         entry.bookUid,
@@ -128,7 +144,37 @@ class LibraryIndexDao {
         entry.updatedAt.millisecondsSinceEpoch,
         entry.lastOpenedAt?.millisecondsSinceEpoch,
         entry.cachedProgress,
+        entry.cloudStatus.storageName,
+        entry.evictedAt?.millisecondsSinceEpoch,
+        entry.pinLocal ? 1 : 0,
       ],
+    );
+  }
+
+  Future<void> setCloudStatus(String bookUid, CloudBackupStatus status) {
+    return _db.customStatement(
+      'UPDATE library_index SET cloudStatus = ? WHERE bookUid = ?',
+      [status.storageName, bookUid],
+    );
+  }
+
+  /// evicted=true 释放本地大文件;false 表示已取回本地。
+  Future<void> setEvicted(
+    String bookUid, {
+    required bool evicted,
+    DateTime? at,
+  }) {
+    final timestamp = evicted ? (at ?? DateTime.now()).millisecondsSinceEpoch : null;
+    return _db.customStatement(
+      'UPDATE library_index SET evictedAt = ? WHERE bookUid = ?',
+      [timestamp, bookUid],
+    );
+  }
+
+  Future<void> setPinLocal(String bookUid, {required bool pinned}) {
+    return _db.customStatement(
+      'UPDATE library_index SET pinLocal = ? WHERE bookUid = ?',
+      [pinned ? 1 : 0, bookUid],
     );
   }
 
@@ -192,6 +238,15 @@ class LibraryIndexDao {
               (row.data['lastOpenedAt'] as num).toInt(),
             ),
       cachedProgress: (row.data['cachedProgress'] as num?)?.toDouble(),
+      cloudStatus: CloudBackupStatus.fromString(
+        row.data['cloudStatus'] as String?,
+      ),
+      evictedAt: row.data['evictedAt'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              (row.data['evictedAt'] as num).toInt(),
+            ),
+      pinLocal: ((row.data['pinLocal'] as num?)?.toInt() ?? 0) == 1,
     );
   }
 }

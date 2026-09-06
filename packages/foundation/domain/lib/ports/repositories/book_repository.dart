@@ -16,6 +16,8 @@ abstract class BookRepository {
 
   Future<LibraryIndexEntry?> findLibraryIndexByFingerprint(String fingerprint);
 
+  Future<LibraryIndexEntry?> findLibraryIndexByBookUid(String bookUid);
+
   Future<void> upsertLibraryIndex(LibraryIndexEntry entry);
 
   Future<void> deleteBook(String bookUid);

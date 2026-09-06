@@ -42,6 +42,19 @@ class HomeShellPage extends StatelessWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: _goBranch,
             labelType: NavigationRailLabelType.all,
+            // 顶部品牌 logo:小尺寸、紧凑间距。
+            leading: Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/logo.png',
+                  width: 32,
+                  height: 32,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+            ),
             destinations: [
               NavigationRailDestination(
                 icon: const Icon(Icons.menu_book_outlined),

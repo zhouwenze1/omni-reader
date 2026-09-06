@@ -1,4 +1,5 @@
 import 'package:engine_epub/engine_epub.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infrastructure_data/data.dart';
@@ -6,9 +7,27 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'di/providers.dart';
+import 'utils/crash_log.dart';
 import 'utils/window_chrome.dart';
 
 Future<void> bootstrapDesktopApp() async {
+  // 白屏(启动即空白)无法从界面看到原因,所有未捕获错误落 exe 旁 crash.log。
+  FlutterError.onError = (details) {
+    CrashLog.write('FlutterError: ${details.exception}\n${details.stack}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    CrashLog.write('Uncaught: $error\n$stack');
+    return false;
+  };
+  try {
+    await _bootstrap();
+  } catch (error, stack) {
+    CrashLog.write('bootstrap failed: $error\n$stack');
+    rethrow;
+  }
+}
+
+Future<void> _bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   const windowOptions = WindowOptions(

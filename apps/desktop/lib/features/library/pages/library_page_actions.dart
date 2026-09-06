@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:infrastructure_data/data.dart';
 import 'package:intl/intl.dart';
 
 import '../../../di/repositories_providers.dart';
+import '../../../di/services_providers.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/controller/settings_controller.dart';
 import '../controller/library_controller.dart';
@@ -378,6 +381,7 @@ class LibraryPageActions {
 
   static Future<void> deleteBook(
     BuildContext context,
+    WidgetRef ref,
     DesktopLibraryController controller,
     String bookUid,
   ) async {
@@ -401,12 +405,54 @@ class LibraryPageActions {
     );
 
     if (confirm == true) {
+      try {
+        await ref.read(bookCloudManagerProvider).deleteCloudBook(bookUid);
+      } catch (_) {
+        // 云端删除失败不阻塞本地删除。
+      }
       await controller.deleteBook(bookUid);
     }
   }
 
+  /// 批量释放选中书籍的本地大文件(仅 epub 且已备份的书生效)。
+  static Future<void> releaseSelectedSpace(
+    BuildContext context,
+    WidgetRef ref,
+    DesktopLibraryController controller,
+    DesktopLibraryState state,
+  ) async {
+    final manager = ref.read(bookCloudManagerProvider);
+    var released = 0;
+    for (final bookUid in state.selectedBookUids) {
+      if (await manager.evictBook(bookUid)) {
+        released++;
+      }
+    }
+    await controller.refresh();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.l10n.releaseDone}: $released')),
+      );
+    }
+  }
+
+  /// 批量固定选中的书:自动清理永不释放。
+  static Future<void> pinSelectedLocal(
+    BuildContext context,
+    WidgetRef ref,
+    DesktopLibraryController controller,
+    DesktopLibraryState state,
+  ) async {
+    final port = ref.read(bookCloudLibraryPortProvider);
+    for (final bookUid in state.selectedBookUids) {
+      await port.setPinLocal(bookUid, pinned: true);
+    }
+    await controller.refresh();
+  }
+
   static Future<void> deleteSelectedBooks(
     BuildContext context,
+    WidgetRef ref,
     DesktopLibraryController controller,
     DesktopLibraryState state,
   ) async {
@@ -433,6 +479,14 @@ class LibraryPageActions {
       ),
     );
     if (confirm == true) {
+      final manager = ref.read(bookCloudManagerProvider);
+      for (final bookUid in state.selectedBookUids) {
+        try {
+          await manager.deleteCloudBook(bookUid);
+        } catch (_) {
+          // 云端删除失败不阻塞本地删除。
+        }
+      }
       await controller.deleteBooks(state.selectedBookUids);
       controller.exitSelectionMode();
     }
@@ -693,6 +747,11 @@ class LibraryPageActions {
         importedCount += 1;
         if (result.bookUid != null) {
           importedBookUids.add(result.bookUid!);
+          unawaited(
+            ref
+                .read(bookCloudManagerProvider)
+                .uploadBookAfterImport(result.bookUid!),
+          );
         }
       } else {
         failedCount += 1;
@@ -772,7 +831,7 @@ class LibraryPageActions {
         Localizations.localeOf(context).languageCode.toLowerCase().startsWith(
               'zh',
             );
-    var enableSmartToc = true;
+    var repairEpub = true;
 
     return showDialog<ImportBookOptions>(
       context: context,
@@ -784,19 +843,19 @@ class LibraryPageActions {
               width: 420,
               child: CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
-                value: enableSmartToc,
+                value: repairEpub,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(
-                  isZh ? '智能修复目录结构' : 'Smart TOC reconciliation',
+                  isZh ? '自动修复 EPUB 结构' : 'Repair EPUB structure',
                 ),
                 subtitle: Text(
                   isZh
-                      ? '自动补齐缺失的章节目录，并尽量挂到正确父级下。'
-                      : 'Fill missing spine chapters and attach them to likely section parents.',
+                      ? '修复常见 EPUB 格式问题，同时保留原有目录、资源和章节顺序。'
+                      : 'Repair common EPUB format issues while preserving navigation, resources, and reading order.',
                 ),
                 onChanged: (value) {
                   setState(() {
-                    enableSmartToc = value ?? true;
+                    repairEpub = value ?? true;
                   });
                 },
               ),
@@ -810,7 +869,9 @@ class LibraryPageActions {
                 onPressed: () {
                   Navigator.of(context).pop(
                     ImportBookOptions(
-                      enableSmartTocReconciliation: enableSmartToc,
+                      repairMode: repairEpub
+                          ? EpubImportRepairMode.repair
+                          : EpubImportRepairMode.none,
                     ),
                   );
                 },

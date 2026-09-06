@@ -59,6 +59,22 @@ void main() {
         isFalse,
       );
 
+      final repairedArchive = ZipDecoder().decodeBytes(
+        await File(storage.archiveFilePath('smart_on')).readAsBytes(),
+      );
+      final repairedChapter = String.fromCharCodes(
+        repairedArchive.find('OEBPS/Text/part1.xhtml')!.content,
+      );
+      expect(repairedChapter, contains('<!DOCTYPE html>'));
+
+      final unchangedArchive = ZipDecoder().decodeBytes(
+        await File(storage.archiveFilePath('smart_off')).readAsBytes(),
+      );
+      final unchangedChapter = String.fromCharCodes(
+        unchangedArchive.find('OEBPS/Text/part1.xhtml')!.content,
+      );
+      expect(unchangedChapter, isNot(contains('<!DOCTYPE html>')));
+
       expect(smartPackage.toc.map((item) => item.title), <String>[
         'Part 1',
         'Part 2',

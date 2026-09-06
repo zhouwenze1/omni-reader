@@ -74,6 +74,11 @@ class BookRepositoryImpl implements BookRepository {
   }
 
   @override
+  Future<LibraryIndexEntry?> findLibraryIndexByBookUid(String bookUid) {
+    return _libraryIndexDao.findByBookUid(bookUid);
+  }
+
+  @override
   Future<void> upsertLibraryIndex(LibraryIndexEntry entry) {
     return _libraryIndexDao.upsert(entry);
   }

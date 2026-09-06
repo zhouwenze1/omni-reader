@@ -36,7 +36,7 @@ done
 echo "==> 项目根目录: $ROOT_DIR"
 echo "==> 目标: $TARGET"
 
-# 读 app 的 pubspec 版本号,用于 APK 命名 (0.6.0+2007 -> 0.6.0)
+# 读 app 的 pubspec 版本号,用于 APK 命名 (0.6.2+2007 -> 0.6.2)
 VERSION="$(grep -E '^version:' "$MOBILE_APP/pubspec.yaml" | awk '{print $2}' | cut -d+ -f1)"
 if [ -z "$VERSION" ]; then
   VERSION="$(grep -E '^version:' "$ROOT_DIR/pubspec.yaml" | awk '{print $2}' | cut -d+ -f1)"

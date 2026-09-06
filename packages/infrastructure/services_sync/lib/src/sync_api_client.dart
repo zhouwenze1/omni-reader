@@ -82,10 +82,16 @@ class SyncApiClient {
     if (response.statusCode != 200) {
       throw SyncApiException(response.statusCode, json['error'] as String?);
     }
-    final items = (json['items'] as List)
-        .cast<Map<String, dynamic>>()
-        .map(_progressFromJson)
-        .toList();
+    return parsePullJson(json);
+  }
+
+  /// 解析 pull 响应。服务端无记录时 items 为 JSON null(Go nil 切片),必须容错。
+  static SyncPullResult parsePullJson(Map<String, dynamic> json) {
+    final rawItems = json['items'] as List<dynamic>?;
+    final items = <ReadingProgress>[
+      for (final item in rawItems ?? const <dynamic>[])
+        _progressFromJson(item as Map<String, dynamic>),
+    ];
     final serverTime = DateTime.fromMillisecondsSinceEpoch(
       (json['serverTime'] as num).toInt(),
       isUtc: true,
@@ -93,6 +99,63 @@ class SyncApiClient {
     final cursorRaw = json['cursor'];
     final responseCursor = cursorRaw is num ? cursorRaw.toInt() : null;
     return SyncPullResult(
+      items: items,
+      serverTime: serverTime,
+      cursor: responseCursor,
+    );
+  }
+
+  /// v2 实体(标注/设置/统计)推送。payload 为该实体的 JSON 体,服务端不透明存储。
+  Future<SyncPushResult> pushEntity({
+    required String serverUrl,
+    required String token,
+    required String deviceId,
+    required String entity,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final url = _endpoint(serverUrl, '/api/v2/sync/$entity/push');
+    final body = jsonEncode({'deviceId': deviceId, 'items': items});
+    final request = await _http.postUrl(url);
+    _auth(request, token);
+    request.headers.contentType = ContentType.json;
+    request.add(utf8.encode(body));
+    final response = await request.close();
+    final json = await _parseResponse(response);
+    if (response.statusCode != 200) {
+      throw SyncApiException(response.statusCode, json['error'] as String?);
+    }
+    final accepted = (json['accepted'] as num?)?.toInt() ?? 0;
+    final changed = (json['changed'] as num?)?.toInt() ?? accepted;
+    return SyncPushResult(accepted: accepted, changed: changed);
+  }
+
+  /// v2 实体增量拉取。cursor 从 0 开始回放全量。
+  Future<EntityPullResult> pullEntity({
+    required String serverUrl,
+    required String token,
+    required String entity,
+    required int cursor,
+  }) async {
+    final url = _endpoint(serverUrl, '/api/v2/sync/$entity/pull')
+        .replace(queryParameters: {'cursor': '$cursor'});
+    final request = await _http.getUrl(url);
+    _auth(request, token);
+    final response = await request.close();
+    final json = await _parseResponse(response);
+    if (response.statusCode != 200) {
+      throw SyncApiException(response.statusCode, json['error'] as String?);
+    }
+    final serverTime = DateTime.fromMillisecondsSinceEpoch(
+      (json['serverTime'] as num).toInt(),
+      isUtc: true,
+    );
+    final rawItems = json['items'] as List<dynamic>?;
+    final items = <EntitySyncItem>[
+      for (final item in rawItems ?? const <dynamic>[])
+        EntitySyncItem.fromJson(item as Map<String, dynamic>),
+    ];
+    final responseCursor = (json['cursor'] as num?)?.toInt() ?? cursor;
+    return EntityPullResult(
       items: items,
       serverTime: serverTime,
       cursor: responseCursor,
@@ -125,7 +188,7 @@ class SyncApiClient {
     };
   }
 
-  ReadingProgress _progressFromJson(Map<String, dynamic> json) {
+  static ReadingProgress _progressFromJson(Map<String, dynamic> json) {
     final rawLocator = json['locator'];
     if (rawLocator is String) {
       return ReadingProgress.fromJson({
@@ -134,6 +197,48 @@ class SyncApiClient {
       });
     }
     return ReadingProgress.fromJson(json);
+  }
+}
+
+/// v2 实体拉取结果。
+class EntityPullResult {
+  const EntityPullResult({
+    required this.items,
+    required this.serverTime,
+    required this.cursor,
+  });
+
+  final List<EntitySyncItem> items;
+  final DateTime serverTime;
+  final int cursor;
+}
+
+/// v2 实体条目(payload 为该实体的原始 JSON 体)。
+class EntitySyncItem {
+  const EntitySyncItem({
+    required this.key,
+    required this.payload,
+    required this.updatedAt,
+    required this.deleted,
+  });
+
+  final String key;
+  final Map<String, dynamic> payload;
+  final int updatedAt;
+  final bool deleted;
+
+  factory EntitySyncItem.fromJson(Map<String, dynamic> json) {
+    final payload = json['payload'];
+    return EntitySyncItem(
+      key: '${json['key'] ?? ''}',
+      payload: payload is Map<String, dynamic>
+          ? payload
+          : payload is Map
+              ? payload.map((k, v) => MapEntry('$k', v))
+              : const <String, dynamic>{},
+      updatedAt: (json['updatedAt'] as num?)?.toInt() ?? 0,
+      deleted: json['deleted'] == true,
+    );
   }
 }
 

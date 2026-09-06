@@ -29,6 +29,7 @@ class DesktopTocPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final tocFuture = ref.watch(tocPanelItemsProvider(bookUid));
+    final currentHref = ref.watch(readerCurrentHrefProvider(bookUid));
 
     return Align(
       alignment: Alignment.centerRight,
@@ -92,37 +93,14 @@ class DesktopTocPanel extends ConsumerWidget {
                           message: l10n.tocEmptyMessage,
                         );
                       }
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final item = items[index];
-                          final enabled = item.href != null;
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.only(
-                              left: 16 + (item.level * 16),
-                              right: 12,
-                            ),
-                            title: Text(
-                              item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: enabled ? Colors.white : Colors.white54,
-                                fontSize: 13,
-                              ),
-                            ),
-                            trailing: enabled
-                                ? const Icon(
-                                    Icons.chevron_right,
-                                    color: Colors.white38,
-                                    size: 18,
-                                  )
-                                : null,
-                            onTap: enabled ? () => onSelect(item) : null,
-                          );
-                        },
+                      return ReaderTocList(
+                        items: items,
+                        currentHref: currentHref,
+                        onSelect: onSelect,
+                        listPadding: const EdgeInsets.symmetric(vertical: 8),
+                        rowExtent: 48,
+                        rightPadding: 12,
+                        maxTitleLines: 1,
                       );
                     },
                   ),

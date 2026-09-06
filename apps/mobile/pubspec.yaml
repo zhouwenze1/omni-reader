@@ -1,7 +1,7 @@
 name: reader_mobile
 description: Mobile app for full reader demo
 publish_to: none
-version: 0.6.0+2007
+version: 0.6.2+2007
 
 resolution: workspace
 
@@ -19,6 +19,7 @@ dependencies:
   fl_chart: ^0.69.0
   file_picker: ^8.1.7
   url_launcher: ^6.3.2
+  connectivity_plus: ^6.1.0
   foundation_domain:
     path: ../../packages/foundation/domain
   shared_ui:
@@ -49,6 +50,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
 
 

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/shared_ui.dart';
 import 'backup_import_page.dart';
 import 'cache_manage_page.dart';
-import 'cloud_options_page.dart';
 import 'reading_assist_settings_page.dart';
 
 class SettingsHomePage extends ConsumerWidget {
@@ -47,18 +46,6 @@ class SettingsHomePage extends ConsumerWidget {
             icon: Icons.cloud_outlined,
             title: '云端设置',
             onTap: () => context.push(RoutePaths.cloudSettings),
-          ),
-          _entry(
-            context,
-            icon: Icons.cloud_sync_outlined,
-            title: '云端选项',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const CloudOptionsPage(),
-                ),
-              );
-            },
           ),
           _entry(
             context,

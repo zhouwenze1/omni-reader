@@ -344,5 +344,18 @@
   "importUnsupportedFormat": "Unsupported format. Drop EPUB/PDF/ZIP or other book files.",
   "dropToImport": "Drop to import books",
   "readingNowSubtitle": "Pick up where you left off and keep reading.",
-  "recentReadingTitle": "Recent Reading"
+  "recentReadingTitle": "Recent Reading",
+  "cloudBadgeLabel": "Cloud",
+  "releaseLocalSpace": "Free local space",
+  "pinToLocal": "Keep on this device",
+  "cloudBackupTitle": "Library cloud backup",
+  "backupNow": "Back up now",
+  "wifiOnlyTransfer": "Upload/download on Wi-Fi only",
+  "autoReleaseOldBooks": "Auto-free unread books (days)",
+  "backedUpLabel": "Backed up",
+  "pendingUploadLabel": "Pending",
+  "cloudOnlyLabel": "Cloud only",
+  "releaseDone": "Local space freed",
+  "backupDone": "Backup finished",
+  "actionFailed": "Action failed"
 }

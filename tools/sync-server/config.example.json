@@ -1,7 +1,9 @@
 {
-  "token": "change-me-to-your-secret-token",
+  "admin_password": "change-me-admin-password",
+  "token": "change-me-legacy-seed-token-optional",
   "port": 8080,
   "db_path": "/opt/sync-server/sync.db",
   "device_inactive_days": 180,
-  "device_cleanup_minute": 4
+  "device_cleanup_minute": 4,
+  "book_vault_max_file_mb": 200
 }

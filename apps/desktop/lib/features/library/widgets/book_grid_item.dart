@@ -59,6 +59,8 @@ class BookGridItem extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             onLongPress: onLongPress,
+            // 悬停/聚焦不改变卡片底色,避免与页面其他区域产生色差。
+            overlayColor: const WidgetStatePropertyAll(Colors.transparent),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Column(
@@ -72,6 +74,29 @@ class BookGridItem extends StatelessWidget {
                           width: coverWidth,
                           height: coverHeight,
                         ),
+                        if (!selectionMode && !entry.isAvailableLocally)
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.cloud_outlined,
+                                  size: 14,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                                ),
+                              ),
+                            ),
+                          ),
                         if (selectionMode)
                           Positioned(
                             top: 4,

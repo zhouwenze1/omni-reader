@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:infrastructure_data/data.dart';
 
 import '../../../di/providers.dart';
+import '../../../di/services_providers.dart';
+import '../../../features/settings/controller/settings_controller.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:shared_ui/shared_ui.dart';
 import '../controller/library_controller.dart';
@@ -28,6 +32,25 @@ class LibraryPage extends ConsumerStatefulWidget {
 
 class _LibraryPageState extends ConsumerState<LibraryPage> {
   bool _dropHovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 启动时:重试待传 + 合并云端书单 + 自动释放冷书(静默)。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        ref
+            .read(bookCloudManagerProvider)
+            .runAutomaticMaintenance()
+            .then((_) => ref.read(desktopLibraryControllerProvider.notifier).refresh()),
+      );
+      // 标注/阅读设置/统计的双向同步(静默,失败下个触发点重试)。
+      unawaited(ref.read(dataSyncServiceProvider).syncAll().then((_) {
+        // 远端阅读设置可能已被应用,让设置控制器重读。
+        ref.invalidate(settingsControllerProvider);
+      }));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +219,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                             context, controller, state),
                     onDeleteSelected: () =>
                         LibraryPageActions.deleteSelectedBooks(
-                            context, controller, state),
+                            context, ref, controller, state),
                     onExit: controller.exitSelectionMode,
                   ),
                 ],
@@ -221,16 +244,25 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
                 LibraryPageActions.resolveCoverPath(dataModule, entry),
             formatDate: (value) =>
                 LibraryPageActions.formatDate(context, value),
-            onContinueReading: (uid) => context.push(RoutePaths.reader(uid)),
+            onContinueReading: (uid) async {
+              await context.push(RoutePaths.reader(uid));
+              // 阅读会改变进度/最近阅读排序,返回后必须刷新书架索引视图。
+              if (mounted) {
+                await controller.refresh();
+              }
+            },
             onOpenToc: (uid) async {
               final selected = await context.push<TocItem>(RoutePaths.toc(uid));
               // 从书库入口点目录:选择章节后直接打开阅读器(从该书进度恢复)。
               if (selected != null && context.mounted) {
-                context.push(RoutePaths.reader(uid));
+                await context.push(RoutePaths.reader(uid));
+                if (mounted) {
+                  await controller.refresh();
+                }
               }
             },
-            onDeleteBook: (uid) =>
-                LibraryPageActions.deleteBook(context, controller, uid),
+            onDeleteBook: (uid) => LibraryPageActions.deleteBook(
+                context, ref, controller, uid),
             onShowBookCollections: (entry) =>
                 LibraryPageActions.showBookCollectionsDialog(
                     context, controller, entry, state),
@@ -242,6 +274,20 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
             ),
             onDeleteSelected: () => LibraryPageActions.deleteSelectedBooks(
               context,
+              ref,
+              controller,
+              state,
+            ),
+            onReleaseSelected: () =>
+                LibraryPageActions.releaseSelectedSpace(
+                  context,
+                  ref,
+                  controller,
+                  state,
+                ),
+            onPinSelected: () => LibraryPageActions.pinSelectedLocal(
+              context,
+              ref,
               controller,
               state,
             ),
@@ -263,7 +309,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
         maxCrossAxisExtent: 210,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        mainAxisExtent: 328,
+        mainAxisExtent: 350,
       ),
       itemBuilder: (context, index) {
         final entry = state.filteredItems[index];

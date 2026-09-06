@@ -35,7 +35,7 @@ void main() {
     return int.parse(row.data['user_version'].toString());
   }
 
-  test('fresh database is created at schema v4 with all tables and columns',
+  test('fresh database is created at schema v5 with all tables and columns',
       () async {
     final db = await AppDatabase.open(
       '${tempRoot.path}${Platform.pathSeparator}fresh.sqlite',
@@ -50,6 +50,10 @@ void main() {
 
     final columns = await columnNames(db, 'library_index');
     expect(columns, contains('categoryId'));
+    expect(
+      columns,
+      containsAll(<String>['cloudStatus', 'evictedAt', 'pinLocal']),
+    );
     final sessionColumns = await columnNames(db, 'reading_sessions');
     expect(
       sessionColumns,
@@ -61,12 +65,13 @@ void main() {
         'seconds',
         'day',
         'startHour',
+        'deviceId',
       ]),
     );
-    expect(await userVersion(db), 4);
+    expect(await userVersion(db), 6);
   });
 
-  test('legacy v1 database upgrades through stepwise migrations to v3',
+  test('legacy v1 database upgrades through stepwise migrations to v5',
       () async {
     final dbPath = '${tempRoot.path}${Platform.pathSeparator}legacy.sqlite';
 
@@ -103,7 +108,7 @@ void main() {
     final columns = await columnNames(db, 'library_index');
     expect(columns, contains('categoryId'));
 
-    expect(await userVersion(db), 4);
+    expect(await userVersion(db), 6);
 
     // 旧数据在升级后仍然可读。
     final row = await db
@@ -112,7 +117,7 @@ void main() {
     expect(row.data['title'], 'Old Book');
   });
 
-  test('v3 database upgrades to v4 and keeps existing rows intact',
+  test('v3 database upgrades to v5 and keeps existing rows intact',
       () async {
     final dbPath = '${tempRoot.path}${Platform.pathSeparator}v3.sqlite';
 
@@ -155,7 +160,7 @@ void main() {
       await columnNames(db, 'reading_sessions'),
       containsAll(<String>['day', 'startHour', 'seconds']),
     );
-    expect(await userVersion(db), 4);
+    expect(await userVersion(db), 6);
 
     final row = await db
         .customSelect("SELECT title, cachedProgress FROM library_index WHERE bookUid = 'b3'")

@@ -31,6 +31,46 @@ final syncServiceProvider = Provider<ProgressSyncService>((ref) {
   );
 });
 
+/// 书架云状态端口。
+final bookCloudLibraryPortProvider = Provider<BookCloudLibraryPort>((ref) {
+  return BookCloudLibraryAdapter(ref.watch(dataModuleProvider).libraryIndexDao);
+});
+
+/// 书库云备份服务(桌面端无 Wi-Fi 限制)。
+final bookCloudManagerProvider = Provider<BookCloudManager>((ref) {
+  final dataModule = ref.watch(dataModuleProvider);
+  return BookCloudManager(
+    configStore: HiveSyncConfigStore(dataModule.settingsBox),
+    api: LibraryApiClient(),
+    library: ref.watch(bookCloudLibraryPortProvider),
+    files: BookCloudFilesAdapter(
+      storagePaths: dataModule.storagePaths,
+      bookStoragePort: dataModule.bookStoragePort,
+      importRepository: dataModule.importRepository,
+    ),
+  );
+});
+
+/// 标注/阅读设置/阅读统计同步(v2 多实体)。
+final dataSyncServiceProvider = Provider<DataSyncService>((ref) {
+  final dataModule = ref.watch(dataModuleProvider);
+  final syncConfigStore = HiveSyncConfigStore(dataModule.settingsBox);
+  return DataSyncService(
+    api: SyncApiClient(),
+    configStore: syncConfigStore,
+    progress: ProgressSyncSourceImpl(
+      progressRepository: dataModule.progressRepository,
+      bookRepository: dataModule.bookRepository,
+    ),
+    annotations: AnnotationSyncSourceImpl(
+      dataModule.annotationRepository,
+      dataModule.settingsBox,
+    ),
+    settings: SettingsSyncSourceImpl(dataModule.settingsRepository),
+    stats: StatsSyncSourceImpl(dataModule.readingStatsRepository),
+  );
+});
+
 /// 周报卡 v2 数据:当前连读天数 + 本自然周累计阅读秒数。
 final weeklyReadingSummaryProvider =
     FutureProvider.autoDispose<WeeklyReadingSummary>((ref) async {

@@ -278,6 +278,98 @@ class ImportRepositoryImpl implements ImportRepository {
     }
   }
 
+  @override
+  Future<ImportResult> restoreBookFromOriginalFile({
+    required String bookUid,
+    required String filePath,
+  }) async {
+    final startedAt = DateTime.now();
+    final taskId = sha256
+        .convert(utf8.encode('restore-$bookUid-${startedAt.microsecondsSinceEpoch}'))
+        .toString()
+        .substring(0, 16);
+    ImportTask task = ImportTask(
+      id: taskId,
+      filePath: filePath,
+      status: ImportTaskStatus.pending,
+      startedAt: startedAt,
+    );
+
+    try {
+      final fingerprint = await _fingerprintService.zipFingerprint(filePath);
+      final derived = _deriveBookUid(fingerprint);
+      if (derived != bookUid) {
+        throw StateError('Restored file does not match bookUid $bookUid');
+      }
+
+      // 解析产物缺失时重建(修复+解析+写 books/<uid>);已完整则跳过。
+      final booksDir = _bookStoragePort.bookDirPath(bookUid);
+      final metaFile = File(p.join(booksDir, 'meta.json'));
+      if (!metaFile.existsSync()) {
+        await _epubImportPort.importEpubPackage(
+          epubFilePath: filePath,
+          bookUuid: bookUid,
+        );
+      }
+
+      final entry = await _bookRepository.findLibraryIndexByBookUid(bookUid);
+      if (entry == null) {
+        throw StateError('Book $bookUid is not in the library index');
+      }
+
+      // 原始文件在释放时被删除,取回后补回。
+      final originalDir = p.join(_storagePaths.libraryRoot.path, bookUid, 'original');
+      await _fileService.ensureDir(originalDir);
+      final originalName = p.basename(filePath);
+      final originalPath = p.join(originalDir, originalName);
+      if (!File(originalPath).existsSync()) {
+        await _fileService.copyFile(filePath, originalPath);
+      }
+      final originalRelPath =
+          p.join('original', originalName).replaceAll('\\', '/');
+
+      // 云端清单插入的书没有 book.json,重建一份,打开书时依赖它。
+      final bookJsonPath = p.join(_storagePaths.libraryRoot.path, bookUid, 'book.json');
+      if (!File(bookJsonPath).existsSync()) {
+        final now = DateTime.now();
+        final book = Book(
+          uid: bookUid,
+          format: entry.format,
+          title: entry.title,
+          authors: entry.authors,
+          description: null,
+          language: null,
+          rootDir: _bookStoragePort.bookDirPath(bookUid),
+          originalRelPath: originalRelPath,
+          coverRelPath: entry.coverRelPath,
+          tags: const [],
+          categoryId: entry.categoryId,
+          status: BookStatus.ready,
+          importedAt: entry.importedAt,
+          updatedAt: now,
+          lastOpenedAt: entry.lastOpenedAt,
+          sizeBytes: await File(filePath).length(),
+          fileHash: fingerprint,
+        );
+        await _fileService.writeJsonAtomic(bookJsonPath, book.toJson());
+      }
+
+      task = task.copyWith(
+        status: ImportTaskStatus.success,
+        bookUid: bookUid,
+        finishedAt: DateTime.now(),
+      );
+      return ImportResult(alreadyImported: false, bookUid: bookUid, task: task);
+    } catch (error) {
+      task = task.copyWith(
+        status: ImportTaskStatus.failed,
+        errorMessage: error.toString(),
+        finishedAt: DateTime.now(),
+      );
+      return ImportResult(alreadyImported: false, bookUid: null, task: task);
+    }
+  }
+
   String _detectFormat(String filePath) {
     final lower = filePath.toLowerCase();
     if (lower.endsWith('.pdf')) {

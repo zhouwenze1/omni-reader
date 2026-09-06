@@ -16,6 +16,7 @@ class TocDrawerPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final tocFuture = ref.watch(_tocProvider(bookUid));
+    final currentHref = ref.watch(readerCurrentHrefProvider(bookUid));
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.tocTitle)),
@@ -34,23 +35,10 @@ class TocDrawerPage extends ConsumerWidget {
             );
           }
 
-          return ListView.builder(
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return ListTile(
-                contentPadding: EdgeInsets.only(
-                  left: 16 + (item.level * 16),
-                  right: 16,
-                ),
-                title: Text(item.title),
-                trailing:
-                    item.href == null ? null : const Icon(Icons.chevron_right),
-                onTap: item.href == null
-                    ? null
-                    : () => Navigator.of(context).pop(item),
-              );
-            },
+          return ReaderTocList(
+            items: items,
+            currentHref: currentHref,
+            onSelect: (item) => Navigator.of(context).pop(item),
           );
         },
       ),

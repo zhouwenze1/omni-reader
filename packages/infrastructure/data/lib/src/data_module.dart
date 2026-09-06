@@ -19,6 +19,7 @@ import 'services/fingerprint_service_impl.dart';
 import 'services/import_conversion_stubs.dart';
 import 'services/storage_paths.dart';
 import 'services/cover_extraction_service.dart';
+import 'sync/sync_adapters.dart';
 
 class DataModule {
   DataModule._({
@@ -26,6 +27,8 @@ class DataModule {
     required this.fileService,
     required this.fingerprintService,
     required this.database,
+    required this.libraryIndexDao,
+    required this.bookStoragePort,
     required this.bookRepository,
     required this.progressRepository,
     required this.tocRepository,
@@ -41,6 +44,8 @@ class DataModule {
   final FileService fileService;
   final FingerprintService fingerprintService;
   final AppDatabase database;
+  final LibraryIndexDao libraryIndexDao;
+  final BookStoragePort bookStoragePort;
 
   final BookRepository bookRepository;
   final ProgressRepository progressRepository;
@@ -61,6 +66,7 @@ class DataModule {
     required BookImportPort epubImportPort,
     required BookStoragePort bookStoragePort,
   }) async {
+
     final fileService = FileServiceImpl();
     final fingerprintService = FingerprintServiceImpl();
 
@@ -97,7 +103,11 @@ class DataModule {
       fileService: fileService,
     );
     final collectionRepository = CollectionRepositoryImpl(collectionDao);
-    final readingStatsRepository = ReadingStatsRepositoryImpl(readingStatsDao);
+    final syncConfigStore = HiveSyncConfigStore(settingsBox);
+    final readingStatsRepository = ReadingStatsRepositoryImpl(
+      readingStatsDao,
+      deviceId: () => syncConfigStore.load().deviceId,
+    );
     final settingsRepository = SettingsRepositoryImpl(settingsBox);
     final coverExtractionService = CoverExtractionService(
       storagePaths: storagePaths,
@@ -121,6 +131,8 @@ class DataModule {
       fileService: fileService,
       fingerprintService: fingerprintService,
       database: database,
+      libraryIndexDao: libraryIndexDao,
+      bookStoragePort: bookStoragePort,
       bookRepository: bookRepository,
       progressRepository: progressRepository,
       tocRepository: tocRepository,

@@ -10,6 +10,7 @@ export 'models/library_query.dart';
 export 'models/locator.dart';
 export 'models/reader_layout_mode.dart';
 export 'models/reading_progress.dart';
+export 'models/reading_session_record.dart';
 export 'models/reading_stats.dart';
 export 'models/settings_models.dart';
 export 'models/toc_item.dart';

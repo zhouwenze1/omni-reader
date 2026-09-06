@@ -134,7 +134,11 @@ class MePage extends ConsumerWidget {
           const SizedBox(height: 8),
           ...state.recentBooks.map(
             (entry) => Card(
+              // 悬停不改变卡片底色,避免与页面其他区域产生色差。
               child: ListTile(
+                hoverColor: Colors.transparent,
+                focusColor: Colors.transparent,
+                splashColor: Colors.transparent,
                 title: Text(entry.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(

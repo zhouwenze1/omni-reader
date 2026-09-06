@@ -1418,6 +1418,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recent Reading'**
   String get recentReadingTitle;
+
+  /// No description provided for @cloudBadgeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud'**
+  String get cloudBadgeLabel;
+
+  /// No description provided for @releaseLocalSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Free local space'**
+  String get releaseLocalSpace;
+
+  /// No description provided for @pinToLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep on this device'**
+  String get pinToLocal;
+
+  /// No description provided for @cloudBackupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Library cloud backup'**
+  String get cloudBackupTitle;
+
+  /// No description provided for @backupNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up now'**
+  String get backupNow;
+
+  /// No description provided for @wifiOnlyTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload/download on Wi-Fi only'**
+  String get wifiOnlyTransfer;
+
+  /// No description provided for @autoReleaseOldBooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-free unread books (days)'**
+  String get autoReleaseOldBooks;
+
+  /// No description provided for @backedUpLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Backed up'**
+  String get backedUpLabel;
+
+  /// No description provided for @pendingUploadLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get pendingUploadLabel;
+
+  /// No description provided for @cloudOnlyLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud only'**
+  String get cloudOnlyLabel;
+
+  /// No description provided for @releaseDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Local space freed'**
+  String get releaseDone;
+
+  /// No description provided for @backupDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup finished'**
+  String get backupDone;
+
+  /// No description provided for @actionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Action failed'**
+  String get actionFailed;
 }
 
 class _AppLocalizationsDelegate

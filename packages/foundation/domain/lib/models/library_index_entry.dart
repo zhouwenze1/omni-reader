@@ -1,3 +1,24 @@
+/// 云端备份状态。
+enum CloudBackupStatus {
+  /// 未入云(从未上传或已确认云端删除)。
+  none,
+
+  /// 待上传(排队中或上次上传失败,下个触发点重试)。
+  pending,
+
+  /// 云端已有完整副本。
+  synced;
+
+  static CloudBackupStatus fromString(String? value) {
+    return CloudBackupStatus.values.firstWhere(
+      (it) => it.name == value,
+      orElse: () => CloudBackupStatus.none,
+    );
+  }
+
+  String get storageName => name;
+}
+
 class LibraryIndexEntry {
   const LibraryIndexEntry({
     required this.bookUid,
@@ -11,6 +32,9 @@ class LibraryIndexEntry {
     required this.updatedAt,
     this.lastOpenedAt,
     this.cachedProgress,
+    this.cloudStatus = CloudBackupStatus.none,
+    this.evictedAt,
+    this.pinLocal = false,
   });
 
   final String bookUid;
@@ -24,6 +48,54 @@ class LibraryIndexEntry {
   final DateTime updatedAt;
   final DateTime? lastOpenedAt;
   final double? cachedProgress;
+
+  /// 云端备份状态。
+  final CloudBackupStatus cloudStatus;
+
+  /// 非空表示本地大文件(解析产物+原始文件)已释放,仅保留封面/进度/标注。
+  final DateTime? evictedAt;
+
+  /// 固定在本地:自动清理永不释放该书。
+  final bool pinLocal;
+
+  /// 书架条目对应的本地数据是否完整可打开。
+  bool get isAvailableLocally => evictedAt == null;
+
+  LibraryIndexEntry copyWith({
+    String? format,
+    String? title,
+    String? categoryId,
+    String? coverRelPath,
+    DateTime? updatedAt,
+    DateTime? lastOpenedAt,
+    bool clearLastOpenedAt = false,
+    double? cachedProgress,
+    bool clearCachedProgress = false,
+    CloudBackupStatus? cloudStatus,
+    DateTime? evictedAt,
+    bool clearEvictedAt = false,
+    bool? pinLocal,
+  }) {
+    return LibraryIndexEntry(
+      bookUid: bookUid,
+      fingerprint: fingerprint,
+      format: format ?? this.format,
+      title: title ?? this.title,
+      authors: authors,
+      categoryId: categoryId ?? this.categoryId,
+      coverRelPath: coverRelPath ?? this.coverRelPath,
+      importedAt: importedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastOpenedAt: clearLastOpenedAt
+          ? null
+          : (lastOpenedAt ?? this.lastOpenedAt),
+      cachedProgress:
+          clearCachedProgress ? null : (cachedProgress ?? this.cachedProgress),
+      cloudStatus: cloudStatus ?? this.cloudStatus,
+      evictedAt: clearEvictedAt ? null : (evictedAt ?? this.evictedAt),
+      pinLocal: pinLocal ?? this.pinLocal,
+    );
+  }
 
   factory LibraryIndexEntry.fromJson(Map<String, dynamic> json) {
     return LibraryIndexEntry(
@@ -48,6 +120,13 @@ class LibraryIndexEntry {
               (json['lastOpenedAt'] as num).toInt(),
             ),
       cachedProgress: (json['cachedProgress'] as num?)?.toDouble(),
+      cloudStatus: CloudBackupStatus.fromString(json['cloudStatus'] as String?),
+      evictedAt: json['evictedAt'] == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              (json['evictedAt'] as num).toInt(),
+            ),
+      pinLocal: (json['pinLocal'] as bool?) ?? false,
     );
   }
 
@@ -64,6 +143,9 @@ class LibraryIndexEntry {
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'lastOpenedAt': lastOpenedAt?.millisecondsSinceEpoch,
       'cachedProgress': cachedProgress,
+      'cloudStatus': cloudStatus.storageName,
+      'evictedAt': evictedAt?.millisecondsSinceEpoch,
+      'pinLocal': pinLocal,
     };
   }
 }

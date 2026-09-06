@@ -115,9 +115,9 @@ void main() {
 
   test('monthlySeconds groups by yyyy-MM', () async {
     final now = DateTime.now();
-    // 用“今天”和“上个月 1 号”作为两个月的锚点,避免月初运行时
-    // 本月固定日(如 5 日)落在未来被 recordSession 的时钟防御丢弃。
-    final thisMonth = DateTime(now.year, now.month, now.day, 10);
+    // 锚点必须已处于过去(recordSession 的时钟防御会丢弃未来起点):
+    // “now 减 1 小时”恒在本月且在过去;月初 1 小时内跨月也不成立,恒安全。
+    final thisMonth = now.subtract(const Duration(hours: 1));
     final lastMonth = DateTime(now.year, now.month - 1, 1, 10);
 
     await repo.recordSession(

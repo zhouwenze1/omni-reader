@@ -1,7 +1,7 @@
 name: reader_desktop
 description: Desktop app for full reader demo
 publish_to: none
-version: 0.6.0+2007
+version: 0.6.2+2007
 
 resolution: workspace
 
@@ -56,11 +56,13 @@ flutter:
   uses-material-design: true
   generate: true
 
+  assets:
+    - assets/logo.png
+
 hooks:
   user_defines:
     sqlite3:
       source: system
       name_windows: winsqlite3
-
 
 

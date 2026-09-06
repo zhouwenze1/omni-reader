@@ -7,11 +7,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # 必填:换成你自己的随机 token,双端配置同一个
-      SYNC_TOKEN: "change-me-to-a-long-random-token"
-      # 可选
+      # 必填:管理页登录密码(https://<host>:8080/admin 生成/管理用户 token)
+      ADMIN_PASSWORD: "change-me-admin-password"
+      # 可选:首次启动种子 token,升级部署时保留原值即可延续旧数据
+      # SYNC_TOKEN: "change-me-to-a-long-random-token"
       # SYNC_PORT: "8080"
       # SYNC_DEVICE_INACTIVE_DAYS: "180"
+      # SYNC_BOOK_MAX_FILE_MB: "200"
       # SYNC_DB_PATH: "/data/sync.db"
     volumes:
       - sync-data:/data

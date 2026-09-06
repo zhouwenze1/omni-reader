@@ -35,7 +35,7 @@ class DesktopLibraryState {
         defaultCollectionId = null,
         collections = const <Collection>[],
         collectionBookUids = const <int, Set<String>>{},
-        isFilterPanelVisible = true,
+        isFilterPanelVisible = false,
         availableFormats = const <String>{},
         availableCategories = const <String>{},
         isSelectionMode = false,

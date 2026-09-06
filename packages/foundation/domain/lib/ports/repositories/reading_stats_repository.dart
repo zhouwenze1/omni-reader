@@ -1,3 +1,4 @@
+import '../../models/reading_session_record.dart';
 import '../../models/reading_stats.dart';
 
 /// 阅读时长与会话聚合的存储端口。
@@ -40,4 +41,16 @@ abstract class ReadingStatsRepository {
 
   /// 窗口内有阅读记录的本地日集合(`yyyy-MM-dd`),热力图用。
   Future<Set<String>> activeDays(DateTime from, DateTime to);
+
+  /// startedAt 不早于 [sinceMs] 的会话(统计同步推送用)。
+  Future<List<ReadingSessionRecord>> sessionsSince(int sinceMs);
+
+  /// (deviceId, startedAt) 会话是否已存在(统计同步拉取去重)。
+  Future<bool> hasSession({
+    required String deviceId,
+    required int startedAtMs,
+  });
+
+  /// 插入从其他设备同步来的会话(统计同步拉取用)。
+  Future<void> insertSyncedSession(ReadingSessionRecord record);
 }

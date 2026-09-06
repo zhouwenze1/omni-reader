@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:foundation_domain/domain.dart';
@@ -8,6 +9,18 @@ import 'package:shared_ui/shared_ui.dart';
 import '../features/me/controller/me_controller.dart';
 import 'providers.dart';
 import 'repositories_providers.dart';
+
+/// 移动端网络状态:仅 Wi-Fi/以太网视为可传输(蜂窝网络不自动上/下载)。
+class ConnectivityNetworkStatus implements NetworkStatusPort {
+  const ConnectivityNetworkStatus();
+
+  @override
+  Future<bool> get canTransfer async {
+    final results = await Connectivity().checkConnectivity();
+    return results.contains(ConnectivityResult.wifi) ||
+        results.contains(ConnectivityResult.ethernet);
+  }
+}
 
 final importServiceProvider = Provider((ref) {
   return ref.watch(importRepositoryProvider);
@@ -31,6 +44,52 @@ final syncServiceProvider = Provider<ProgressSyncService>((ref) {
     api: SyncApiClient(),
     source: syncSource,
     configStore: syncConfigStore,
+  );
+});
+
+/// Wi-Fi 状态(仅 Wi-Fi 上/下载用)。
+final networkStatusProvider = Provider<NetworkStatusPort>((ref) {
+  return const ConnectivityNetworkStatus();
+});
+
+/// 书架云状态端口。
+final bookCloudLibraryPortProvider = Provider<BookCloudLibraryPort>((ref) {
+  return BookCloudLibraryAdapter(ref.watch(dataModuleProvider).libraryIndexDao);
+});
+
+/// 书库云备份服务。
+final bookCloudManagerProvider = Provider<BookCloudManager>((ref) {
+  final dataModule = ref.watch(dataModuleProvider);
+  return BookCloudManager(
+    configStore: HiveSyncConfigStore(dataModule.settingsBox),
+    api: LibraryApiClient(),
+    library: ref.watch(bookCloudLibraryPortProvider),
+    files: BookCloudFilesAdapter(
+      storagePaths: dataModule.storagePaths,
+      bookStoragePort: dataModule.bookStoragePort,
+      importRepository: dataModule.importRepository,
+    ),
+    network: ref.watch(networkStatusProvider),
+  );
+});
+
+/// 标注/阅读设置/阅读统计同步(v2 多实体)。
+final dataSyncServiceProvider = Provider<DataSyncService>((ref) {
+  final dataModule = ref.watch(dataModuleProvider);
+  final syncConfigStore = HiveSyncConfigStore(dataModule.settingsBox);
+  return DataSyncService(
+    api: SyncApiClient(),
+    configStore: syncConfigStore,
+    progress: ProgressSyncSourceImpl(
+      progressRepository: dataModule.progressRepository,
+      bookRepository: dataModule.bookRepository,
+    ),
+    annotations: AnnotationSyncSourceImpl(
+      dataModule.annotationRepository,
+      dataModule.settingsBox,
+    ),
+    settings: SettingsSyncSourceImpl(dataModule.settingsRepository),
+    stats: StatsSyncSourceImpl(dataModule.readingStatsRepository),
   );
 });
 

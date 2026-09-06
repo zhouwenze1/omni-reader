@@ -58,8 +58,7 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
     final settingsState = ref.watch(settingsControllerProvider);
     final themeMode = _toThemeMode(settingsState.app.themeMode);
     final locale = _toLocale(settingsState.app.locale);
-    final captionTheme = _toCaptionTheme(settingsState.reader.rendererTheme);
-    // 阅读页由 ReaderPage 生命周期置位;非阅读页显示顶部标题栏。
+    // 阅读页由 ReaderPage 生命周期置位;阅读时隐藏右上角窗口按钮区。
     final inReader = ref.watch(readerActiveProvider);
 
     return MaterialApp.router(
@@ -86,25 +85,25 @@ class _ReaderDesktopAppState extends ConsumerState<ReaderDesktopApp>
         final content = child ?? const SizedBox.shrink();
         return ColoredBox(
           color: Theme.of(context).colorScheme.surface,
-          child: Column(
+          child: Stack(
             children: [
-              // 阅读时隐藏顶部标题栏(直接切换,无动画);非阅读时标题栏独占
-              // 顶部区域,内容区从其下方开始,退出阅读只是上方多出标题栏。
+              Positioned.fill(child: content),
+              // 窗口控制一体化:没有独立标题栏、没有标题文字,右上角仅保留
+              // 最小化/最大化/关闭按钮;左侧透明区域用于拖动窗口(各页面顶栏
+              // 右上角无操作,不会遮挡)。背景透明融入内容,明暗跟随应用主题
+              // (themeMode 默认跟随系统深浅色)。阅读时隐藏(阅读页有自己的顶栏)。
               if (!inReader)
-                SizedBox(
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  width: 300,
                   height: kWindowCaptionHeight,
                   child: WindowCaption(
-                    brightness: captionTheme.brightness,
-                    backgroundColor: captionTheme.backgroundColor,
-                    title: Text(
-                      'Reader Desktop',
-                      style: TextStyle(
-                        color: captionTheme.foregroundColor,
-                      ),
-                    ),
+                    brightness: Theme.of(context).brightness,
+                    backgroundColor: Colors.transparent,
+                    title: const SizedBox.shrink(),
                   ),
                 ),
-              Expanded(child: content),
             ],
           ),
         );
@@ -137,45 +136,4 @@ Locale? _toLocale(String locale) {
     return const Locale('en');
   }
   return null;
-}
-
-_CaptionTheme _toCaptionTheme(String rendererTheme) {
-  final normalized = rendererTheme.trim().toLowerCase();
-  switch (normalized) {
-    case 'night':
-    case 'dark':
-    case 'black':
-      return const _CaptionTheme(
-        brightness: Brightness.dark,
-        backgroundColor: Color(0xFF090B0F),
-        foregroundColor: Color(0xFFE7EAF0),
-      );
-    case 'sepia':
-    case 'tea':
-    case 'brown':
-      return const _CaptionTheme(
-        brightness: Brightness.light,
-        backgroundColor: Color(0xFFEFE3C8),
-        foregroundColor: Color(0xFF3B2F24),
-      );
-    case 'day':
-    default:
-      return const _CaptionTheme(
-        brightness: Brightness.light,
-        backgroundColor: Color(0xFFF7F7F7),
-        foregroundColor: Color(0xFF111318),
-      );
-  }
-}
-
-class _CaptionTheme {
-  const _CaptionTheme({
-    required this.brightness,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  final Brightness brightness;
-  final Color backgroundColor;
-  final Color foregroundColor;
 }

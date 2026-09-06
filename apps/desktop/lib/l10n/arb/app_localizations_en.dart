@@ -709,4 +709,43 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recentReadingTitle => 'Recent Reading';
+
+  @override
+  String get cloudBadgeLabel => 'Cloud';
+
+  @override
+  String get releaseLocalSpace => 'Free local space';
+
+  @override
+  String get pinToLocal => 'Keep on this device';
+
+  @override
+  String get cloudBackupTitle => 'Library cloud backup';
+
+  @override
+  String get backupNow => 'Back up now';
+
+  @override
+  String get wifiOnlyTransfer => 'Upload/download on Wi-Fi only';
+
+  @override
+  String get autoReleaseOldBooks => 'Auto-free unread books (days)';
+
+  @override
+  String get backedUpLabel => 'Backed up';
+
+  @override
+  String get pendingUploadLabel => 'Pending';
+
+  @override
+  String get cloudOnlyLabel => 'Cloud only';
+
+  @override
+  String get releaseDone => 'Local space freed';
+
+  @override
+  String get backupDone => 'Backup finished';
+
+  @override
+  String get actionFailed => 'Action failed';
 }

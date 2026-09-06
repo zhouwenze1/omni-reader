@@ -28,6 +28,8 @@ class ReadingNowCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(30),
+      // 悬停/聚焦不改变卡片底色,避免与页面其他区域产生色差。
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: Ink(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),

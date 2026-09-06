@@ -8,11 +8,13 @@ import 'package:foundation_domain/domain.dart';
 import 'package:infrastructure_data/data.dart';
 
 import '../../../di/repositories_providers.dart';
+import '../../../di/services_providers.dart';
 import 'import_state.dart';
 
 final importControllerProvider =
     StateNotifierProvider<ImportController, ImportState>((ref) {
   return ImportController(
+    ref: ref,
     importRepository: ref.watch(importRepositoryProvider),
     settingsRepository: ref.watch(settingsRepositoryProvider),
   );
@@ -23,12 +25,15 @@ class ImportController extends StateNotifier<ImportState> {
       MethodChannel('reader_mobile/folder_import');
 
   ImportController({
+    required Ref ref,
     required ImportRepository importRepository,
     required SettingsRepository settingsRepository,
-  })  : _importRepository = importRepository,
+  })  : _ref = ref,
+        _importRepository = importRepository,
         _settingsRepository = settingsRepository,
         super(const ImportState.initial());
 
+  final Ref _ref;
   final ImportRepository _importRepository;
   final SettingsRepository _settingsRepository;
 
@@ -175,6 +180,15 @@ class ImportController extends StateNotifier<ImportState> {
         );
         results.add(result);
         nextTasks.insert(0, result.task);
+        if (!result.alreadyImported &&
+            result.task.status == ImportTaskStatus.success &&
+            result.bookUid != null) {
+          unawaited(
+            _ref.read(bookCloudManagerProvider).uploadBookAfterImport(
+                  result.bookUid!,
+                ),
+          );
+        }
         state = state.copyWith(tasks: List<ImportTask>.from(nextTasks));
       }
       state = state.copyWith(isImporting: false, clearError: true);

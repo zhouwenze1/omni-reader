@@ -704,4 +704,43 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get recentReadingTitle => '最近阅读';
+
+  @override
+  String get cloudBadgeLabel => '云端';
+
+  @override
+  String get releaseLocalSpace => '释放本地空间';
+
+  @override
+  String get pinToLocal => '固定在本地';
+
+  @override
+  String get cloudBackupTitle => '书库云备份';
+
+  @override
+  String get backupNow => '立即备份未备份的书';
+
+  @override
+  String get wifiOnlyTransfer => '仅 Wi-Fi 上传/下载';
+
+  @override
+  String get autoReleaseOldBooks => '自动释放未读书(天)';
+
+  @override
+  String get backedUpLabel => '已备份';
+
+  @override
+  String get pendingUploadLabel => '待上传';
+
+  @override
+  String get cloudOnlyLabel => '仅云端';
+
+  @override
+  String get releaseDone => '已释放本地空间';
+
+  @override
+  String get backupDone => '备份完成';
+
+  @override
+  String get actionFailed => '操作失败';
 }
