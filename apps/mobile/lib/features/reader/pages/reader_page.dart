@@ -872,6 +872,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       builder: (context) {
         return ReaderSettingsPanel(
           settings: current,
+          options: _session?.settingsOptions ??
+              const ReaderSettingsOptions(
+                textTypography: true,
+                theme: true,
+                pageGap: true,
+                padding: true,
+                layoutMode: true,
+              ),
           onChanged: (settings) async {
             await _commitReaderSettings(settings);
           },

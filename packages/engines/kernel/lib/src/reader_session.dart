@@ -1,9 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:foundation_domain/domain.dart';
 
+import 'reader_aux_action.dart';
 import 'reader_capability.dart';
 import 'reader_event.dart';
+import 'reader_features.dart';
 import 'reader_highlight.dart';
+import 'reader_settings_options.dart';
 import 'reader_style.dart';
 
 abstract class ReaderSession {
@@ -12,6 +15,16 @@ abstract class ReaderSession {
   Stream<ReaderEvent> get events;
 
   Set<ReaderCapability> get capabilities;
+
+  /// Fine-grained self-description driving shared-chrome adaptation.
+  ReaderFeatures get features => const ReaderFeatures();
+
+  /// Which settings groups this format supports (UI folds the rest away).
+  ReaderSettingsOptions get settingsOptions =>
+      const ReaderSettingsOptions();
+
+  /// Auxiliary actions surfaced in the "more" menu / chrome.
+  List<ReaderAuxAction> get auxActions => const <ReaderAuxAction>[];
 
   ReaderStyle get style;
 

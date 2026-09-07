@@ -1512,6 +1512,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       context: context,
       builder: (_) => DesktopReaderSettingsDialog(
         initialSettings: _currentReaderSettings(),
+        options: _session?.settingsOptions ??
+            const ReaderSettingsOptions(
+              textTypography: true,
+              theme: true,
+              pageGap: true,
+              padding: true,
+              layoutMode: true,
+            ),
         onCommit: (settings) {
           unawaited(_commitReaderSettings(settings));
         },

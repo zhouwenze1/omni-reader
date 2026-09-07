@@ -85,6 +85,36 @@ class EpubReaderSession extends ReaderSession {
       };
 
   @override
+  ReaderFeatures get features => const ReaderFeatures(
+        textSelection: ReaderTextSelection.text,
+        annotationKinds: <ReaderAnnotationKind>{
+          ReaderAnnotationKind.textHighlight,
+        },
+        toc: true,
+        search: true,
+        dictionary: true,
+        translate: true,
+        readAloud: true,
+        externalLink: true,
+        mediaLightbox: true,
+        layout: ReaderLayoutSupport(
+          layoutModes: <String>{
+            ReaderLayoutMode.pagedSingle,
+            ReaderLayoutMode.pagedSpread,
+            ReaderLayoutMode.scrollContinuous,
+            ReaderLayoutMode.scrollBoundary,
+          },
+          spreadable: true,
+          direction: ReaderDirection.ltr,
+          defaultMode: ReaderLayoutMode.pagedAuto,
+        ),
+      );
+
+  @override
+  ReaderSettingsOptions get settingsOptions =>
+      ReaderSettingsOptions.textBook;
+
+  @override
   ReaderStyle get style => _readerStyle;
 
   @override

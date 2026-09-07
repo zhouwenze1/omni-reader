@@ -128,6 +128,30 @@ class ComicZipReaderSession extends ReaderSession {
   Set<ReaderCapability> get capabilities => ComicZipReaderEngine._capabilities;
 
   @override
+  ReaderFeatures get features => const ReaderFeatures(
+        textSelection: ReaderTextSelection.none,
+        annotationKinds: <ReaderAnnotationKind>{
+          ReaderAnnotationKind.pageBookmark,
+          ReaderAnnotationKind.pageNote,
+        },
+        pageList: true,
+        layout: ReaderLayoutSupport(
+          layoutModes: <String>{
+            ReaderLayoutMode.pagedSingle,
+            ReaderLayoutMode.pagedSpread,
+            ReaderLayoutMode.scrollBoundary,
+            ReaderLayoutMode.scrollContinuous,
+          },
+          spreadable: true,
+          direction: ReaderDirection.ltr,
+          defaultMode: ReaderLayoutMode.pagedSingle,
+        ),
+      );
+
+  @override
+  ReaderSettingsOptions get settingsOptions => ReaderSettingsOptions.comic;
+
+  @override
   ReaderStyle get style => _style;
 
   @override

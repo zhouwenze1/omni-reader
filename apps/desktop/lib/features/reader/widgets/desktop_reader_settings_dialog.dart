@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:foundation_domain/domain.dart';
+import 'package:kernel/kernel.dart';
 
 import '../../../l10n/app_localizations.dart';
 
@@ -10,10 +11,21 @@ class DesktopReaderSettingsDialog extends StatefulWidget {
     super.key,
     required this.initialSettings,
     required this.onCommit,
+    this.options = const ReaderSettingsOptions(
+      textTypography: true,
+      theme: true,
+      pageGap: true,
+      padding: true,
+      layoutMode: true,
+    ),
   });
 
   final ReaderSettings initialSettings;
   final ValueChanged<ReaderSettings> onCommit;
+
+  /// Which setting groups to show (the reader page passes the session's
+  /// `settingsOptions`).
+  final ReaderSettingsOptions options;
 
   @override
   State<DesktopReaderSettingsDialog> createState() =>
@@ -54,6 +66,7 @@ class _DesktopReaderSettingsDialogState
       0.0,
       viewport.height - verticalInset * 2,
     );
+    final options = widget.options;
 
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
@@ -89,131 +102,139 @@ class _DesktopReaderSettingsDialogState
                 ],
               ),
               const SizedBox(height: 4),
-              _slider(
-                title: l10n.fontSize,
-                value: _draft.fontSize,
-                valueLabel: _draft.fontSize.toStringAsFixed(0),
-                min: 12,
-                max: 42,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(fontSize: value),
-                ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              _slider(
-                title: l10n.lineHeight,
-                value: _draft.lineHeight,
-                valueLabel: _draft.lineHeight.toStringAsFixed(2),
-                min: 1.1,
-                max: 2.4,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(lineHeight: value),
-                ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              _slider(
-                title: l10n.pageGap,
-                value: _draft.pageGap,
-                valueLabel: _draft.pageGap.toStringAsFixed(0),
-                min: 0,
-                max: 80,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(pageGap: value),
-                ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              DropdownButtonFormField<String>(
-                initialValue: _draft.layoutMode,
-                isExpanded: true,
-                decoration: InputDecoration(labelText: l10n.layoutMode),
-                items: [
-                  DropdownMenuItem(
-                    value: ReaderLayoutMode.pagedAuto,
-                    child: Text(l10n.layoutAuto),
+              if (options.textTypography) ...[
+                _slider(
+                  title: l10n.fontSize,
+                  value: _draft.fontSize,
+                  valueLabel: _draft.fontSize.toStringAsFixed(0),
+                  min: 12,
+                  max: 42,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(fontSize: value),
                   ),
-                  DropdownMenuItem(
-                    value: ReaderLayoutMode.pagedSingle,
-                    child: Text(l10n.layoutSingle),
-                  ),
-                  DropdownMenuItem(
-                    value: ReaderLayoutMode.pagedSpread,
-                    child: Text(l10n.layoutSpread),
-                  ),
-                  DropdownMenuItem(
-                    value: ReaderLayoutMode.scrollBoundary,
-                    child: Text(l10n.layoutBoundary),
-                  ),
-                  DropdownMenuItem(
-                    value: ReaderLayoutMode.scrollContinuous,
-                    child: Text(l10n.layoutContinuous),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  _updateDraft(_draft.copyWith(layoutMode: value));
-                  _commitDraft();
-                },
-              ),
-              const SizedBox(height: 8),
-              _slider(
-                title: l10n.horizontalPadding,
-                value: _draft.paddingHorizontal,
-                valueLabel: _draft.paddingHorizontal.toStringAsFixed(0),
-                min: 0,
-                max: 100,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(paddingHorizontal: value),
+                  onChangeEnd: (_) => _commitDraft(),
                 ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              _slider(
-                title: l10n.verticalPadding,
-                value: _draft.paddingVertical,
-                valueLabel: _draft.paddingVertical.toStringAsFixed(0),
-                min: 0,
-                max: 80,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(paddingVertical: value),
+                _slider(
+                  title: l10n.lineHeight,
+                  value: _draft.lineHeight,
+                  valueLabel: _draft.lineHeight.toStringAsFixed(2),
+                  min: 1.1,
+                  max: 2.4,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(lineHeight: value),
+                  ),
+                  onChangeEnd: (_) => _commitDraft(),
                 ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.enableTextIndent),
-                value: _draft.textIndentEnabled,
-                onChanged: (value) {
-                  _updateDraft(
-                    _draft.copyWith(textIndentEnabled: value),
-                  );
-                  _commitDraft();
-                },
-              ),
-              _slider(
-                title: l10n.indentSizeEm,
-                value: _draft.textIndentEm,
-                valueLabel: _draft.textIndentEm.toStringAsFixed(1),
-                min: 0,
-                max: 4,
-                onChanged: (value) => _updateDraft(
-                  _draft.copyWith(textIndentEm: value),
+              ],
+              if (options.pageGap)
+                _slider(
+                  title: l10n.pageGap,
+                  value: _draft.pageGap,
+                  valueLabel: _draft.pageGap.toStringAsFixed(0),
+                  min: 0,
+                  max: 80,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(pageGap: value),
+                  ),
+                  onChangeEnd: (_) => _commitDraft(),
                 ),
-                onChangeEnd: (_) => _commitDraft(),
-              ),
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.skipFirstParagraphIndent),
-                value: _draft.textIndentSkipFirstParagraph,
-                onChanged: (value) {
-                  _updateDraft(
-                    _draft.copyWith(
-                      textIndentSkipFirstParagraph: value,
+              if (options.layoutMode)
+                DropdownButtonFormField<String>(
+                  initialValue: _draft.layoutMode,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: l10n.layoutMode),
+                  items: [
+                    DropdownMenuItem(
+                      value: ReaderLayoutMode.pagedAuto,
+                      child: Text(l10n.layoutAuto),
                     ),
-                  );
-                  _commitDraft();
-                },
-              ),
+                    DropdownMenuItem(
+                      value: ReaderLayoutMode.pagedSingle,
+                      child: Text(l10n.layoutSingle),
+                    ),
+                    DropdownMenuItem(
+                      value: ReaderLayoutMode.pagedSpread,
+                      child: Text(l10n.layoutSpread),
+                    ),
+                    DropdownMenuItem(
+                      value: ReaderLayoutMode.scrollBoundary,
+                      child: Text(l10n.layoutBoundary),
+                    ),
+                    DropdownMenuItem(
+                      value: ReaderLayoutMode.scrollContinuous,
+                      child: Text(l10n.layoutContinuous),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    _updateDraft(_draft.copyWith(layoutMode: value));
+                    _commitDraft();
+                  },
+                ),
+              if (options.padding) ...[
+                const SizedBox(height: 8),
+                _slider(
+                  title: l10n.horizontalPadding,
+                  value: _draft.paddingHorizontal,
+                  valueLabel: _draft.paddingHorizontal.toStringAsFixed(0),
+                  min: 0,
+                  max: 100,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(paddingHorizontal: value),
+                  ),
+                  onChangeEnd: (_) => _commitDraft(),
+                ),
+                _slider(
+                  title: l10n.verticalPadding,
+                  value: _draft.paddingVertical,
+                  valueLabel: _draft.paddingVertical.toStringAsFixed(0),
+                  min: 0,
+                  max: 80,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(paddingVertical: value),
+                  ),
+                  onChangeEnd: (_) => _commitDraft(),
+                ),
+              ],
+              if (options.textTypography) ...[
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.enableTextIndent),
+                  value: _draft.textIndentEnabled,
+                  onChanged: (value) {
+                    _updateDraft(
+                      _draft.copyWith(textIndentEnabled: value),
+                    );
+                    _commitDraft();
+                  },
+                ),
+                _slider(
+                  title: l10n.indentSizeEm,
+                  value: _draft.textIndentEm,
+                  valueLabel: _draft.textIndentEm.toStringAsFixed(1),
+                  min: 0,
+                  max: 4,
+                  onChanged: (value) => _updateDraft(
+                    _draft.copyWith(textIndentEm: value),
+                  ),
+                  onChangeEnd: (_) => _commitDraft(),
+                ),
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.skipFirstParagraphIndent),
+                  value: _draft.textIndentSkipFirstParagraph,
+                  onChanged: (value) {
+                    _updateDraft(
+                      _draft.copyWith(
+                        textIndentSkipFirstParagraph: value,
+                      ),
+                    );
+                    _commitDraft();
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
