@@ -1,5 +1,7 @@
-import 'dart:typed_data';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'comic_page_listing.dart';
@@ -9,7 +11,12 @@ import 'comic_zip_engine.dart';
 ///
 /// Renders the book in one of three layouts driven by the session's layout
 /// mode: vertical scroll, horizontal single page, or horizontal double-page
-/// spreads. Every page supports pinch zoom and double-tap zoom toggle.
+/// spreads. Interactions:
+/// - paged modes: mouse wheel turns pages; tapping the left/right third turns
+///   pages (direction-aware), tapping the center toggles the reader chrome.
+/// - scroll mode: the wheel scrolls; a tap toggles the chrome.
+/// Pinch zoom and double-tap zoom stay available; desktop mouse-wheel zoom is
+/// disabled.
 class ComicPagerView extends StatefulWidget {
   const ComicPagerView({super.key, required this.session});
 
@@ -190,6 +197,36 @@ class _ComicPagerState extends State<_ComicPager> {
   @override
   Widget build(BuildContext context) {
     final session = widget.session;
+    final pinchEnabled = switch (defaultTargetPlatform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      _ => false, // desktop: wheel is for paging, pinch zoom off for now
+    };
+    // Page-turn / chrome-tap decision for paged modes. In RTL the earlier page
+    // sits on the right, so "forward" maps to the left edge.
+    void handleTapUp(Offset local, Size size) {
+      final zone = switch (local.dx / size.width) {
+        < 1 / 3 => 'left',
+        > 2 / 3 => 'right',
+        _ => 'center',
+      };
+      switch (zone) {
+        case 'left':
+          unawaited(
+            session.isRtl ? session.navigateNext() : session.navigatePrev(),
+          );
+        case 'right':
+          unawaited(
+            session.isRtl ? session.navigatePrev() : session.navigateNext(),
+          );
+        default:
+          session.emitCenterTap();
+      }
+    }
+
+    void handleWheel(double scrollDy) {
+      unawaited(scrollDy > 0 ? session.navigateNext() : session.navigatePrev());
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportHeight = constraints.maxHeight;
@@ -215,7 +252,9 @@ class _ComicPagerState extends State<_ComicPager> {
                   return _ZoomablePage(
                     loadBytes: () => session.readPageBytes(session.pages[index]),
                     cacheWidth: viewportWidth.round(),
-                    onTap: session.emitCenterTap,
+                    onTapUp: (local, size) => session.emitCenterTap(),
+                    onWheel: null,
+                    zoomEnabled: pinchEnabled,
                   );
                 },
               ),
@@ -241,7 +280,9 @@ class _ComicPagerState extends State<_ComicPager> {
                     loadBytes: () =>
                         session.readPageBytes(session.pages[first]),
                     cacheWidth: (viewportWidth / 2).round(),
-                    onTap: session.emitCenterTap,
+                    onTapUp: handleTapUp,
+                    onWheel: handleWheel,
+                    zoomEnabled: pinchEnabled,
                   ),
                 ),
               ];
@@ -253,7 +294,9 @@ class _ComicPagerState extends State<_ComicPager> {
                       loadBytes: () =>
                           session.readPageBytes(session.pages[second]),
                       cacheWidth: (viewportWidth / 2).round(),
-                      onTap: session.emitCenterTap,
+                      onTapUp: handleTapUp,
+                      onWheel: handleWheel,
+                      zoomEnabled: pinchEnabled,
                     ),
                   ),
                 );
@@ -267,7 +310,9 @@ class _ComicPagerState extends State<_ComicPager> {
             return _ZoomablePage(
               loadBytes: () => session.readPageBytes(session.pages[unit]),
               cacheWidth: viewportWidth.round(),
-              onTap: session.emitCenterTap,
+              onTapUp: handleTapUp,
+              onWheel: handleWheel,
+              zoomEnabled: pinchEnabled,
             );
           },
         );
@@ -282,15 +327,24 @@ class _ZoomablePage extends StatefulWidget {
   const _ZoomablePage({
     required this.loadBytes,
     required this.cacheWidth,
-    this.onTap,
+    this.onTapUp,
+    this.onWheel,
+    this.zoomEnabled = true,
   });
 
   final Future<Uint8List?> Function() loadBytes;
   final int cacheWidth;
 
-  /// Called on a plain tap (used to toggle the host chrome). Undefined while
-  /// the user is panning/zooming; double-tap still zooms.
-  final VoidCallback? onTap;
+  /// Called with the tap position (page-local) + cell size so the caller can
+  /// decide turn-vs-chrome by zone. Undefined while panning/zooming.
+  final void Function(Offset local, Size size)? onTapUp;
+
+  /// Called with the mouse-wheel scroll delta. When null (scroll mode) the
+  /// page does not consume the wheel.
+  final void Function(double scrollDy)? onWheel;
+
+  /// Whether pinch/double-tap zoom is available (off on desktop for now).
+  final bool zoomEnabled;
 
   @override
   State<_ZoomablePage> createState() => _ZoomablePageState();
@@ -348,28 +402,70 @@ class _ZoomablePageState extends State<_ZoomablePage> {
                     color: Colors.white38, size: 40),
               );
             }
+            final onTapUp = widget.onTapUp;
+            final onWheel = widget.onWheel;
+            final image = Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              cacheWidth: (widget.cacheWidth * devicePixelRatio).round(),
+              filterQuality: FilterQuality.medium,
+            );
+            final zoomable = _ZoomableImage(
+              transformationController: _transformation,
+              zoomEnabled: widget.zoomEnabled,
+              image: image,
+            );
+            // Raw wheel handling: desktop wheel pages in paged mode; disabled
+            // when this page should not turn pages (scroll mode).
+            Widget child = zoomable;
+            if (onWheel != null) {
+              child = Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent) {
+                    onWheel(event.scrollDelta.dy);
+                  }
+                },
+                child: child,
+              );
+            }
             return GestureDetector(
-              onTap: widget.onTap,
+              behavior: HitTestBehavior.opaque,
+              onTapUp: onTapUp == null
+                  ? null
+                  : (details) => onTapUp(details.localPosition, _cellSize),
               onDoubleTap: _toggleZoom,
-              child: InteractiveViewer(
-                transformationController: _transformation,
-                minScale: 1,
-                maxScale: 5,
-                child: Center(
-                  child: Image.memory(
-                    bytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                    cacheWidth:
-                        (widget.cacheWidth * devicePixelRatio).round(),
-                    filterQuality: FilterQuality.medium,
-                  ),
-                ),
-              ),
+              child: child,
             );
           },
         );
       },
+    );
+  }
+}
+
+/// Image with pinch (touch) zoom. Desktop mouse-wheel zoom is intentionally not
+/// wired (wheel is used for page turns instead).
+class _ZoomableImage extends StatelessWidget {
+  const _ZoomableImage({
+    required this.transformationController,
+    required this.zoomEnabled,
+    required this.image,
+  });
+
+  final TransformationController transformationController;
+  final bool zoomEnabled;
+  final Widget image;
+
+  @override
+  Widget build(BuildContext context) {
+    return InteractiveViewer(
+      transformationController: transformationController,
+      minScale: 1,
+      maxScale: 5,
+      panEnabled: true,
+      scaleEnabled: zoomEnabled,
+      child: Center(child: image),
     );
   }
 }
