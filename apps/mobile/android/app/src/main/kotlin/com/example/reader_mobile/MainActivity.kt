@@ -5,9 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.BatteryManager
 import android.provider.DocumentsContract
+import android.view.KeyEvent
 import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
@@ -19,6 +21,7 @@ class MainActivity : FlutterActivity() {
 
     private var pendingFolderImportResult: MethodChannel.Result? = null
     private var pendingFolderImportMaxDepth: Int? = null
+    private var volumeKeySink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -44,6 +47,35 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "reader_mobile/volume_key",
+        ).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    volumeKeySink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    volumeKeySink = null
+                }
+            },
+        )
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val sink = volumeKeySink
+        val forward = when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> true
+            KeyEvent.KEYCODE_VOLUME_DOWN -> false
+            else -> null
+        }
+        if (sink != null && forward != null) {
+            // 阅读页消费音量键用于翻页;无订阅(未在阅读)时保持系统音量调节。
+            sink.success(hashMapOf("forward" to forward))
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

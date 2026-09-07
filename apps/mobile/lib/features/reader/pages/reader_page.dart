@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Locator;
 import 'package:foundation_application/application.dart';
 import 'package:foundation_domain/domain.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:kernel/kernel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -97,6 +98,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String _layoutMode = ReaderLayoutMode.pagedAuto;
   String? _appliedRendererLayoutMode;
   String? _appliedReaderStyleSignature;
+
+  double _brightnessOverlayOpacity = 0; // 1 - settings.brightness
+  Timer? _autoPageTimer;
+  StreamSubscription<dynamic>? _volumeKeySub;
   bool _layoutSyncScheduled = false;
   bool _readerStyleSyncScheduled = false;
   ReaderSettings? _pendingReaderSettings;
@@ -336,6 +341,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+      _applyReadingComfort(_currentReaderSettings());
+      _subscribeVolumeKeys();
       _setCurrentReaderHref(book.uid, progress?.locator.href);
 
       // 阅读会话就绪后开始计时(阅读时长埋点,见 docs/specs 统计中心方案)。
@@ -377,6 +384,72 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _textIndentEm = settings.textIndentEm;
     _textIndentSkipFirstParagraph = settings.textIndentSkipFirstParagraph;
     _layoutMode = ReaderLayoutMode.normalize(settings.layoutMode);
+    _applyReadingComfort(settings);
+  }
+
+  void _applyReadingComfort(ReaderSettings settings) {
+    final session = _session;
+    final brightnessSupported = session?.features.brightnessSupported ?? false;
+    final opacity = (1 - settings.brightness.clamp(0.3, 1.0)).clamp(0.0, 0.7);
+    setState(() {
+      _brightnessOverlayOpacity = brightnessSupported ? opacity : 0;
+    });
+    _syncAutoPage(settings.autoPageSeconds);
+    _syncKeepScreenOn(settings.keepScreenOn);
+  }
+
+  void _syncAutoPage(int seconds) {
+    _autoPageTimer?.cancel();
+    _autoPageTimer = null;
+    final session = _session;
+    if (seconds <= 0 ||
+        session == null ||
+        !session.features.autoPageAvailable) {
+      return;
+    }
+    _autoPageTimer = Timer.periodic(Duration(seconds: seconds), (_) {
+      final s = _session;
+      if (s != null) {
+        unawaited(s.navigateNext());
+      }
+    });
+  }
+
+  void _syncKeepScreenOn(bool enabled) {
+    final session = _session;
+    final supported = session?.features.keepScreenOnSupported ?? false;
+    if (!supported) {
+      return;
+    }
+    unawaited(
+      enabled ? WakelockPlus.enable() : WakelockPlus.disable(),
+    );
+  }
+
+  static const EventChannel _volumeKeyChannel = EventChannel(
+    'reader_mobile/volume_key',
+  );
+
+  void _subscribeVolumeKeys() {
+    final session = _session;
+    if (session == null || !session.features.volumeTurnAvailable) {
+      return;
+    }
+    if (_volumeKeySub != null) {
+      return;
+    }
+    _volumeKeySub = _volumeKeyChannel.receiveBroadcastStream().listen(
+          (event) {
+            final forward = event is Map && event['forward'] == true;
+            final s = _session;
+            if (s != null) {
+              unawaited(s.handleHardwareTurn(forward: forward));
+            }
+          },
+          onError: (Object error) {
+            debugPrint('[mobile-reader][volume-key.error] $error');
+          },
+        );
   }
 
   ReaderSettings _currentReaderSettings() {
@@ -1424,6 +1497,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
     final l10n = context.l10n;
     final actions = <_ReaderSheetAction>[
+      if (_session?.currentPosition != null)
+        _ReaderSheetAction(
+          value: 'bookmarkHere',
+          icon: Icons.bookmark_add_outlined,
+          label: '在此加书签',
+        ),
       _ReaderSheetAction(
         value: 'debug',
         icon: Icons.bug_report_outlined,
@@ -1512,6 +1591,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => NotesPage(bookUid: book.uid)),
         );
+        await _enterImmersiveMode();
+        return;
+      case 'bookmarkHere':
+        await _handleAuxAction('bookmarkPage');
         await _enterImmersiveMode();
         return;
       case 'bookmarks':
@@ -1668,6 +1751,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    _autoPageTimer?.cancel();
+    _autoPageTimer = null;
+    unawaited(_volumeKeySub?.cancel());
+    _volumeKeySub = null;
+    unawaited(WakelockPlus.disable());
     _readingRecorder?.dispose();
     // 与桌面端对齐:书内搜索状态(输入 + 结果)随阅读页销毁,不跨阅读会话保留。
     clearBookSearchSession(widget.bookUid);
@@ -1895,6 +1983,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 ),
               );
             }),
+          if (_brightnessOverlayOpacity > 0)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ColoredBox(
+                  color: Colors.black
+                      .withValues(alpha: _brightnessOverlayOpacity),
+                ),
+              ),
+            ),
         ],
       ),
     );

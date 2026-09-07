@@ -20,6 +20,7 @@ dependencies:
   file_picker: ^8.1.7
   url_launcher: ^6.3.2
   connectivity_plus: ^6.1.0
+  wakelock_plus: ^1.2.8
   foundation_domain:
     path: ../../packages/foundation/domain
   shared_ui:

@@ -76,6 +76,11 @@ class ReaderFeatures {
     this.externalLink = false,
     this.mediaLightbox = false,
     this.layout = const ReaderLayoutSupport(),
+    this.autoPageAvailable = false,
+    this.keyboardTurnAvailable = false,
+    this.volumeTurnAvailable = false,
+    this.brightnessSupported = false,
+    this.keepScreenOnSupported = false,
   });
 
   final ReaderTextSelection textSelection;
@@ -100,6 +105,21 @@ class ReaderFeatures {
   final bool mediaLightbox;
 
   final ReaderLayoutSupport layout;
+
+  /// Timed auto-page-turn (text & comics; false for continuous audio).
+  final bool autoPageAvailable;
+
+  /// Desktop keyboard page-turn (arrows/space).
+  final bool keyboardTurnAvailable;
+
+  /// Android hardware volume-key page-turn.
+  final bool volumeTurnAvailable;
+
+  /// Brightness overlay (any chrome-bearing format).
+  final bool brightnessSupported;
+
+  /// Keep screen on while reading (mobile).
+  final bool keepScreenOnSupported;
 
   bool get canAnnotate => annotationKinds.isNotEmpty;
 

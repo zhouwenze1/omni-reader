@@ -236,6 +236,44 @@ class _DesktopReaderSettingsDialogState
                 ),
               ],
               const SizedBox(height: 8),
+              _slider(
+                title: '亮度',
+                value: _draft.brightness,
+                valueLabel: _draft.brightness.toStringAsFixed(2),
+                min: 0.3,
+                max: 1.0,
+                onChanged: (value) => _updateDraft(
+                  _draft.copyWith(brightness: value),
+                ),
+                onChangeEnd: (_) => _commitDraft(),
+              ),
+              SwitchListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('阅读时保持屏幕常亮'),
+                value: _draft.keepScreenOn,
+                onChanged: (value) {
+                  _updateDraft(_draft.copyWith(keepScreenOn: value));
+                  _commitDraft();
+                },
+              ),
+              DropdownButtonFormField<int>(
+                initialValue: _draft.autoPageSeconds,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: '自动翻页'),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('关闭')),
+                  DropdownMenuItem(value: 5, child: Text('每 5 秒')),
+                  DropdownMenuItem(value: 10, child: Text('每 10 秒')),
+                  DropdownMenuItem(value: 30, child: Text('每 30 秒')),
+                  DropdownMenuItem(value: 60, child: Text('每 60 秒')),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  _updateDraft(_draft.copyWith(autoPageSeconds: value));
+                  _commitDraft();
+                },
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(

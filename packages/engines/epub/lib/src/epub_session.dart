@@ -61,6 +61,7 @@ class EpubReaderSession extends ReaderSession {
   bool _inAppDevToolsOpened = false;
   String? _appliedRendererStyleSignature;
   int _searchHighlightRequestToken = 0;
+  Locator? _lastLocator;
   final Map<String, ReaderHighlight> _activeHighlights =
       <String, ReaderHighlight>{};
 
@@ -108,11 +109,28 @@ class EpubReaderSession extends ReaderSession {
           direction: ReaderDirection.ltr,
           defaultMode: ReaderLayoutMode.pagedAuto,
         ),
+        autoPageAvailable: true,
+        keyboardTurnAvailable: true,
+        volumeTurnAvailable: true,
+        brightnessSupported: true,
+        keepScreenOnSupported: true,
       );
 
   @override
   ReaderSettingsOptions get settingsOptions =>
       ReaderSettingsOptions.textBook;
+
+  @override
+  Locator? get currentPosition => _lastLocator;
+
+  @override
+  List<ReaderAuxAction> get auxActions => const <ReaderAuxAction>[
+        ReaderAuxAction(
+          id: 'bookmarkPage',
+          iconKey: 'bookmark',
+          labelKey: 'bookmarkPage',
+        ),
+      ];
 
   @override
   ReaderStyle get style => _readerStyle;
@@ -1005,6 +1023,7 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
 
+    _lastLocator = event.locator;
     final totalProgression = runtime.positionIndex
         ?.resolveTotalProgressionForLocator(event.locator!);
     if (totalProgression == null) {

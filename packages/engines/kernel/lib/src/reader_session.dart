@@ -71,6 +71,12 @@ abstract class ReaderSession {
 
   Future<void> navigatePrev();
 
+  /// Unified hardware page-turn (volume keys / desktop keyboard). Formats with
+  /// a scroll mode may override to scroll instead of turning a page.
+  Future<void> handleHardwareTurn({required bool forward}) {
+    return forward ? navigateNext() : navigatePrev();
+  }
+
   Future<void> goTo(Locator locator);
 
   /// Jumps to a position in the book by total progression (0.0–1.0).

@@ -55,6 +55,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String _searchQuery = '';
   Object? _searchResult;
   bool _disposed = false;
+  Timer? _autoPageTimer;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
 
@@ -316,6 +317,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _session = session;
         _loading = false;
       });
+      _syncAutoPage(_currentReaderSettings().autoPageSeconds);
       _setCurrentReaderHref(book.uid, progress?.locator.href);
 
       // 进入阅读:标记阅读态,应用顶部 WindowCaption 标题栏平滑滑出。
@@ -398,6 +400,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  void _syncAutoPage(int seconds) {
+    _autoPageTimer?.cancel();
+    _autoPageTimer = null;
+    final session = _session;
+    if (seconds <= 0 ||
+        session == null ||
+        !session.features.autoPageAvailable) {
+      return;
+    }
+    _autoPageTimer = Timer.periodic(Duration(seconds: seconds), (_) {
+      final s = _session;
+      if (s != null) {
+        unawaited(s.navigateNext());
+      }
+    });
+  }
+
   String _resolveRendererLayoutMode() {
     return _resolveRendererLayoutModeFor(_layoutMode);
   }
@@ -467,6 +486,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void dispose() {
     _disposed = true;
+    _autoPageTimer?.cancel();
+    _autoPageTimer = null;
     // 退出阅读:清除阅读态,应用顶部 WindowCaption 标题栏平滑滑入。
     _providerContainer?.read(readerActiveProvider.notifier).state = false;
     _readingRecorder?.dispose();
@@ -864,9 +885,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _scheduleViewportLayoutSync();
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleReaderKeyEvent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           _session!.buildView(),
           _buildTopToolbar(context),
           _buildBottomToolbar(context),
@@ -919,7 +943,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 ),
               );
             }),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1490,6 +1515,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return _session?.capabilities.contains(capability) ?? false;
   }
 
+  KeyEventResult _handleReaderKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    final session = _session;
+    if (session == null || !session.features.keyboardTurnAvailable) {
+      return KeyEventResult.ignored;
+    }
+    // 搜索/输入框聚焦时让按键正常输入(如搜索框内方向键移动光标)。
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus?.context != null) {
+      final widget = focus!.context!.widget;
+      if (widget is TextField ||
+          widget is EditableText ||
+          widget is SelectableText) {
+        return KeyEventResult.ignored;
+      }
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowRight:
+      case LogicalKeyboardKey.arrowDown:
+      case LogicalKeyboardKey.pageDown:
+      case LogicalKeyboardKey.space:
+        unawaited(session.handleHardwareTurn(forward: true));
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+      case LogicalKeyboardKey.arrowUp:
+      case LogicalKeyboardKey.pageUp:
+        unawaited(session.handleHardwareTurn(forward: false));
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
+  }
+
   Future<void> _addPageBookmark() async {
     final store = _annotationsStore;
     final position = _session?.currentPosition;
@@ -1590,6 +1650,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     setState(() {
       _setReaderSettingsFields(settings);
     });
+    _syncAutoPage(settings.autoPageSeconds);
     _scheduleReaderSettingsSave(settings);
     _pendingReaderSettings = settings;
     await _drainReaderStyleApplies();

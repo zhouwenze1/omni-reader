@@ -91,7 +91,39 @@ class _ComicPagerViewState extends State<ComicPagerView> {
     }
     return ColoredBox(
       color: Colors.black,
-      child: body,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          body,
+          if (!session.loading &&
+              session.errorMessage == null &&
+              session.pageCount > 1 &&
+              !session.isScrollMode)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 18,
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${session.pageIndex + 1} / ${session.pageCount}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

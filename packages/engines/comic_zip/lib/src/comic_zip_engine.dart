@@ -199,6 +199,11 @@ class ComicZipReaderSession extends ReaderSession
           direction: ReaderDirection.ltr,
           defaultMode: ReaderLayoutMode.pagedSingle,
         ),
+        autoPageAvailable: true,
+        keyboardTurnAvailable: true,
+        volumeTurnAvailable: true,
+        brightnessSupported: true,
+        keepScreenOnSupported: true,
       );
 
   @override

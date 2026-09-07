@@ -69,6 +69,9 @@ class ReaderSettings {
     this.rendererTheme = 'day',
     this.layoutMode = ReaderLayoutMode.pagedAuto,
     this.progressDisplay = 'percentage',
+    this.keepScreenOn = true,
+    this.brightness = 1.0,
+    this.autoPageSeconds = 0,
   });
 
   final String fontFamily;
@@ -84,6 +87,15 @@ class ReaderSettings {
   final String layoutMode;
   final String progressDisplay;
 
+  /// Keep the screen on while reading (mobile).
+  final bool keepScreenOn;
+
+  /// Reading brightness overlay, 0.3–1.0 (1.0 = no overlay).
+  final double brightness;
+
+  /// Auto page-turn interval in seconds; 0 disables.
+  final int autoPageSeconds;
+
   ReaderSettings copyWith({
     String? fontFamily,
     double? fontSize,
@@ -97,6 +109,9 @@ class ReaderSettings {
     String? rendererTheme,
     String? layoutMode,
     String? progressDisplay,
+    bool? keepScreenOn,
+    double? brightness,
+    int? autoPageSeconds,
   }) {
     return ReaderSettings(
       fontFamily: fontFamily ?? this.fontFamily,
@@ -112,6 +127,9 @@ class ReaderSettings {
       rendererTheme: rendererTheme ?? this.rendererTheme,
       layoutMode: layoutMode ?? this.layoutMode,
       progressDisplay: progressDisplay ?? this.progressDisplay,
+      keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+      brightness: brightness ?? this.brightness,
+      autoPageSeconds: autoPageSeconds ?? this.autoPageSeconds,
     );
   }
 
@@ -136,6 +154,9 @@ class ReaderSettings {
               'day',
       layoutMode: ReaderLayoutMode.normalize(json['layoutMode'] as String?),
       progressDisplay: (json['progressDisplay'] as String?) ?? 'percentage',
+      keepScreenOn: _asBool(json['keepScreenOn']) ?? true,
+      brightness: (_asDouble(json['brightness']) ?? 1.0).clamp(0.3, 1.0),
+      autoPageSeconds: (json['autoPageSeconds'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -155,6 +176,9 @@ class ReaderSettings {
       'theme': rendererTheme,
       'layoutMode': layoutMode,
       'progressDisplay': progressDisplay,
+      'keepScreenOn': keepScreenOn,
+      'brightness': brightness,
+      'autoPageSeconds': autoPageSeconds,
     };
   }
 }

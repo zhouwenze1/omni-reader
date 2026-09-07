@@ -173,6 +173,43 @@ class _ReaderSettingsPanelState extends State<ReaderSettingsPanel> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
+              const SizedBox(height: 8),
+              _slider(
+                title: '亮度',
+                value: _settings.brightness,
+                min: 0.3,
+                max: 1.0,
+                onChanged: (value) => _updateSettings(
+                  _settings.copyWith(brightness: value),
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('阅读时保持屏幕常亮'),
+                value: _settings.keepScreenOn,
+                onChanged: (value) => _updateSettings(
+                  _settings.copyWith(keepScreenOn: value),
+                ),
+              ),
+              DropdownButtonFormField<int>(
+                key: ValueKey('autopage-${_settings.autoPageSeconds}'),
+                initialValue: _settings.autoPageSeconds,
+                decoration: const InputDecoration(labelText: '自动翻页'),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('关闭')),
+                  DropdownMenuItem(value: 5, child: Text('每 5 秒')),
+                  DropdownMenuItem(value: 10, child: Text('每 10 秒')),
+                  DropdownMenuItem(value: 30, child: Text('每 30 秒')),
+                  DropdownMenuItem(value: 60, child: Text('每 60 秒')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    _updateSettings(
+                      _settings.copyWith(autoPageSeconds: value),
+                    );
+                  }
+                },
+              ),
               if (options.textTypography) ...[
                 const SizedBox(height: 8),
                 SwitchListTile(
