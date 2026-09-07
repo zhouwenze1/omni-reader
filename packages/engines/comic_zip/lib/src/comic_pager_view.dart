@@ -215,6 +215,7 @@ class _ComicPagerState extends State<_ComicPager> {
                   return _ZoomablePage(
                     loadBytes: () => session.readPageBytes(session.pages[index]),
                     cacheWidth: viewportWidth.round(),
+                    onTap: session.emitCenterTap,
                   );
                 },
               ),
@@ -240,6 +241,7 @@ class _ComicPagerState extends State<_ComicPager> {
                     loadBytes: () =>
                         session.readPageBytes(session.pages[first]),
                     cacheWidth: (viewportWidth / 2).round(),
+                    onTap: session.emitCenterTap,
                   ),
                 ),
               ];
@@ -251,6 +253,7 @@ class _ComicPagerState extends State<_ComicPager> {
                       loadBytes: () =>
                           session.readPageBytes(session.pages[second]),
                       cacheWidth: (viewportWidth / 2).round(),
+                      onTap: session.emitCenterTap,
                     ),
                   ),
                 );
@@ -264,6 +267,7 @@ class _ComicPagerState extends State<_ComicPager> {
             return _ZoomablePage(
               loadBytes: () => session.readPageBytes(session.pages[unit]),
               cacheWidth: viewportWidth.round(),
+              onTap: session.emitCenterTap,
             );
           },
         );
@@ -275,10 +279,18 @@ class _ComicPagerState extends State<_ComicPager> {
 /// A single comic page: loads bytes from the archive, fits them into its cell
 /// and supports pinch + double-tap zoom.
 class _ZoomablePage extends StatefulWidget {
-  const _ZoomablePage({required this.loadBytes, required this.cacheWidth});
+  const _ZoomablePage({
+    required this.loadBytes,
+    required this.cacheWidth,
+    this.onTap,
+  });
 
   final Future<Uint8List?> Function() loadBytes;
   final int cacheWidth;
+
+  /// Called on a plain tap (used to toggle the host chrome). Undefined while
+  /// the user is panning/zooming; double-tap still zooms.
+  final VoidCallback? onTap;
 
   @override
   State<_ZoomablePage> createState() => _ZoomablePageState();
@@ -337,6 +349,7 @@ class _ZoomablePageState extends State<_ZoomablePage> {
               );
             }
             return GestureDetector(
+              onTap: widget.onTap,
               onDoubleTap: _toggleZoom,
               child: InteractiveViewer(
                 transformationController: _transformation,

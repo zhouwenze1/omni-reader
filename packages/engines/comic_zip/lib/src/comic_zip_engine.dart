@@ -440,6 +440,20 @@ class ComicZipReaderSession extends ReaderSession
     await setDirection(isRtl ? ReaderDirection.ltr : ReaderDirection.rtl);
   }
 
+  /// Signals a center-tap so the host toggles its chrome. EPUB gets this from
+  /// the renderer; the native comic pager emits it itself.
+  void emitCenterTap() {
+    if (_events.isClosed) {
+      return;
+    }
+    _events.add(
+      ReaderEvent.fromRaw(
+        type: ReaderEventType.tapIntent,
+        payload: <String, dynamic>{'zone': 'center', 'mode': 'reading'},
+      ),
+    );
+  }
+
   @override
   Future<void> setLayoutMode(String layoutMode) async {
     final normalized = _normalizeLayout(layoutMode);
