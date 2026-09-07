@@ -12,7 +12,7 @@ decisions: D1 Go服务端(Ubuntu VPS); D2 只同步阅读进度; D3 退出推送
 
 # 阅读进度同步方案(Reading Progress Sync)
 
-- 日期:2026-08-31 · 分支:main · 状态:草案待确认
+- 日期:2026-08-31 · 分支:main · 状态:**已执行**（2026-09-07 更新：v1 进度同步已上线并被实体同步 v2 超越，见 `docs/specs/2026-09-07-cloud-backup-and-entity-sync-v2.md`；本文档保留 v1 协议细节作参照）
 - 决策记录:Go 服务端部署 Ubuntu VPS(D1);同步范围=仅阅读进度(D2);同步时机=退出推送+启动拉取+手动同步按钮(D3);设备 ID=随机 UUID 存 Hive(D4);配置入口=双端设置页(D5);服务端代码放 omni-reader 仓库 `tools/sync-server/`(D6)
 - 明确不做(后续二期):标注/书签同步、阅读设置同步、统计同步、激活码系统(已单列讨论)
 

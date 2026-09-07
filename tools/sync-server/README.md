@@ -64,8 +64,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now omni-sync
 ```
 GET  /health                          # 健康检查(无需 token)
 POST /api/sync/push                   # 批量推送进度
-GET  /api/sync/pull?cursor=&deviceId= # 按服务端 seq 拉增量
-GET  /api/sync/pull?bookUid=&deviceId=# 拉单书当前状态,不推进全局 cursor
+GET  /api/sync/pull?cursor=&deviceId= # 按服务端 seq 拉增量(cursor=该用户 max seq)
+GET  /api/sync/pull?bookUid=&deviceId=# 拉单书当前状态(返回该书自己的 cursor,仅对该书有效)
+POST /api/v2/sync/{entity}/push       # 实体同步推送;entity ∈ annotations|settings|stats
+GET  /api/v2/sync/{entity}/pull?deviceId=&cursor=  # 实体同步按游标拉增量
 GET  /api/library/manifest?since=<ms> # 书单(含墓碑),since 增量
 POST /api/library/announce            # 上报书目元数据(含封面 base64)
 PUT  /api/books/{uid}/file?ext=epub   # 上传原始书文件
@@ -78,7 +80,12 @@ DELETE /api/library/{uid}             # 删除云端书目(墓碑)+文件
 
 推送仍使用原有进度字段。服务端只在 `locator` 或 `progression` 变化时写入
 `progress_sync` 和 `sync_changes`;重复推送相同阅读位置是幂等操作。
+**进度冲突按 `updatedAt` LWW**——时间戳更旧的迟到写入会被跳过(不覆盖、不记日志)。
 旧客户端的 `after` 参数仍保留兼容,新客户端必须使用 `cursor`。
+
+实体同步 v2(`/api/v2/sync/{entity}`)用于标注/设置/统计:内容哈希去重 +
+冲突客户端 LWW(标注带墓碑、设置 per-key、统计按(设备,会话)并集),各实体独立游标。
+协议细节与客户端实现见 `omni-reader/docs/specs/2026-09-07-cloud-backup-and-entity-sync-v2.md`。
 
 旧库升级:首次用新版本启动时,历史进度/设备记录自动迁移归属到 default 用户
 (由旧配置 `token`/`SYNC_TOKEN` 播种);书单与书文件从零开始。
