@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'mobi_container.dart';
 import 'mobi_decompress.dart';
+import 'mobi_huffcdic.dart';
 
 /// 一部 MOBI 反解出的"书":正文 HTML 流 + 元数据 + 封面(若有)。
 class MobiBook {
@@ -39,18 +40,11 @@ class MobiImage {
 
 /// 读取 PalmDB + MOBI 头,解压正文 section 拼成 raw HTML。
 ///
-/// 只处理 Mobi7(压缩 1/2);Huffman(KF8) 解压未实现时抛 [MobiFormatException]
-/// 提示需要 KF8 支持。返回的书保留原始字节,由调用方负责 container 生命周期。
+/// 支持 Mobi7(PalmDOC/无压缩)与 KF8/Huffman(压缩 0x4448)。
+/// 返回的书保留原始字节,由调用方负责 container 生命周期。
 MobiBook readMobi(Uint8List bytes) {
   final container = PalmContainer.parse(bytes);
   final header = MobiHeader.parse(container);
-
-  if (header.isHuffman) {
-    throw const MobiFormatException(
-      'Huffman-compressed KF8 (AZW3) books are not supported yet; '
-      'only PalmDOC/plain Mobi7 are readable.',
-    );
-  }
 
   // 正文 section = [1, textRecords]。每个 section 解压后拼接。
   final body = BytesBuilder(copy: false);
@@ -58,11 +52,19 @@ MobiBook readMobi(Uint8List bytes) {
   if (textRecords <= 0) {
     throw const MobiFormatException('no text records in MOBI');
   }
-  for (var i = 1; i <= textRecords; i++) {
-    final raw = container.loadSection(i);
-    // 去掉每个 record 末尾的 trailing-entry 计数(长整数,见 getRawML)。
-    final trimmed = _trimTrailingData(raw);
-    body.add(decompressRecord(header.compression, trimmed));
+
+  if (header.isHuffman) {
+    // KF8:先按 huffOffset 定位 HUFF/CDIC section 建解码器,再逐条解压。
+    final huff = MobiHuffCdic.fromContainer(container, header);
+    for (var i = 1; i <= textRecords; i++) {
+      final raw = container.loadSection(i);
+      body.add(huff.decompress(_trimTrailingData(raw, header)));
+    }
+  } else {
+    for (var i = 1; i <= textRecords; i++) {
+      final raw = container.loadSection(i);
+      body.add(decompressRecord(header.compression, _trimTrailingData(raw, header)));
+    }
   }
   final rawHtml = body.toBytes();
 
@@ -94,11 +96,58 @@ MobiBook readMobi(Uint8List bytes) {
   return MobiBook(container: container, header: header, rawHtml: rawHtml, images: images);
 }
 
-/// 去掉 record 末尾的 trailing-entry 计数(PalmDOC 无;MOBI>=5 用变长计数)。
-Uint8List _trimTrailingData(Uint8List data) {
-  // 兼容 getRawML:若 data 很短或没有可识别的尾部,直接返回。
-  // 此处先不做复杂 multi-trailer 解析,交给正文清洗阶段处理残余。
-  return data;
+/// 去掉 record 末尾的 trailing-entry 计数与 multibyte pad。
+///
+/// 见 kindleunpack `getRawML`:MOBI 头 0xF2 的 extra-data flags 决定有几段
+/// 变长计数(每段反向大端 7bit),bit0 为 multibyte 时再剥 1 个指示字节。
+Uint8List _trimTrailingData(Uint8List data, MobiHeader header) {
+  if (data.isEmpty) {
+    return data;
+  }
+  var trimmed = data;
+  var flags = header.extraDataFlags;
+  if (flags > 1) {
+    // 去掉每段变长计数(flags>>1 的位数,含 bit0 的多字节位)。
+    var trailers = 0;
+    var f = flags >> 1;
+    while (f > 0) {
+      if (f & 1 != 0) {
+        trailers++;
+      }
+      f >>= 1;
+    }
+    for (var i = 0; i < trailers && trimmed.isNotEmpty; i++) {
+      final num = _trailingSize(trimmed);
+      if (num <= 0 || num >= trimmed.length) {
+        break;
+      }
+      trimmed = Uint8List.sublistView(trimmed, 0, trimmed.length - num);
+    }
+  }
+  if (flags & 1 != 0 && trimmed.isNotEmpty) {
+    // multibyte overlap:末尾字节的低 2 位 + 1 是要剥的字符数。
+    final num = (trimmed[trimmed.length - 1] & 3) + 1;
+    if (num < trimmed.length) {
+      trimmed = Uint8List.sublistView(trimmed, 0, trimmed.length - num);
+    }
+  }
+  return trimmed;
+}
+
+/// 变长整数(Palm 风格,反向 7bit 组)。
+int _trailingSize(Uint8List data) {
+  if (data.length < 4) {
+    return 0;
+  }
+  var num = 0;
+  for (var i = data.length - 4; i < data.length; i++) {
+    final v = data[i];
+    if (v & 0x80 != 0) {
+      num = 0;
+    }
+    num = (num << 7) | (v & 0x7F);
+  }
+  return num;
 }
 
 /// 按文件头嗅探图片格式(仅 jpeg/png/gif/webp/bmp)。

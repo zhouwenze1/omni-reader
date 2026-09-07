@@ -71,9 +71,11 @@ class ImportRepositoryImpl implements ImportRepository {
       final originalName = p.basename(filePath);
       final format = _detectFormat(filePath);
 
-      final fingerprint = format == 'pdf'
+      final String fingerprint = format == 'pdf'
           ? await _fingerprintService.hashPdfFile(filePath)
-          : await _fingerprintService.zipFingerprint(filePath);
+          : format == 'mobi'
+              ? await _hashFileBytes(filePath)
+              : await _fingerprintService.zipFingerprint(filePath);
 
       final existed = await _bookRepository.findLibraryIndexByFingerprint(
         fingerprint,
@@ -108,6 +110,13 @@ class ImportRepositoryImpl implements ImportRepository {
           enableSmartTocReconciliation: options.enableSmartTocReconciliation,
         );
         importedEpubPackage = true;
+      } else if (format == 'mobi') {
+        // 反解 MOBI/AZW3 → raw 目录 + meta.json(EPUB 引擎可读);format 记
+        // 'webpub' 以路由进 epub 引擎。
+        epubImport = await _epubImportPort.importMobiPackage(
+          mobiFilePath: filePath,
+          bookUuid: bookUid,
+        );
       }
 
       if (format == 'w3cAudiobook') {
@@ -136,6 +145,10 @@ class ImportRepositoryImpl implements ImportRepository {
       await _fileService.copyFile(filePath, originalTarget);
 
       final now = DateTime.now();
+      // mobi 反解产物路由进 epub 引擎,但书架 format 记 'webpub'(引擎已认)。
+      final storedFormat = format == 'mobi' ? 'webpub' : format;
+      final isRichImport = format == 'epub' || format == 'mobi';
+
       String? coverRelPath;
       if (format == 'epub' && epubImport != null) {
         coverRelPath =
@@ -144,6 +157,10 @@ class ImportRepositoryImpl implements ImportRepository {
           opfPath: epubImport.opfPath,
           tempBookDir: tmpDir,
         );
+      } else if (format == 'mobi' &&
+          epubImport?.coverBytes != null &&
+          epubImport!.coverBytes!.isNotEmpty) {
+        coverRelPath = await _writeMobiCover(epubImport, tmpDir);
       } else if (format == 'comicZip') {
         coverRelPath =
             await _coverExtractionService.extractComicZipCoverToLibraryTemp(
@@ -154,23 +171,23 @@ class ImportRepositoryImpl implements ImportRepository {
 
       final book = Book(
         uid: bookUid,
-        format: format,
-        title: format == 'epub'
+        format: storedFormat,
+        title: isRichImport
             ? _preferredText(
                 epubImport?.title,
                 p.basenameWithoutExtension(originalName),
               )!
             : p.basenameWithoutExtension(originalName),
-        authors: format == 'epub'
+        authors: isRichImport
             ? List<String>.from(epubImport?.authors ?? const <String>[])
             : const <String>[],
-        description: format == 'epub'
+        description: isRichImport
             ? _preferredText(epubImport?.description, null)
             : null,
-        language: format == 'epub'
+        language: isRichImport
             ? _preferredText(epubImport?.language, null)
             : null,
-        rootDir: format == 'epub'
+        rootDir: isRichImport
             ? _bookStoragePort.bookDirPath(bookUid)
             : finalBookDir,
         originalRelPath: originalRelPath,
@@ -185,7 +202,7 @@ class ImportRepositoryImpl implements ImportRepository {
         fileHash: fingerprint,
       );
 
-      final initialLocator = format == 'epub'
+      final initialLocator = isRichImport
           ? Locator(
               href: epubImport?.firstSpineHref,
               cfi: null,
@@ -241,7 +258,7 @@ class ImportRepositoryImpl implements ImportRepository {
         LibraryIndexEntry(
           bookUid: bookUid,
           fingerprint: fingerprint,
-          format: format,
+          format: storedFormat,
           title: book.title,
           authors: book.authors,
           categoryId: book.categoryId,
@@ -384,6 +401,11 @@ class ImportRepositoryImpl implements ImportRepository {
     if (lower.endsWith('.epub')) {
       return 'epub';
     }
+    if (lower.endsWith('.mobi') ||
+        lower.endsWith('.azw3') ||
+        lower.endsWith('.azw')) {
+      return 'mobi';
+    }
     if (lower.endsWith('.ldf')) {
       return 'ldf';
     }
@@ -405,6 +427,32 @@ class ImportRepositoryImpl implements ImportRepository {
   String _deriveBookUid(String hash) {
     final digest = sha256.convert(utf8.encode(hash)).toString();
     return digest.substring(0, 32);
+  }
+
+  Future<String> _hashFileBytes(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+    return sha256.convert(bytes).toString();
+  }
+
+  /// 把 mobi 反解出的封面字节写入临时书目录,返回 cover 相对路径。
+  Future<String?> _writeMobiCover(
+    EpubImportResult import,
+    String tempBookDir,
+  ) async {
+    final bytes = import.coverBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return null;
+    }
+    final ext = switch (import.coverMediaType) {
+      'image/png' => 'png',
+      'image/gif' => 'gif',
+      'image/webp' => 'webp',
+      _ => 'jpg',
+    };
+    final name = 'cover.$ext';
+    final file = File(p.join(tempBookDir, name));
+    await file.writeAsBytes(bytes, flush: true);
+    return name;
   }
 
   String? _preferredText(String? primary, String? fallback) {

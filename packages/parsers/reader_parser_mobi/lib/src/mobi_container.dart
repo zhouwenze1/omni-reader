@@ -66,6 +66,9 @@ class MobiHeader {
     required this.firstNontext,
     required this.exthFlags,
     required this.exth,
+    required this.huffOffset,
+    required this.huffNum,
+    this.extraDataFlags = 0,
   });
 
   /// 0=无压缩 2=PalmDOC 0x4448=Huffman(KF8/AZW3)。
@@ -79,6 +82,15 @@ class MobiHeader {
   final int firstNontext;
   final int exthFlags;
   final Map<int, List<int>> exth;
+
+  /// HUFF 起始 section(相对 header section;仅 Huffman 压缩有意义)。
+  final int huffOffset;
+
+  /// HUFF+CDIC 的 section 数(第 1 个是 HUFF,其余是 CDIC)。
+  final int huffNum;
+
+  /// extra record data flags(0xF2),用于剥离正文 section 尾部计数。
+  final int extraDataFlags;
 
   bool get isHuffman => compression == 0x4448;
 
@@ -125,6 +137,8 @@ class MobiHeader {
         firstNontext: 1 + _u16(section0, 0x08),
         exthFlags: 0,
         exth: const <int, List<int>>{},
+        huffOffset: 0,
+        huffNum: 0,
       );
     }
 
@@ -135,6 +149,12 @@ class MobiHeader {
     final version = _u32(section0, 0x24);
     final firstNontext = _u32(section0, 0x50);
     final exthFlags = _u32(section0, 0x80);
+
+    // KF8(version>=8)才有 HUFF 偏移与 extra-data flags;老 mobi 缺失时给 0。
+    final huffOffset = headerLength >= 0x74 ? _u32(section0, 0x70) : 0;
+    final huffNum = headerLength >= 0x74 ? _u32(section0, 0x74) : 0;
+    final extraDataFlags =
+        headerLength >= 0xE4 && version >= 5 ? _u16(section0, 0xF2) : 0;
 
     Map<int, List<int>> exth = const <int, List<int>>{};
     if (exthFlags & 0x40 != 0) {
@@ -150,6 +170,9 @@ class MobiHeader {
       firstNontext: firstNontext,
       exthFlags: exthFlags,
       exth: exth,
+      huffOffset: huffOffset,
+      huffNum: huffNum,
+      extraDataFlags: extraDataFlags,
     );
   }
 }

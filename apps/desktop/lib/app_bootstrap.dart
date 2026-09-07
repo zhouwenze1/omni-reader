@@ -55,6 +55,7 @@ Future<void> _bootstrap() async {
     storagePaths: storagePaths,
     epubImportPort: EpubBookImportAdapter(
       EpubImportService(storageService: bookStorageService),
+      mobiImporter: MobiImportService(storageService: bookStorageService),
     ),
     bookStoragePort: bookStorageService,
   );

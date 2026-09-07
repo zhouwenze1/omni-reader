@@ -16,6 +16,7 @@ Future<void> bootstrapMobileApp() async {
     storagePaths: storagePaths,
     epubImportPort: EpubBookImportAdapter(
       EpubImportService(storageService: bookStorageService),
+      mobiImporter: MobiImportService(storageService: bookStorageService),
     ),
     bookStoragePort: bookStorageService,
   );

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:reader_parser_mobi/src/mobi_reader.dart';
+import 'package:test/test.dart';
 
 void main() {
   final sample = r'C:\Users\Administrator\Desktop\Omni\.mobi-ref\samples\alice.mobi';

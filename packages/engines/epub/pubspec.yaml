@@ -19,8 +19,10 @@ dependencies:
     path: ../../parsers/reader_parser_core
   reader_parser_epub:
     path: ../../parsers/reader_parser_epub
+  reader_parser_mobi:
+    path: ../../parsers/reader_parser_mobi
   reader_epub_repair:
-    path: ../../../../reader-epub-repair
+    path: ../../tools/reader_epub_repair
   flutter_inappwebview: ^6.1.5
   mime: ^1.0.6
   path: ^1.9.1

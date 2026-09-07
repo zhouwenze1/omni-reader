@@ -9,5 +9,11 @@ environment:
 
 dependencies:
   archive: ^4.0.7
+  html: ^0.15.6
+  reader_epub_repair:
+    path: ../../tools/reader_epub_repair
   reader_parser_core: any
+
+dev_dependencies:
+  test: ^1.25.15
 

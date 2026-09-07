@@ -29,6 +29,7 @@ workspace:
   - packages/parsers/reader_parser_ldf
   - packages/parsers/reader_parser_comiczip
   - packages/parsers/reader_parser_mobi
+  - packages/tools/reader_epub_repair
 
 melos:
   packages:
@@ -54,6 +55,7 @@ melos:
     - packages/parsers/reader_parser_ldf
     - packages/parsers/reader_parser_comiczip
     - packages/parsers/reader_parser_mobi
+    - packages/tools/reader_epub_repair
   scripts:
     bootstrap: melos bootstrap
     pubget: melos exec -- flutter pub get

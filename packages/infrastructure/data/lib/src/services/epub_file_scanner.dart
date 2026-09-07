@@ -14,6 +14,8 @@ class EpubFileScanner {
     'zip',
     'cbz',
     'webpub',
+    'mobi',
+    'azw3',
     'lpf',
     'mp3',
     'm4b',
