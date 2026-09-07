@@ -144,6 +144,12 @@ class ImportRepositoryImpl implements ImportRepository {
           opfPath: epubImport.opfPath,
           tempBookDir: tmpDir,
         );
+      } else if (format == 'comicZip') {
+        coverRelPath =
+            await _coverExtractionService.extractComicZipCoverToLibraryTemp(
+          archiveFilePath: originalTarget,
+          tempBookDir: tmpDir,
+        );
       }
 
       final book = Book(

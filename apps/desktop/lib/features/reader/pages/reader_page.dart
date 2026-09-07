@@ -523,6 +523,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
 
     final sameSelection = _selectionText == text && _editingAnnotation == null;
+    if (!_hasCapability(ReaderCapability.selection)) {
+      return;
+    }
     setState(() {
       _selectionMenuVisible = true;
       _selectionText = text;
@@ -534,7 +537,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       _selectionQuote = null;
       final generation = ++_selectionGeneration;
       final session = _session;
-      if (session == null) {
+      if (session == null ||
+          !session.capabilities.contains(ReaderCapability.selection)) {
         return;
       }
       final future = session.getSelectionQuote();
@@ -560,6 +564,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     ReaderHighlightTappedData? data,
     Map<String, dynamic>? payload,
   ) {
+    if (!_hasCapability(ReaderCapability.selection)) {
+      return;
+    }
     final uid = data?.uid;
     final store = _annotationsStore;
     if (uid == null || store == null) {
@@ -863,13 +870,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           _session!.buildView(),
           _buildTopToolbar(context),
           _buildBottomToolbar(context),
-          if (_tocPanelOpen)
+          if (_tocPanelOpen && _hasCapability(ReaderCapability.toc))
             DesktopTocPanel(
               bookUid: widget.bookUid,
               onSelect: _onTocSelect,
               onClose: () => setState(() => _tocPanelOpen = false),
             ),
-          if (_searchPanelOpen)
+          if (_searchPanelOpen &&
+              _hasCapability(ReaderCapability.inBookSearch))
             DesktopSearchPanel(
               bookUid: widget.bookUid,
               format: _book?.format,
@@ -1209,43 +1217,48 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
-                  IconButton(
-                    tooltip: l10n.readerSettings,
-                    onPressed: _openReaderSettings,
-                    icon: const Icon(Icons.tune, color: Colors.white),
-                  ),
-                  IconButton(
-                    tooltip: l10n.searchInBookTitle,
-                    onPressed: () =>
-                        setState(() => _searchPanelOpen = !_searchPanelOpen),
-                    icon: Icon(
-                      _searchPanelOpen ? Icons.search_off : Icons.search,
-                      color: Colors.white,
+                  if (_hasCapability(ReaderCapability.style))
+                    IconButton(
+                      tooltip: l10n.readerSettings,
+                      onPressed: _openReaderSettings,
+                      icon: const Icon(Icons.tune, color: Colors.white),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: l10n.tocTitle,
-                    onPressed: () => setState(() => _tocPanelOpen = true),
-                    icon: const Icon(Icons.menu_book, color: Colors.white),
-                  ),
-                  IconButton(
-                    tooltip: l10n.statsAnnotationsTotal,
-                    onPressed: _openAnnotationHub,
-                    icon: const Icon(Icons.format_paint_outlined,
-                        color: Colors.white),
-                  ),
-                  IconButton(
-                    tooltip: _rendererTheme == 'day'
-                        ? l10n.switchToNight
-                        : l10n.switchToDay,
-                    onPressed: _toggleTheme,
-                    icon: Icon(
-                      _rendererTheme == 'day'
-                          ? Icons.dark_mode
-                          : Icons.light_mode,
-                      color: Colors.white,
+                  if (_hasCapability(ReaderCapability.inBookSearch))
+                    IconButton(
+                      tooltip: l10n.searchInBookTitle,
+                      onPressed: () =>
+                          setState(() => _searchPanelOpen = !_searchPanelOpen),
+                      icon: Icon(
+                        _searchPanelOpen ? Icons.search_off : Icons.search,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
+                  if (_hasCapability(ReaderCapability.toc))
+                    IconButton(
+                      tooltip: l10n.tocTitle,
+                      onPressed: () => setState(() => _tocPanelOpen = true),
+                      icon: const Icon(Icons.menu_book, color: Colors.white),
+                    ),
+                  if (_hasCapability(ReaderCapability.highlights))
+                    IconButton(
+                      tooltip: l10n.statsAnnotationsTotal,
+                      onPressed: _openAnnotationHub,
+                      icon: const Icon(Icons.format_paint_outlined,
+                          color: Colors.white),
+                    ),
+                  if (_hasCapability(ReaderCapability.theme))
+                    IconButton(
+                      tooltip: _rendererTheme == 'day'
+                          ? l10n.switchToNight
+                          : l10n.switchToDay,
+                      onPressed: _toggleTheme,
+                      icon: Icon(
+                        _rendererTheme == 'day'
+                            ? Icons.dark_mode
+                            : Icons.light_mode,
+                        color: Colors.white,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1397,6 +1410,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         );
       },
     );
+  }
+
+  bool _hasCapability(ReaderCapability capability) {
+    return _session?.capabilities.contains(capability) ?? false;
   }
 
   Future<void> _toggleTheme() async {

@@ -30,7 +30,6 @@ import '../widgets/translation_sheet.dart';
 import '../widgets/tts_player_sheet.dart';
 import 'audio_player_page.dart';
 import 'bookmarks_page.dart';
-import 'comic_reader_page.dart';
 import 'highlights_page.dart';
 import 'notes_page.dart';
 import 'pdf_outline_page.dart';
@@ -1397,15 +1396,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         ),
       );
     }
-    if (book.format == 'comicZip') {
-      actions.add(
-        _ReaderSheetAction(
-          value: 'comic',
-          icon: Icons.auto_stories_outlined,
-          label: l10n.comicMode,
-        ),
-      );
-    }
 
     final selection = await showModalBottomSheet<String>(
       context: context,
@@ -1498,15 +1488,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         );
         await _enterImmersiveMode();
         return;
-      case 'comic':
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ComicReaderPage(bookUid: book.uid),
-          ),
-        );
-        await _enterImmersiveMode();
-        return;
     }
+  }
+
+  bool _hasCapability(ReaderCapability capability) {
+    return _session?.capabilities.contains(capability) ?? false;
   }
 
   Future<void> _openSelectionTools() async {
@@ -1663,36 +1649,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               foregroundColor: chromePalette.chromeForeground,
               borderColor: chromePalette.chromeBorder,
               actions: [
-                IconButton(
-                  tooltip: l10n.search,
-                  onPressed: () async {
-                    final hit = await context.push<SearchHit>(
-                      RoutePaths.searchInBook(book.uid),
-                    );
-                    if (hit != null && hit.href != null) {
-                      final token = ++_searchHighlightRequestToken;
-                      _searchHighlightActive = false;
-                      _searchHighlightPageKey = null;
-                      _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
-                      await _selectSearchHit(hit, token);
-                    }
-                    await _enterImmersiveMode();
-                  },
-                  icon: Icon(
-                    Icons.search,
-                    color: chromePalette.chromeForeground,
+                if (_hasCapability(ReaderCapability.inBookSearch))
+                  IconButton(
+                    tooltip: l10n.search,
+                    onPressed: () async {
+                      final hit = await context.push<SearchHit>(
+                        RoutePaths.searchInBook(book.uid),
+                      );
+                      if (hit != null && hit.href != null) {
+                        final token = ++_searchHighlightRequestToken;
+                        _searchHighlightActive = false;
+                        _searchHighlightPageKey = null;
+                        _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
+                        await _selectSearchHit(hit, token);
+                      }
+                      await _enterImmersiveMode();
+                    },
+                    icon: Icon(
+                      Icons.search,
+                      color: chromePalette.chromeForeground,
+                    ),
                   ),
-                ),
-                IconButton(
-                  tooltip: l10n.switchThemeQuick,
-                  onPressed: _toggleTheme,
-                  icon: Icon(
-                    _rendererTheme == 'day'
-                        ? Icons.dark_mode
-                        : Icons.light_mode,
-                    color: chromePalette.chromeForeground,
+                if (_hasCapability(ReaderCapability.theme))
+                  IconButton(
+                    tooltip: l10n.switchThemeQuick,
+                    onPressed: _toggleTheme,
+                    icon: Icon(
+                      _rendererTheme == 'day'
+                          ? Icons.dark_mode
+                          : Icons.light_mode,
+                      color: chromePalette.chromeForeground,
+                    ),
                   ),
-                ),
               ],
             ),
             immersiveOverlayPadding: EdgeInsets.fromLTRB(
@@ -1710,13 +1698,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               darkMode: chromePalette.isDark,
             ),
             body: _session!.buildView(),
-            floatingActionButton: FloatingActionButton.small(
-              heroTag: 'selectionTools',
-              onPressed: _openSelectionTools,
-              backgroundColor: chromePalette.fabBackground,
-              foregroundColor: chromePalette.fabForeground,
-              child: const Icon(Icons.auto_awesome),
-            ),
+            floatingActionButton: _hasCapability(ReaderCapability.selection)
+                ? FloatingActionButton.small(
+                    heroTag: 'selectionTools',
+                    onPressed: _openSelectionTools,
+                    backgroundColor: chromePalette.fabBackground,
+                    foregroundColor: chromePalette.fabForeground,
+                    child: const Icon(Icons.auto_awesome),
+                  )
+                : null,
             bottomBar: ReaderBottomBar(
               progress: _sliderProgress,
               backgroundColor: chromePalette.chromeBackground,
@@ -1733,9 +1723,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               onProgressChangeEnd: _handleProgressChangeEnd,
               onPrev: () => _session?.navigatePrev(),
               onNext: () => _session?.navigateNext(),
-              onOpenToc: _openToc,
-              onOpenAnnotations: _openAnnotationHub,
-              onOpenSettings: _openReaderSettings,
+              onOpenToc:
+                  _hasCapability(ReaderCapability.toc) ? _openToc : null,
+              onOpenAnnotations: _hasCapability(ReaderCapability.highlights)
+                  ? _openAnnotationHub
+                  : null,
+              onOpenSettings:
+                  _hasCapability(ReaderCapability.style) ? _openReaderSettings : null,
               onOpenMore: _openMoreActions,
             ),
           ),

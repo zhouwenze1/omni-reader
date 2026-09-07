@@ -40,6 +40,8 @@ dependencies:
     path: ../../packages/engines/pdf
   engine_audio:
     path: ../../packages/engines/audio
+  engine_comic_zip:
+    path: ../../packages/engines/comic_zip
   engine_ldf:
     path: ../../packages/engines/ldf
 

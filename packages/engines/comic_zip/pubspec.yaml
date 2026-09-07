@@ -1,9 +1,25 @@
-name: engine_comic_zip_legacy
-description: Placeholder for the ComicZip reader engine; no implementation yet.
+name: engine_comic_zip
+description: Native CBZ/ZIP comic reader engine (kernel ReaderEngine/ReaderSession)
 publish_to: none
-version: 0.0.1
+
+resolution: workspace
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
+  flutter: ">=3.22.0"
 
-resolution: workspace
+dependencies:
+  flutter:
+    sdk: flutter
+  kernel:
+    path: ../kernel
+  foundation_domain:
+    path: ../../foundation/domain
+  reader_parser_core:
+    path: ../../parsers/reader_parser_core
+  path: ^1.9.1
+
+dev_dependencies:
+  archive: ^4.0.7
+  flutter_test:
+    sdk: flutter

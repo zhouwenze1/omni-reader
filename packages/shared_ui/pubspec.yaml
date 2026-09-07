@@ -28,6 +28,8 @@ dependencies:
     path: ../engines/pdf
   engine_audio:
     path: ../engines/audio
+  engine_comic_zip:
+    path: ../engines/comic_zip
   engine_ldf:
     path: ../engines/ldf
 

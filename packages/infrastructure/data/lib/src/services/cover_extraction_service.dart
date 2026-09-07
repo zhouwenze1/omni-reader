@@ -35,6 +35,109 @@ class CoverExtractionService {
     );
   }
 
+  /// Picks the first comic page from a CBZ/ZIP archive as the shelf cover.
+  ///
+  /// Mirrors the engine's page ordering so the cover matches the first page
+  /// the reader shows. Pass the staged original file path (the archive has not
+  /// been moved into place yet at import time).
+  Future<String?> extractComicZipCoverToLibraryTemp({
+    required String archiveFilePath,
+    required String tempBookDir,
+  }) async {
+    final archiveFile = File(archiveFilePath);
+    if (!await archiveFile.exists()) {
+      return null;
+    }
+
+    final source = await LazyZipResourceSource.open(archiveFilePath);
+    try {
+      final paths = await source.listPaths();
+      final coverPath = _firstComicPageEntry(paths);
+      if (coverPath == null) {
+        return null;
+      }
+      final bytes = await source.readBytes(coverPath);
+      if (bytes == null || bytes.isEmpty) {
+        return null;
+      }
+      return await _writeCoverBytes(
+        tempBookDir: tempBookDir,
+        relativeCoverPath: coverPath,
+        bytes: bytes,
+      );
+    } finally {
+      await source.close();
+    }
+  }
+
+  static const Set<String> _comicImageExtensions = <String>{
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.bmp',
+  };
+
+  /// First page of a comic archive under the same filtering/ordering rules the
+  /// comic engine uses (drops junk, natural numeric order).
+  static String? _firstComicPageEntry(List<String> paths) {
+    final candidates = <String>[];
+    for (final raw in paths) {
+      final path = raw.replaceAll('\\', '/');
+      final lower = path.toLowerCase();
+      if (lower.contains('__macosx')) {
+        continue;
+      }
+      final dot = path.lastIndexOf('.');
+      if (dot == -1 ||
+          !_comicImageExtensions.contains(path.substring(dot).toLowerCase())) {
+        continue;
+      }
+      final slash = path.lastIndexOf('/');
+      final base = slash == -1 ? path : path.substring(slash + 1);
+      if (base.startsWith('.') ||
+          base.toLowerCase() == 'thumbs.db' ||
+          base.toLowerCase() == 'desktop.ini') {
+        continue;
+      }
+      candidates.add(path);
+    }
+    candidates.sort(_naturalCompare);
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  static int _naturalCompare(String a, String b) {
+    final pattern = RegExp(r'\d+|\D+');
+    final aChunks =
+        pattern.allMatches(a).map((match) => match.group(0)!).toList();
+    final bChunks =
+        pattern.allMatches(b).map((match) => match.group(0)!).toList();
+    final shared = aChunks.length < bChunks.length
+        ? aChunks.length
+        : bChunks.length;
+    for (var i = 0; i < shared; i++) {
+      final x = aChunks[i];
+      final y = bChunks[i];
+      final xNum = int.tryParse(x);
+      final yNum = int.tryParse(y);
+      if (xNum != null && yNum != null) {
+        if (xNum != yNum) {
+          return xNum.compareTo(yNum);
+        }
+        if (x.length != y.length) {
+          return x.length.compareTo(y.length);
+        }
+        continue;
+      }
+      final compared = x.toLowerCase().compareTo(y.toLowerCase());
+      if (compared != 0) {
+        return compared;
+      }
+    }
+    return aChunks.length.compareTo(bChunks.length);
+  }
+
   Future<String?> _extractFromArchive({
     required String bookUid,
     required String opfPath,

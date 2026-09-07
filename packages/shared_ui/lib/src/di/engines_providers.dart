@@ -1,5 +1,6 @@
 import 'package:kernel/kernel.dart';
 import 'package:engine_audio/engine_audio.dart';
+import 'package:engine_comic_zip/engine_comic_zip.dart';
 import 'package:engine_epub/engine_epub.dart';
 import 'package:engine_ldf/engine_ldf.dart';
 import 'package:engine_pdf/engine_pdf.dart';
@@ -11,5 +12,6 @@ final engineRegistryProvider = Provider<ReaderEngineRegistry>((ref) {
     PdfReaderEngine(),
     AudioReaderEngine(),
     LdfReaderEngine(),
+    ComicZipReaderEngine(),
   ]);
 });

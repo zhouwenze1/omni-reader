@@ -17,9 +17,9 @@ class ReaderBottomBar extends StatelessWidget {
     required this.onProgressChangeEnd,
     required this.onPrev,
     required this.onNext,
-    required this.onOpenToc,
-    required this.onOpenAnnotations,
-    required this.onOpenSettings,
+    this.onOpenToc,
+    this.onOpenAnnotations,
+    this.onOpenSettings,
     this.onOpenMore,
   });
 
@@ -34,9 +34,9 @@ class ReaderBottomBar extends StatelessWidget {
   final ValueChanged<double> onProgressChangeEnd;
   final VoidCallback onPrev;
   final VoidCallback onNext;
-  final VoidCallback onOpenToc;
-  final VoidCallback onOpenAnnotations;
-  final VoidCallback onOpenSettings;
+  final VoidCallback? onOpenToc;
+  final VoidCallback? onOpenAnnotations;
+  final VoidCallback? onOpenSettings;
   final VoidCallback? onOpenMore;
 
   @override
@@ -49,24 +49,27 @@ class ReaderBottomBar extends StatelessWidget {
         onPressed: onPrev,
         foregroundColor: foregroundColor,
       ),
-      _ReaderActionButton(
-        icon: Icons.menu_book_outlined,
-        label: l10n.toc,
-        onPressed: onOpenToc,
-        foregroundColor: foregroundColor,
-      ),
-      _ReaderActionButton(
-        icon: Icons.collections_bookmark_outlined,
-        label: l10n.annotations,
-        onPressed: onOpenAnnotations,
-        foregroundColor: foregroundColor,
-      ),
-      _ReaderActionButton(
-        icon: Icons.tune,
-        label: l10n.readerSettings,
-        onPressed: onOpenSettings,
-        foregroundColor: foregroundColor,
-      ),
+      if (onOpenToc != null)
+        _ReaderActionButton(
+          icon: Icons.menu_book_outlined,
+          label: l10n.toc,
+          onPressed: onOpenToc!,
+          foregroundColor: foregroundColor,
+        ),
+      if (onOpenAnnotations != null)
+        _ReaderActionButton(
+          icon: Icons.collections_bookmark_outlined,
+          label: l10n.annotations,
+          onPressed: onOpenAnnotations!,
+          foregroundColor: foregroundColor,
+        ),
+      if (onOpenSettings != null)
+        _ReaderActionButton(
+          icon: Icons.tune,
+          label: l10n.readerSettings,
+          onPressed: onOpenSettings!,
+          foregroundColor: foregroundColor,
+        ),
       if (onOpenMore != null)
         _ReaderActionButton(
           icon: Icons.more_horiz,

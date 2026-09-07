@@ -47,7 +47,6 @@ class MobileStrings {
   String get pdfOutline => _isZh ? 'PDF 大纲' : 'PDF outline';
   String get pdfThumbnails => _isZh ? 'PDF 缩略图' : 'PDF thumbnails';
   String get audioPlayer => _isZh ? '音频播放器' : 'Audio player';
-  String get comicMode => _isZh ? '漫画模式' : 'Comic mode';
   String get annotationHubTitle => _isZh ? '标注内容' : 'Annotations';
   String get moreActionsTitle => _isZh ? '更多操作' : 'More actions';
   String get annotationNote => _isZh ? '标注笔记' : 'Annotation note';
