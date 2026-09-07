@@ -195,18 +195,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         });
         try {
           await ref.read(bookCloudManagerProvider).restoreBook(
-                widget.bookUid,
-                onProgress: (received, total) {
-                  if (!mounted) return;
-                  final receivedText = (received / 1048576).toStringAsFixed(1);
-                  final totalText = total == null
-                      ? ''
-                      : ' / ${(total / 1048576).toStringAsFixed(1)}MB';
-                  setState(() {
-                    _restoreStatus = '正在从云端取回… $receivedText$totalText';
-                  });
-                },
-              );
+            widget.bookUid,
+            onProgress: (received, total) {
+              if (!mounted) return;
+              final receivedText = (received / 1048576).toStringAsFixed(1);
+              final totalText = total == null
+                  ? ''
+                  : ' / ${(total / 1048576).toStringAsFixed(1)}MB';
+              setState(() {
+                _restoreStatus = '正在从云端取回… $receivedText$totalText';
+              });
+            },
+          );
         } catch (error) {
           if (!mounted) return;
           setState(() {
@@ -439,17 +439,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     _volumeKeySub = _volumeKeyChannel.receiveBroadcastStream().listen(
-          (event) {
-            final forward = event is Map && event['forward'] == true;
-            final s = _session;
-            if (s != null) {
-              unawaited(s.handleHardwareTurn(forward: forward));
-            }
-          },
-          onError: (Object error) {
-            debugPrint('[mobile-reader][volume-key.error] $error');
-          },
-        );
+      (event) {
+        final forward = event is Map && event['forward'] == true;
+        final s = _session;
+        if (s != null) {
+          unawaited(s.handleHardwareTurn(forward: forward));
+        }
+      },
+      onError: (Object error) {
+        debugPrint('[mobile-reader][volume-key.error] $error');
+      },
+    );
   }
 
   ReaderSettings _currentReaderSettings() {
@@ -939,13 +939,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Future<void> _openReaderSettings() async {
     final current = _currentReaderSettings();
+    final session = _session;
+    final features = session?.features;
+    final showComfortControls = features?.brightnessSupported == true ||
+        features?.keepScreenOnSupported == true ||
+        features?.autoPageAvailable == true;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (context) {
         return ReaderSettingsPanel(
           settings: current,
-          options: _session?.settingsOptions ??
+          options: session?.settingsOptions ??
               const ReaderSettingsOptions(
                 textTypography: true,
                 theme: true,
@@ -953,6 +958,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 padding: true,
                 layoutMode: true,
               ),
+          showComfortControls: showComfortControls,
           onChanged: (settings) async {
             await _commitReaderSettings(settings);
           },
@@ -1778,7 +1784,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       unawaited(syncService.pushBookOnExit(widget.bookUid));
       // 标注/统计/设置的合书推送。
       unawaited(
-        container.read(dataSyncServiceProvider).pushOnReaderExit(widget.bookUid),
+        container
+            .read(dataSyncServiceProvider)
+            .pushOnReaderExit(widget.bookUid),
       );
     }));
     unawaited(_readerSettingsWriteQueue.close());
@@ -1878,7 +1886,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                         final token = ++_searchHighlightRequestToken;
                         _searchHighlightActive = false;
                         _searchHighlightPageKey = null;
-                        _searchHighlightTargetHref = _normalizeHrefKey(hit.href);
+                        _searchHighlightTargetHref =
+                            _normalizeHrefKey(hit.href);
                         await _selectSearchHit(hit, token);
                       }
                       await _enterImmersiveMode();
@@ -1941,15 +1950,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               onProgressChangeEnd: _handleProgressChangeEnd,
               onPrev: () => _session?.navigatePrev(),
               onNext: () => _session?.navigateNext(),
-              onOpenToc: (_hasCapability(ReaderCapability.toc) ||
-                      _hasPageList)
+              onOpenToc: (_hasCapability(ReaderCapability.toc) || _hasPageList)
                   ? _openNavigation
                   : null,
               onOpenAnnotations: _hasCapability(ReaderCapability.highlights)
                   ? _openAnnotationHub
                   : null,
-              onOpenSettings:
-                  _hasCapability(ReaderCapability.style) ? _openReaderSettings : null,
+              onOpenSettings: _hasCapability(ReaderCapability.style)
+                  ? _openReaderSettings
+                  : null,
               onOpenMore: _openMoreActions,
             ),
           ),
@@ -1987,8 +1996,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             Positioned.fill(
               child: IgnorePointer(
                 child: ColoredBox(
-                  color: Colors.black
-                      .withValues(alpha: _brightnessOverlayOpacity),
+                  color:
+                      Colors.black.withValues(alpha: _brightnessOverlayOpacity),
                 ),
               ),
             ),

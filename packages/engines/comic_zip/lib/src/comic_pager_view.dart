@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -15,8 +16,9 @@ import 'comic_zip_engine.dart';
 /// - paged modes: mouse wheel turns pages; tapping the left/right third turns
 ///   pages (direction-aware), tapping the center toggles the reader chrome.
 /// - scroll mode: the wheel scrolls; a tap toggles the chrome.
-/// Pinch zoom and double-tap zoom stay available; desktop mouse-wheel zoom is
-/// disabled.
+/// Pinch zoom stays available on touch; desktop mouse-wheel zoom is disabled.
+/// Double-tap zoom is intentionally omitted so single taps act immediately —
+/// Flutter would otherwise hold every tap ~300ms to disambiguate a double tap.
 class ComicPagerView extends StatefulWidget {
   const ComicPagerView({super.key, required this.session});
 
@@ -116,7 +118,8 @@ class _ComicPagerViewState extends State<ComicPagerView> {
                     ),
                     child: Text(
                       '${session.pageIndex + 1} / ${session.pageCount}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ),
                 ),
@@ -235,8 +238,8 @@ class _ComicPagerState extends State<_ComicPager> {
     };
     // Page-turn / chrome-tap decision for paged modes. In RTL the earlier page
     // sits on the right, so "forward" maps to the left edge.
-    void handleTapUp(Offset local, Size size) {
-      final zone = switch (local.dx / size.width) {
+    void handleTapUp(double dx, double width) {
+      final zone = switch (dx / width) {
         < 1 / 3 => 'left',
         > 2 / 3 => 'right',
         _ => 'center',
@@ -282,9 +285,10 @@ class _ComicPagerState extends State<_ComicPager> {
                 itemExtent: viewportHeight,
                 itemBuilder: (context, index) {
                   return _ZoomablePage(
-                    loadBytes: () => session.readPageBytes(session.pages[index]),
+                    loadBytes: () =>
+                        session.readPageBytes(session.pages[index]),
                     cacheWidth: viewportWidth.round(),
-                    onTapUp: (local, size) => session.emitCenterTap(),
+                    onTapUp: (dx, width) => session.emitCenterTap(),
                     onWheel: null,
                     zoomEnabled: pinchEnabled,
                   );
@@ -297,6 +301,41 @@ class _ComicPagerState extends State<_ComicPager> {
             ? spreadCount(session.pageCount)
             : session.pageCount;
         final rtl = session.isRtl;
+
+        // A spread occupies [first .. last] with the earlier page on the right
+        // for RTL. Reads the page decoded into [ImageProvider] (in memory) and
+        // hands out the visual cell rect used for width-partition tap zones.
+        Widget spreadBody(int first, int last, double width) {
+          var pages = List<Widget>.generate(last - first + 1, (i) {
+            final index = first + i;
+            return Expanded(
+              child: _ZoomablePage(
+                loadBytes: () => session.readPageBytes(session.pages[index]),
+                cacheWidth: (width / (last - first + 1)).round(),
+                zoomEnabled: pinchEnabled,
+              ),
+            );
+          });
+          if (rtl) {
+            pages = pages.reversed.toList(growable: true);
+          }
+          final children = <Widget>[];
+          for (var i = 0; i < pages.length; i++) {
+            if (i > 0) {
+              children.add(const SizedBox(width: 4));
+            }
+            children.add(pages[i]);
+          }
+          return Center(
+            child: Row(
+              children: children,
+              // 双页阅读:整幅(row)命中才按点区判定翻页/呼出;书缝(4px)不再拦截点击。
+              // RTL 时首幅在右,阅读序仍是"左=上一幅、右=下一幅",故仅反转子项。
+              textDirection: TextDirection.ltr,
+            ),
+          );
+        }
+
         return PageView.builder(
           controller: _pageController,
           itemCount: unitCount,
@@ -304,40 +343,13 @@ class _ComicPagerState extends State<_ComicPager> {
           onPageChanged: _onPageSettled,
           itemBuilder: (context, unit) {
             if (session.isDoublePage) {
+              if (unit == 0) {
+                // 几何约定:首页(封面)独占一幅,[1,2] [3,4] …
+                return spreadBody(0, 0, viewportWidth);
+              }
               final first = pageForSpread(unit);
-              final second = first + 1;
-              var pair = <Widget>[
-                Expanded(
-                  child: _ZoomablePage(
-                    loadBytes: () =>
-                        session.readPageBytes(session.pages[first]),
-                    cacheWidth: (viewportWidth / 2).round(),
-                    onTapUp: handleTapUp,
-                    onWheel: handleWheel,
-                    zoomEnabled: pinchEnabled,
-                  ),
-                ),
-              ];
-              if (second < session.pageCount) {
-                pair.add(const SizedBox(width: 4));
-                pair.add(
-                  Expanded(
-                    child: _ZoomablePage(
-                      loadBytes: () =>
-                          session.readPageBytes(session.pages[second]),
-                      cacheWidth: (viewportWidth / 2).round(),
-                      onTapUp: handleTapUp,
-                      onWheel: handleWheel,
-                      zoomEnabled: pinchEnabled,
-                    ),
-                  ),
-                );
-              }
-              // RTL reads right-to-left: the earlier page sits on the right.
-              if (rtl) {
-                pair = pair.reversed.toList(growable: true);
-              }
-              return Center(child: Row(children: pair));
+              final last = math.min(first + 1, session.pageCount - 1);
+              return spreadBody(first, last, viewportWidth);
             }
             return _ZoomablePage(
               loadBytes: () => session.readPageBytes(session.pages[unit]),
@@ -367,15 +379,16 @@ class _ZoomablePage extends StatefulWidget {
   final Future<Uint8List?> Function() loadBytes;
   final int cacheWidth;
 
-  /// Called with the tap position (page-local) + cell size so the caller can
-  /// decide turn-vs-chrome by zone. Undefined while panning/zooming.
-  final void Function(Offset local, Size size)? onTapUp;
+  /// Optional per-cell tap zone handling (single-page paged mode): called with
+  /// the local dx within this cell and the cell's width. Undefined while
+  /// zoomed/panning.
+  final void Function(double dx, double width)? onTapUp;
 
-  /// Called with the mouse-wheel scroll delta. When null (scroll mode) the
-  /// page does not consume the wheel.
+  /// Optional raw mouse-wheel handler (paged mode): called with the scroll dy.
+  /// When null (scroll mode) the page does not consume the wheel.
   final void Function(double scrollDy)? onWheel;
 
-  /// Whether pinch/double-tap zoom is available (off on desktop for now).
+  /// Whether pinch zoom is available (off on desktop for now).
   final bool zoomEnabled;
 
   @override
@@ -385,32 +398,12 @@ class _ZoomablePage extends StatefulWidget {
 class _ZoomablePageState extends State<_ZoomablePage> {
   late final Future<Uint8List?> _future = widget.loadBytes();
   final TransformationController _transformation = TransformationController();
-  bool _zoomed = false;
   Size _cellSize = Size.zero;
 
   @override
   void dispose() {
     _transformation.dispose();
     super.dispose();
-  }
-
-  void _toggleZoom() {
-    if (_cellSize == Size.zero) {
-      return;
-    }
-    if (_zoomed) {
-      _transformation.value = Matrix4.identity();
-      _zoomed = false;
-      return;
-    }
-    final center = _cellSize.center(Offset.zero);
-    const zoom = 2.2;
-    _transformation.value = Matrix4.identity()
-      ..setEntry(0, 0, zoom)
-      ..setEntry(1, 1, zoom)
-      ..setEntry(0, 3, center.dx * (1 - zoom))
-      ..setEntry(1, 3, center.dy * (1 - zoom));
-    _zoomed = true;
   }
 
   @override
@@ -465,8 +458,8 @@ class _ZoomablePageState extends State<_ZoomablePage> {
               behavior: HitTestBehavior.opaque,
               onTapUp: onTapUp == null
                   ? null
-                  : (details) => onTapUp(details.localPosition, _cellSize),
-              onDoubleTap: _toggleZoom,
+                  : (details) =>
+                      onTapUp(details.localPosition.dx, _cellSize.width),
               child: child,
             );
           },

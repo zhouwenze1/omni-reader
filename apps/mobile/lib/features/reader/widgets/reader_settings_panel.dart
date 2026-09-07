@@ -16,6 +16,7 @@ class ReaderSettingsPanel extends StatefulWidget {
       padding: true,
       layoutMode: true,
     ),
+    this.showComfortControls = false,
   });
 
   final ReaderSettings settings;
@@ -24,6 +25,10 @@ class ReaderSettingsPanel extends StatefulWidget {
   /// Which setting groups to show; the reader page passes the session's
   /// `settingsOptions` so unsupported groups fold away per format.
   final ReaderSettingsOptions options;
+
+  /// Whether the reading-comfort group (brightness / keep-screen-on /
+  /// auto-page) applies to this format. Comes from the session's features.
+  final bool showComfortControls;
 
   @override
   State<ReaderSettingsPanel> createState() => _ReaderSettingsPanelState();
@@ -174,42 +179,44 @@ class _ReaderSettingsPanelState extends State<ReaderSettingsPanel> {
                 ),
               ],
               const SizedBox(height: 8),
-              _slider(
-                title: '亮度',
-                value: _settings.brightness,
-                min: 0.3,
-                max: 1.0,
-                onChanged: (value) => _updateSettings(
-                  _settings.copyWith(brightness: value),
+              if (widget.showComfortControls) ...[
+                _slider(
+                  title: '亮度',
+                  value: _settings.brightness,
+                  min: 0.3,
+                  max: 1.0,
+                  onChanged: (value) => _updateSettings(
+                    _settings.copyWith(brightness: value),
+                  ),
                 ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('阅读时保持屏幕常亮'),
-                value: _settings.keepScreenOn,
-                onChanged: (value) => _updateSettings(
-                  _settings.copyWith(keepScreenOn: value),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('阅读时保持屏幕常亮'),
+                  value: _settings.keepScreenOn,
+                  onChanged: (value) => _updateSettings(
+                    _settings.copyWith(keepScreenOn: value),
+                  ),
                 ),
-              ),
-              DropdownButtonFormField<int>(
-                key: ValueKey('autopage-${_settings.autoPageSeconds}'),
-                initialValue: _settings.autoPageSeconds,
-                decoration: const InputDecoration(labelText: '自动翻页'),
-                items: const [
-                  DropdownMenuItem(value: 0, child: Text('关闭')),
-                  DropdownMenuItem(value: 5, child: Text('每 5 秒')),
-                  DropdownMenuItem(value: 10, child: Text('每 10 秒')),
-                  DropdownMenuItem(value: 30, child: Text('每 30 秒')),
-                  DropdownMenuItem(value: 60, child: Text('每 60 秒')),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    _updateSettings(
-                      _settings.copyWith(autoPageSeconds: value),
-                    );
-                  }
-                },
-              ),
+                DropdownButtonFormField<int>(
+                  key: ValueKey('autopage-${_settings.autoPageSeconds}'),
+                  initialValue: _settings.autoPageSeconds,
+                  decoration: const InputDecoration(labelText: '自动翻页'),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('关闭')),
+                    DropdownMenuItem(value: 5, child: Text('每 5 秒')),
+                    DropdownMenuItem(value: 10, child: Text('每 10 秒')),
+                    DropdownMenuItem(value: 30, child: Text('每 30 秒')),
+                    DropdownMenuItem(value: 60, child: Text('每 60 秒')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      _updateSettings(
+                        _settings.copyWith(autoPageSeconds: value),
+                      );
+                    }
+                  },
+                ),
+              ],
               if (options.textTypography) ...[
                 const SizedBox(height: 8),
                 SwitchListTile(

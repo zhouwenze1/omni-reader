@@ -129,8 +129,9 @@ double progressionFromPage(
     return 0;
   }
   final units = doublePage ? spreadCount(pageCount) : pageCount;
-  final ordinal =
-      doublePage ? spreadForPage(page.clamp(0, pageCount - 1)) : page.clamp(0, pageCount - 1);
+  final ordinal = doublePage
+      ? spreadForPage(page.clamp(0, pageCount - 1))
+      : page.clamp(0, pageCount - 1);
   return ordinal / (units - 1);
 }
 

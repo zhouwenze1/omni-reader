@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Locator;
 import 'package:foundation_domain/domain.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:shared_ui/shared_ui.dart';
 import '../../../di/providers.dart';
@@ -56,11 +57,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Object? _searchResult;
   bool _disposed = false;
   Timer? _autoPageTimer;
+  // 弹层(设置/笔记/页列表/媒体灯箱等)打开期间暂停键盘翻页与自动翻页。
+  bool _modalOpen = false;
   late final DebouncedAsyncWriter<ReadingProgress> _progressWriteQueue;
   late final DebouncedAsyncWriter<ReaderSettings> _readerSettingsWriteQueue;
 
   String _rendererTheme = 'day';
   double _fontSize = 20;
+  // 阅读亮度遮罩:0 = 不遮(最亮),~0.7 = 接近全黑(夜间最暗)。仅本地 UI 状态,
+  // 不持久化;设置对话框的"亮度"滑块写 ReaderSettings.brightness。
+  double _brightnessOverlayOpacity = 0;
   double _lineHeight = 1.6;
   double _pageGap = 24;
   double _paddingLeftRight = 36;
@@ -174,18 +180,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         });
         try {
           await ref.read(bookCloudManagerProvider).restoreBook(
-                widget.bookUid,
-                onProgress: (received, total) {
-                  if (!mounted) return;
-                  final receivedText = (received / 1048576).toStringAsFixed(1);
-                  final totalText = total == null
-                      ? ''
-                      : ' / ${(total / 1048576).toStringAsFixed(1)}MB';
-                  setState(() {
-                    _restoreStatus = '正在从云端取回… $receivedText$totalText';
-                  });
-                },
-              );
+            widget.bookUid,
+            onProgress: (received, total) {
+              if (!mounted) return;
+              final receivedText = (received / 1048576).toStringAsFixed(1);
+              final totalText = total == null
+                  ? ''
+                  : ' / ${(total / 1048576).toStringAsFixed(1)}MB';
+              setState(() {
+                _restoreStatus = '正在从云端取回… $receivedText$totalText';
+              });
+            },
+          );
         } catch (error) {
           if (!mounted) return;
           setState(() {
@@ -369,6 +375,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   void _bootstrapReaderStyleFromSettings(SettingsState settingsState) {
     _setReaderSettingsFields(settingsState.reader);
+    _applyReadingComfort(settingsState.reader);
   }
 
   void _setReaderSettingsFields(ReaderSettings reader) {
@@ -400,21 +407,74 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  /// 应用阅读舒适度设置:亮度遮罩 + 屏幕常亮。
+  void _applyReadingComfort(ReaderSettings settings) {
+    final session = _session;
+    final supported = session?.features.brightnessSupported ?? false;
+    final opacity =
+        (1 - settings.brightness.clamp(0.3, 1.0)).clamp(0.0, 0.7).toDouble();
+    if (!supported) {
+      return;
+    }
+    if (_brightnessOverlayOpacity != opacity) {
+      setState(() {
+        _brightnessOverlayOpacity = opacity;
+      });
+    }
+    final keepAwake = session?.features.keepScreenOnSupported ?? false;
+    if (keepAwake) {
+      unawaited(
+        settings.keepScreenOn ? WakelockPlus.enable() : WakelockPlus.disable(),
+      );
+    }
+  }
+
   void _syncAutoPage(int seconds) {
     _autoPageTimer?.cancel();
     _autoPageTimer = null;
     final session = _session;
     if (seconds <= 0 ||
         session == null ||
-        !session.features.autoPageAvailable) {
+        !session.features.autoPageAvailable ||
+        _modalOpen) {
       return;
     }
     _autoPageTimer = Timer.periodic(Duration(seconds: seconds), (_) {
       final s = _session;
-      if (s != null) {
+      // 面板/弹层/悬浮工具栏可见或应用失焦时不自动翻页。
+      if (s != null &&
+          !_modalOpen &&
+          !_chromeVisible &&
+          !_tocPanelOpen &&
+          !_searchPanelOpen &&
+          !_selectionMenuVisible) {
         unawaited(s.navigateNext());
       }
     });
+  }
+
+  /// 统一弹层入口:打开期间暂停键盘翻页与自动翻页,关闭后按需恢复。
+  Future<T?> _showBlockingDialog<T>({
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+  }) async {
+    if (_disposed || !mounted) {
+      return null;
+    }
+    _modalOpen = true;
+    _syncAutoPage(_currentReaderSettings().autoPageSeconds);
+    try {
+      return await showDialog<T>(
+        context: context,
+        barrierDismissible: barrierDismissible,
+        builder: builder,
+      );
+    } finally {
+      _modalOpen = false;
+      if (mounted) {
+        _syncAutoPage(_currentReaderSettings().autoPageSeconds);
+      }
+    }
   }
 
   String _resolveRendererLayoutMode() {
@@ -488,6 +548,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _disposed = true;
     _autoPageTimer?.cancel();
     _autoPageTimer = null;
+    unawaited(WakelockPlus.disable());
     // 退出阅读:清除阅读态,应用顶部 WindowCaption 标题栏平滑滑入。
     _providerContainer?.read(readerActiveProvider.notifier).state = false;
     _readingRecorder?.dispose();
@@ -507,7 +568,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       unawaited(syncService.pushBookOnExit(widget.bookUid));
       // 标注/统计/设置的合书推送。
       unawaited(
-        container.read(dataSyncServiceProvider).pushOnReaderExit(widget.bookUid),
+        container
+            .read(dataSyncServiceProvider)
+            .pushOnReaderExit(widget.bookUid),
       );
     }));
     unawaited(_readerSettingsWriteQueue.close());
@@ -762,8 +825,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Future<String?> _showNoteEditor(String? initial) async {
     final controller = TextEditingController(text: initial ?? '');
-    final result = await showDialog<String>(
-      context: context,
+    final result = await _showBlockingDialog<String>(
       builder: (dialogContext) {
         final l10n = dialogContext.l10n;
         return AlertDialog(
@@ -891,58 +953,68 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         child: Stack(
           fit: StackFit.expand,
           children: [
-          _session!.buildView(),
-          _buildTopToolbar(context),
-          _buildBottomToolbar(context),
-          if (_tocPanelOpen &&
-              (_hasCapability(ReaderCapability.toc) || _hasPageList))
-            DesktopTocPanel(
-              bookUid: widget.bookUid,
-              onSelect: _onTocSelect,
-              onClose: () => setState(() => _tocPanelOpen = false),
-            ),
-          if (_searchPanelOpen &&
-              _hasCapability(ReaderCapability.inBookSearch))
-            DesktopSearchPanel(
-              bookUid: widget.bookUid,
-              format: _book?.format,
-              initialQuery: _searchQuery,
-              initialResult: _searchResult,
-              onStateChanged: (query, result) {
-                _searchQuery = query;
-                _searchResult = result;
-              },
-              onSelect: _onSearchSelect,
-              onClose: () => setState(() => _searchPanelOpen = false),
-            ),
-          if (_selectionMenuVisible && _selectionRect != null)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: _dismissSelectionMenu,
+            _session!.buildView(),
+            _buildTopToolbar(context),
+            _buildBottomToolbar(context),
+            if (_tocPanelOpen &&
+                (_hasCapability(ReaderCapability.toc) || _hasPageList))
+              DesktopTocPanel(
+                bookUid: widget.bookUid,
+                onSelect: _onTocSelect,
+                onClose: () => setState(() => _tocPanelOpen = false),
               ),
-            ),
-          if (_selectionMenuVisible && _selectionRect != null)
-            Builder(builder: (context) {
-              final (menuOffset, menuWidth) = _selectionMenuLayout(context);
-              return Positioned(
-                left: menuOffset.dx,
-                top: menuOffset.dy,
-                width: menuWidth,
+            if (_searchPanelOpen &&
+                _hasCapability(ReaderCapability.inBookSearch))
+              DesktopSearchPanel(
+                bookUid: widget.bookUid,
+                format: _book?.format,
+                initialQuery: _searchQuery,
+                initialResult: _searchResult,
+                onStateChanged: (query, result) {
+                  _searchQuery = query;
+                  _searchResult = result;
+                },
+                onSelect: _onSearchSelect,
+                onClose: () => setState(() => _searchPanelOpen = false),
+              ),
+            if (_selectionMenuVisible && _selectionRect != null)
+              Positioned.fill(
                 child: GestureDetector(
-                  onTap: () {},
-                  child: SelectionActionMenu(
-                    selectedColor: _editingAnnotation?.color,
-                    onColor: (color) => unawaited(_changeHighlightColor(color)),
-                    onNote: () => unawaited(_handleNoteAction()),
-                    onCopy: () => unawaited(_copySelectionText()),
-                    onDelete: _editingAnnotation == null
-                        ? null
-                        : () => unawaited(_deleteHighlight()),
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _dismissSelectionMenu,
+                ),
+              ),
+            if (_selectionMenuVisible && _selectionRect != null)
+              Builder(builder: (context) {
+                final (menuOffset, menuWidth) = _selectionMenuLayout(context);
+                return Positioned(
+                  left: menuOffset.dx,
+                  top: menuOffset.dy,
+                  width: menuWidth,
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: SelectionActionMenu(
+                      selectedColor: _editingAnnotation?.color,
+                      onColor: (color) =>
+                          unawaited(_changeHighlightColor(color)),
+                      onNote: () => unawaited(_handleNoteAction()),
+                      onCopy: () => unawaited(_copySelectionText()),
+                      onDelete: _editingAnnotation == null
+                          ? null
+                          : () => unawaited(_deleteHighlight()),
+                    ),
+                  ),
+                );
+              }),
+            if (_brightnessOverlayOpacity > 0)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ColoredBox(
+                    color: Colors.black
+                        .withValues(alpha: _brightnessOverlayOpacity),
                   ),
                 ),
-              );
-            }),
+              ),
           ],
         ),
       ),
@@ -987,26 +1059,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           icon: const Icon(Icons.swap_horiz),
         ),
     ];
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: SizedBox(
-            width: 480,
-            height: 420,
-            child: ReaderPageListSheet(
-              source: pageSource,
-              headerActions: headerActions,
-              onSelectPage: (index) {
-                _session?.goTo(
-                  Locator(extras: <String, dynamic>{'pageIndex': index}),
-                );
-              },
+    unawaited(
+      _showBlockingDialog<void>(
+        builder: (dialogContext) {
+          return Dialog(
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: SizedBox(
+              width: 480,
+              height: 420,
+              child: ReaderPageListSheet(
+                source: pageSource,
+                headerActions: headerActions,
+                onSelectPage: (index) {
+                  _session?.goTo(
+                    Locator(extras: <String, dynamic>{'pageIndex': index}),
+                  );
+                },
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -1215,9 +1289,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
 
-    await showDialog<void>(
-      context: context,
-      barrierColor: Colors.black87,
+    await _showBlockingDialog<void>(
       builder: (context) {
         final l10n = context.l10n;
         return Dialog(
@@ -1440,8 +1512,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               (item.note?.trim().isNotEmpty ?? false),
         )
         .toList(growable: false);
-    await showDialog<void>(
-      context: context,
+    await _showBlockingDialog<void>(
       builder: (dialogContext) {
         final l10n = dialogContext.l10n;
         return AlertDialog(
@@ -1520,18 +1591,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return KeyEventResult.ignored;
     }
     final session = _session;
-    if (session == null || !session.features.keyboardTurnAvailable) {
+    if (session == null ||
+        !session.features.keyboardTurnAvailable ||
+        _modalOpen) {
       return KeyEventResult.ignored;
     }
-    // 搜索/输入框聚焦时让按键正常输入(如搜索框内方向键移动光标)。
+    // 仅当焦点仍在阅读根节点自身(未落入面板/对话框/输入框/按钮)时才翻页,
+    // 避免空格/方向键"穿透"到后面正在阅读的书上。
     final focus = FocusManager.instance.primaryFocus;
-    if (focus?.context != null) {
-      final widget = focus!.context!.widget;
-      if (widget is TextField ||
-          widget is EditableText ||
-          widget is SelectableText) {
-        return KeyEventResult.ignored;
-      }
+    if (focus != null && focus != node) {
+      return KeyEventResult.ignored;
     }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowRight:
@@ -1650,6 +1719,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     setState(() {
       _setReaderSettingsFields(settings);
     });
+    _applyReadingComfort(settings);
     _syncAutoPage(settings.autoPageSeconds);
     _scheduleReaderSettingsSave(settings);
     _pendingReaderSettings = settings;
@@ -1681,11 +1751,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Future<void> _openReaderSettings() async {
-    await showDialog<void>(
-      context: context,
+    final session = _session;
+    await _showBlockingDialog<void>(
       builder: (_) => DesktopReaderSettingsDialog(
         initialSettings: _currentReaderSettings(),
-        options: _session?.settingsOptions ??
+        options: session?.settingsOptions ??
             const ReaderSettingsOptions(
               textTypography: true,
               theme: true,
@@ -1693,6 +1763,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               padding: true,
               layoutMode: true,
             ),
+        showComfortControls: session?.features.brightnessSupported == true ||
+            session?.features.autoPageAvailable == true,
         onCommit: (settings) {
           unawaited(_commitReaderSettings(settings));
         },

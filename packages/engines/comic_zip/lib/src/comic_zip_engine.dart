@@ -273,8 +273,9 @@ class ComicZipReaderSession extends ReaderSession
     _loading = true;
     _errorMessage = null;
     _notify();
+    LazyZipResourceSource? source;
     try {
-      final source = await LazyZipResourceSource.open(_originalPath());
+      source = await LazyZipResourceSource.open(_originalPath());
       final allPaths = await source.listPaths();
       final pages = comicPageEntries(allPaths);
       if (pages.isEmpty) {
@@ -287,6 +288,9 @@ class ComicZipReaderSession extends ReaderSession
       _pageIndex = _restorePageIndex().clamp(0, _pageCount - 1);
       _loading = false;
       _notify();
+      if (_disposed || _events.isClosed) {
+        return;
+      }
       _events.add(
         ReaderEvent(
           type: ReaderEventType.ready,
@@ -299,10 +303,12 @@ class ComicZipReaderSession extends ReaderSession
       );
       await _emitRelocated();
     } catch (error) {
+      // 打开/解析失败:回收本次句柄,避免重试时泄漏 zip 文件句柄。
+      await source?.close();
       _loading = false;
       _errorMessage = error.toString();
       _notify();
-      if (!_events.isClosed) {
+      if (!_disposed && !_events.isClosed) {
         _events.add(
           ReaderEvent(
             type: ReaderEventType.error,
@@ -376,7 +382,7 @@ class ComicZipReaderSession extends ReaderSession
   }
 
   Future<void> _moveToPage(int page) async {
-    if (_pageCount <= 0) {
+    if (_disposed || _pageCount <= 0) {
       return;
     }
     final clamped = page.clamp(0, _pageCount - 1);
@@ -448,7 +454,7 @@ class ComicZipReaderSession extends ReaderSession
   /// Signals a center-tap so the host toggles its chrome. EPUB gets this from
   /// the renderer; the native comic pager emits it itself.
   void emitCenterTap() {
-    if (_events.isClosed) {
+    if (_disposed || _events.isClosed) {
       return;
     }
     _events.add(
@@ -504,7 +510,7 @@ class ComicZipReaderSession extends ReaderSession
   }
 
   Future<void> _emitRelocated() async {
-    if (_pageCount <= 0 || _events.isClosed) {
+    if (_disposed || _pageCount <= 0 || _events.isClosed) {
       return;
     }
     final page = _pageIndex.clamp(0, _pageCount - 1);
