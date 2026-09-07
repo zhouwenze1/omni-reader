@@ -174,6 +174,45 @@ class _ComicPagerState extends State<_ComicPager> {
       _pageController = PageController(initialPage: session.currentUnit);
     }
     session.addListener(_syncToSession);
+    // 首帧布局后完成“初始对齐”:滚动模式跳到恢复位置、分页模式确认停在
+    // 恢复页,并把 _firstSyncPending 置 false。若等 onPageChanged 才清,
+    // 停在首页(initialPage 0)或恢复位置时该事件不触发,导致用户第一次
+    // 翻页误走 jumpToPage 瞬跳。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _finishInitialSync());
+  }
+
+  void _finishInitialSync() {
+    if (!mounted) {
+      return;
+    }
+    final session = widget.session;
+    final target = session.currentUnit;
+    if (session.isScrollMode) {
+      final controller = _scrollController;
+      if (controller == null || !controller.hasClients || _itemExtent <= 0) {
+        // 首帧尚未量出视口高度,下一帧再对齐。
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _finishInitialSync(),
+          );
+        }
+        return;
+      }
+      final targetOffset = target * _itemExtent;
+      if ((controller.offset - targetOffset).abs() > 1) {
+        controller.jumpTo(targetOffset);
+      }
+    } else {
+      final controller = _pageController;
+      if (controller == null || !controller.hasClients) {
+        return;
+      }
+      final current = controller.page?.round();
+      if (current != null && current != target) {
+        controller.jumpToPage(target);
+      }
+    }
+    _firstSyncPending = false;
   }
 
   @override
