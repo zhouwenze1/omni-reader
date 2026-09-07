@@ -55,10 +55,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
   void _cloudMaintenance() {
     unawaited(
-      ref
-          .read(bookCloudManagerProvider)
-          .runAutomaticMaintenance()
-          .then((_) => ref.read(mobileLibraryControllerProvider.notifier).refresh()),
+      ref.read(bookCloudManagerProvider).runAutomaticMaintenance().then(
+          (_) => ref.read(mobileLibraryControllerProvider.notifier).refresh()),
     );
     // 标注/阅读设置/统计的双向同步(静默,失败下个触发点重试)。
     unawaited(ref.read(dataSyncServiceProvider).syncAll().then((_) {
@@ -232,7 +230,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                                     selectionMode: state.isSelectionMode,
                                     multiSelected: state.selectedBookUids
                                         .contains(entry.bookUid),
-                                    onTap: () => _openBook(context, state, controller, entry.bookUid),
+                                    onTap: () => _openBook(context, state,
+                                        controller, entry.bookUid),
                                     onLongPress: () =>
                                         controller.enterSelectionMode(
                                       seedBookUid: entry.bookUid,
@@ -253,7 +252,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                                     selectionMode: state.isSelectionMode,
                                     multiSelected: state.selectedBookUids
                                         .contains(entry.bookUid),
-                                    onTap: () => _openBook(context, state, controller, entry.bookUid),
+                                    onTap: () => _openBook(context, state,
+                                        controller, entry.bookUid),
                                     onLongPress: () =>
                                         controller.enterSelectionMode(
                                       seedBookUid: entry.bookUid,
@@ -328,7 +328,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               );
               if (selected) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || !_collectionChipKeys.containsKey(collection.id)) {
+                  if (!mounted ||
+                      !_collectionChipKeys.containsKey(collection.id)) {
                     return;
                   }
                   final key = _collectionChipKeys[collection.id];
@@ -338,9 +339,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                   }
                   final scrollable = Scrollable.of(key!.currentContext!);
                   final position = scrollable.position;
-                  final renderBox = scrollable.context.findRenderObject() as RenderBox;
+                  final renderBox =
+                      scrollable.context.findRenderObject() as RenderBox;
                   final viewportWidth = renderBox.size.width;
-                  final chipOffset = box.localToGlobal(Offset.zero, ancestor: renderBox).dx;
+                  final chipOffset =
+                      box.localToGlobal(Offset.zero, ancestor: renderBox).dx;
                   final chipWidth = box.size.width;
                   if (chipOffset < 0 ||
                       chipOffset + chipWidth > viewportWidth) {
@@ -903,16 +906,28 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     );
     if (confirmed == true) {
       final manager = ref.read(bookCloudManagerProvider);
+      var cloudFailed = 0;
       for (final bookUid in state.selectedBookUids) {
         try {
           await manager.deleteCloudBook(bookUid);
         } catch (_) {
-          // 云端删除失败不阻塞本地删除(下次全量备份不会复活该书,
-          // 该书在服务器上的清单条目会在其它设备删除时收敛)。
+          // 云端删除失败不阻塞本地删除,但要向用户明示(数量在末尾汇总提示)。
+          cloudFailed++;
         }
       }
       await controller.deleteBooks(state.selectedBookUids);
       controller.exitSelectionMode();
+      if (cloudFailed > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              cloudFailed == 1
+                  ? '\u4e91\u7aef\u526f\u672c\u5220\u9664\u5931\u8d25\uff0c\u53ef\u80fd\u7559\u4e0b\u5b64\u513f\u6587\u4ef6\uff08\u5176\u4ed6\u8bbe\u5907\u4ecd\u53ef\u89c1\uff09\u3002'
+                  : '\u4e91\u7aef\u526f\u672c\u5220\u9664\u5931\u8d25 $cloudFailed \u672c\uff0c\u53ef\u80fd\u7559\u4e0b\u5b64\u513f\u6587\u4ef6\u3002',
+            ),
+          ),
+        );
+      }
     }
   }
 

@@ -30,7 +30,7 @@ dependencies:
 flutter:
   assets:
     - assets/renderer/assets/index-DNsThFnT.css
-    - assets/renderer/assets/index-zAf6W3ha.js
+    - assets/renderer/assets/index-EZS8i8UH.js
     - assets/renderer/favicon.ico
     - assets/renderer/index.html
     - assets/renderer/renderer-manifest.json

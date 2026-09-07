@@ -748,4 +748,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionFailed => 'Action failed';
+
+  @override
+  String get cloudDeleteFailed =>
+      'Cloud copy could not be deleted and may remain on other devices.';
+
+  @override
+  String cloudDeleteFailedSome(int count) {
+    return '$count cloud copies could not be deleted and may remain on other devices.';
+  }
 }

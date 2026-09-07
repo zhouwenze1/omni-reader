@@ -147,9 +147,9 @@ func TestUsersAreIsolated(t *testing.T) {
 	}
 }
 
-func TestArrivalOrderWins(t *testing.T) {
+func TestProgressPushLwwByUpdatedAt(t *testing.T) {
 	srv, uid := newTestServer(t)
-	// 旧的先写入
+	// 初始写入
 	rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.1)},
@@ -157,11 +157,14 @@ func TestArrivalOrderWins(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("first push failed: %d", rec.Code)
 	}
-	// 旧 updatedAt 重推不覆盖
-	doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
+	// 同一 updatedAt 的旧内容重推不覆盖(等值保留现有行)
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1725000000000, 0.99)},
 	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("same-ts push failed: %d", rec.Code)
+	}
 	// 新 updatedAt 覆盖
 	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
@@ -178,20 +181,35 @@ func TestArrivalOrderWins(t *testing.T) {
 	if len(items) != 1 || items[0].UpdatedAt != 1725000009000 || items[0].Progression != 0.9 {
 		t.Fatalf("want newest record, got %+v", items)
 	}
-	// 即使客户端时间更旧,后到达的内容仍然胜出。
+	// 时间戳更旧的迟到写入不得覆盖较新进度(LWW by updatedAt,非到达序)
 	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
 		"deviceId": "dev1",
 		"items":    []ProgressItem{item("book-a", 1, 0.2)},
 	})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("older timestamp push failed: %d", rec.Code)
+		t.Fatalf("older push failed: %d", rec.Code)
 	}
 	items, err = srv.store.pullByBook(uid, "book-a")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].UpdatedAt != 1 || items[0].Progression != 0.2 {
-		t.Fatalf("want arrival-order record, got %+v", items)
+	if len(items) != 1 || items[0].UpdatedAt != 1725000009000 || items[0].Progression != 0.9 {
+		t.Fatalf("older arrival must not clobber newer progress, got %+v", items)
+	}
+	// 从未存在过的书即使时间戳很旧也应插入
+	rec = doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
+		"deviceId": "dev1",
+		"items":    []ProgressItem{item("book-new", 1, 0.05)},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first push for new book failed: %d", rec.Code)
+	}
+	items, err = srv.store.pullByBook(uid, "book-new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].UpdatedAt != 1 {
+		t.Fatalf("new book with old ts should insert, got %+v", items)
 	}
 }
 
@@ -253,6 +271,44 @@ func TestCursorPullIgnoresClientTime(t *testing.T) {
 	}
 	if result.Cursor != 2 || len(result.Items) != 1 || result.Items[0].BookUID != "book-b" {
 		t.Fatalf("unexpected cursor result: cursor=%d items=%+v", result.Cursor, result.Items)
+	}
+}
+
+func TestBookUidPullCursorIsPerBook(t *testing.T) {
+	srv, _ := newTestServer(t)
+	for _, b := range []struct {
+		uid  string
+		ts   int64
+		prog float64
+	}{{"book-a", 100, 0.1}, {"book-b", 200, 0.2}} {
+		rec := doAPI(t, srv, "POST", "/api/sync/push", "test-token", map[string]any{
+			"deviceId": "dev1",
+			"items":    []ProgressItem{item(b.uid, b.ts, b.prog)},
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("push %s failed: %d", b.uid, rec.Code)
+		}
+	}
+
+	// bookUid 拉取返回的 cursor 必须是该书自己的最后 seq,而不是全局 max。
+	for _, c := range []struct {
+		uid        string
+		wantCursor int64
+	}{{"book-a", 1}, {"book-b", 2}} {
+		rec := doAPI(t, srv, "GET", "/api/sync/pull?deviceId=dev1&bookUid="+c.uid, "test-token", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("pull %s failed: %d", c.uid, rec.Code)
+		}
+		var result PullResult
+		if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if result.Cursor != c.wantCursor {
+			t.Fatalf("bookUid=%s: want cursor=%d, got %d (must not be global max)", c.uid, c.wantCursor, result.Cursor)
+		}
+		if len(result.Items) != 1 || result.Items[0].BookUID != c.uid {
+			t.Fatalf("bookUid=%s: want its own item, got %+v", c.uid, result.Items)
+		}
 	}
 }
 

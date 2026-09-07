@@ -113,7 +113,8 @@ class EpubReaderSession extends ReaderSession {
           onWebViewCreated: (controller) {
             _controller = controller;
             _bridge = ReaderBridgeService(
-              controllerProvider: () => _controller!,
+              // dispose 后置空 controller,让排队中的迟到命令快速失败。
+              controllerProvider: () => _controller,
               emitEvent: _emitEvent,
             );
             final receiver = ReaderEventReceiver(
@@ -1095,6 +1096,9 @@ class EpubReaderSession extends ReaderSession {
   @override
   Future<void> dispose() async {
     try {
+      // 先把 controller 置空:尚未执行/正在排队的桥接命令会快速失败,而不是
+      // 打到随环境一起销毁的 WebView 上挂起整条命令队列。
+      _controller = null;
       final runtime = await _runtimeFuture;
       await runtime.webViewEnvironment?.dispose();
     } catch (_) {}

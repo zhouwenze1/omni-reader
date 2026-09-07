@@ -755,6 +755,9 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "update not configured"})
 		return
 	}
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
 	maxBytes := int64(256) << 20
 	if r.ContentLength > maxBytes {
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "too large"})
@@ -777,7 +780,7 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": copyErr.Error()})
 		return
 	}
-	// 可选 sha256 校验。
+	// 可选 sha256 校验:提供时强制匹配,防止传错文件。
 	if expected := r.URL.Query().Get("sha256"); expected != "" {
 		if !strings.EqualFold(hex.EncodeToString(hasher.Sum(nil)), expected) {
 			_ = os.Remove(tmp)
@@ -827,9 +830,13 @@ func (s *Server) handleAdminUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminUpdateRollback 删除磁盘上的热更新版本并回到镜像内置版本。
+// 与 handleAdminUpdate 互斥,避免与上传交错写临时文件/并发 exec。
 func (s *Server) handleAdminUpdateRollback(w http.ResponseWriter, r *http.Request) {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
 	_ = os.Remove(s.cfg.UpdatePath)
 	_ = os.Remove(s.cfg.UpdatePath + ".upload")
+	_ = os.Remove(s.cfg.UpdatePath + ".sha256")
 	s.recordActivity("admin.update", "admin", "回滚到镜像内置版本并重启")
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "restarting": true})
 	if f, ok := w.(http.Flusher); ok {

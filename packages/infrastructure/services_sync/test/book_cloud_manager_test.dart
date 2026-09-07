@@ -109,7 +109,8 @@ class _FakeApi extends LibraryApiClient {
   }
 }
 
-LibraryIndexEntry localEntry(String uid, {CloudBackupStatus status = CloudBackupStatus.none}) {
+LibraryIndexEntry localEntry(String uid,
+    {CloudBackupStatus status = CloudBackupStatus.none}) {
   return LibraryIndexEntry(
     bookUid: uid,
     fingerprint: 'fp-$uid',

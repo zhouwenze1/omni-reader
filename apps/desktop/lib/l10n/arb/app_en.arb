@@ -357,5 +357,14 @@
   "cloudOnlyLabel": "Cloud only",
   "releaseDone": "Local space freed",
   "backupDone": "Backup finished",
-  "actionFailed": "Action failed"
+  "actionFailed": "Action failed",
+  "cloudDeleteFailed": "Cloud copy could not be deleted and may remain on other devices.",
+  "cloudDeleteFailedSome": "{count} cloud copies could not be deleted and may remain on other devices.",
+  "@cloudDeleteFailedSome": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

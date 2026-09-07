@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -217,6 +219,56 @@ func TestAdminUpdateAcceptsElf(t *testing.T) {
 	}
 }
 
+func TestAdminUpdateConcurrentSerialized(t *testing.T) {
+	srv, _ := newTestServer(t)
+	srv.cfg.UpdatePath = filepath.Join(t.TempDir(), "sync-server")
+	cookie := adminSessionFor(t, srv)
+	var mu sync.Mutex
+	execs := 0
+	srv.execHook = func(path string) error { mu.Lock(); execs++; mu.Unlock(); return nil }
+
+	elfA := append([]byte{0x7f, 'E', 'L', 'F'}, bytes.Repeat([]byte{'A'}, 4096)...)
+	elfB := append([]byte{0x7f, 'E', 'L', 'F'}, bytes.Repeat([]byte{'B'}, 4096)...)
+	var wg sync.WaitGroup
+	for _, payload := range [][]byte{elfA, elfB} {
+		wg.Add(1)
+		go func(p []byte) {
+			defer wg.Done()
+			req := newRequest(t, "POST", "/admin/api/update", "", p)
+			req.AddCookie(cookie)
+			rec := httptest.NewRecorder()
+			srv.routes().ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("concurrent update failed: %d %s", rec.Code, rec.Body.String())
+			}
+		}(payload)
+	}
+	wg.Wait()
+
+	// 两个请求都成功(串行化),落盘文件必须是其中一份的完整内容而非交错。
+	got, err := os.ReadFile(srv.cfg.UpdatePath)
+	if err != nil {
+		t.Fatalf("read installed binary: %v", err)
+	}
+	if !bytes.Equal(got, elfA) && !bytes.Equal(got, elfB) {
+		t.Fatalf("installed file is torn/corrupt (%d bytes)", len(got))
+	}
+	// exec 钩子在响应 flush 后延迟 ~500ms 触发,轮询等待两个都执行完。
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		n := execs
+		mu.Unlock()
+		if n >= 2 || time.Now().After(deadline) {
+			if n != 2 {
+				t.Fatalf("want 2 restarts (one per successful update), got %d", n)
+			}
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func TestAdminVersionEndpoint(t *testing.T) {
 	srv, _ := newTestServer(t)
 	cookie := adminSessionFor(t, srv)
@@ -338,12 +390,12 @@ func TestAdminOverviewAndActivity(t *testing.T) {
 		t.Fatalf("overview failed: %d %s", rec.Code, rec.Body.String())
 	}
 	var view struct {
-		Totals map[string]int64       `json:"totals"`
-		Today  map[string]int         `json:"today"`
-		Runtime map[string]any        `json:"runtime"`
-		PerUser []adminUserView       `json:"perUser"`
-		TopBooks []map[string]any     `json:"topBooks"`
-		Recent  []ActivityEvent       `json:"recentActivity"`
+		Totals   map[string]int64 `json:"totals"`
+		Today    map[string]int   `json:"today"`
+		Runtime  map[string]any   `json:"runtime"`
+		PerUser  []adminUserView  `json:"perUser"`
+		TopBooks []map[string]any `json:"topBooks"`
+		Recent   []ActivityEvent  `json:"recentActivity"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
 		t.Fatal(err)

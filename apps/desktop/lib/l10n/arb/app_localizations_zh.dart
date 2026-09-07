@@ -743,4 +743,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get actionFailed => '操作失败';
+
+  @override
+  String get cloudDeleteFailed => '云端副本删除失败，可能在其他设备上仍然可见。';
+
+  @override
+  String cloudDeleteFailedSome(int count) {
+    return '$count 本云端副本删除失败，可能在其他设备上仍然可见。';
+  }
 }

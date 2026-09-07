@@ -39,8 +39,8 @@ func TestEntityPushPullRoundTrip(t *testing.T) {
 		t.Fatalf("pull failed: %d", rec.Code)
 	}
 	var pull struct {
-		Items []EntityPushItem `json:"items"`
-		Cursor int64           `json:"cursor"`
+		Items  []EntityPushItem `json:"items"`
+		Cursor int64            `json:"cursor"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &pull); err != nil {
 		t.Fatal(err)

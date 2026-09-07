@@ -8,13 +8,19 @@ import 'renderer_api_models.dart';
 
 class ReaderBridgeService {
   ReaderBridgeService({
-    required InAppWebViewController Function() controllerProvider,
+    required InAppWebViewController? Function() controllerProvider,
     required void Function(ReaderEvent event) emitEvent,
+    Duration commandTimeout = const Duration(seconds: 15),
   })  : _controllerProvider = controllerProvider,
-        _emitEvent = emitEvent;
+        _emitEvent = emitEvent,
+        _commandTimeout = commandTimeout;
 
-  final InAppWebViewController Function() _controllerProvider;
+  final InAppWebViewController? Function() _controllerProvider;
   final void Function(ReaderEvent event) _emitEvent;
+
+  /// 单条命令超时:callAsyncJavaScript 挂起(如导航销毁期)时让该命令失败,
+  /// 避免整条 FIFO 永久卡死。比 ready 轮询 12s 略宽,防止误杀慢命令。
+  final Duration _commandTimeout;
 
   Future<void> _commandTail = Future<void>.value();
   bool _debug = false;
@@ -26,6 +32,10 @@ class ReaderBridgeService {
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
       final controller = _controllerProvider();
+      // 会话销毁中:不再等待,立即判定为不可用(调用方会中止引导)。
+      if (controller == null) {
+        return false;
+      }
       final result = await controller.evaluateJavascript(
         source: '''
           (function() {
@@ -200,9 +210,30 @@ class ReaderBridgeService {
   ]) async {
     final controller = _controllerProvider();
     final method = command.wireName;
+    // 会话销毁后 controller 置空:迟到的排队命令快速失败,而不是打到已销毁的
+    // WebView 上挂起整条队列。
+    if (controller == null) {
+      _emitEvent(
+        ReaderEvent(
+          type: ReaderEventType.error,
+          payload: <String, dynamic>{
+            'phase': 'invokeReader',
+            'method': method,
+          },
+          message: 'window.reader.$method skipped: bridge disposed',
+        ),
+      );
+      return <String, dynamic>{
+        'ok': false,
+        'error': 'bridge_disposed',
+        'method': method,
+      };
+    }
     final jsStopwatch = Stopwatch()..start();
-    final asyncResult = await controller.callAsyncJavaScript(
-      functionBody: '''
+    late CallAsyncJavaScriptResult? asyncResult;
+    try {
+      asyncResult = await controller.callAsyncJavaScript(
+        functionBody: '''
         const api = window.reader;
         if (!api || typeof api[methodName] !== 'function') {
           return JSON.stringify({
@@ -226,12 +257,33 @@ class ReaderBridgeService {
           });
         }
       ''',
-      arguments: <String, dynamic>{
-        'methodName': method,
-        'hasPayload': payload != null,
-        'payload': payload,
-      },
-    );
+        arguments: <String, dynamic>{
+          'methodName': method,
+          'hasPayload': payload != null,
+          'payload': payload,
+        },
+      ).timeout(_commandTimeout);
+    } on TimeoutException {
+      jsStopwatch.stop();
+      _emitEvent(
+        ReaderEvent(
+          type: ReaderEventType.error,
+          payload: <String, dynamic>{
+            'phase': 'invokeReader',
+            'method': method,
+          },
+          message:
+              'window.reader.$method timed out after ${_commandTimeout.inSeconds}s',
+        ),
+      );
+      // 返回失败而非抛出:命令 API 的既有契约是错误经事件流上抛、不向调用方
+      // 抛异常;同时 _commandTail 继续,后续命令不再被这条卡死的命令阻塞。
+      return <String, dynamic>{
+        'ok': false,
+        'error': 'timeout',
+        'method': method,
+      };
+    }
     jsStopwatch.stop();
 
     final result = asyncResult?.error == null
@@ -257,22 +309,24 @@ class ReaderBridgeService {
       );
     }
 
-    if (normalized != null &&
-        normalized['ok'] == false &&
-        normalized['error'] != null) {
-      _emitEvent(
-        ReaderEvent(
-          type: ReaderEventType.error,
-          payload: <String, dynamic>{
-            'phase': 'invokeReader',
-            'method': method,
-            'result': normalized,
-            if (_debug && payload != null) 'payload': payload,
-          },
-          message:
-              'window.reader.$method failed: ${normalized['error'].toString()}',
-        ),
-      );
+    // 失败必须对宿主可见:既有契约是 error 经事件流上抛。JS 侧拒绝(error)与
+    // 渲染器统一返回的 {ok:false, reason}(如无效 payload)都归一到 error 事件。
+    if (normalized != null && normalized['ok'] == false) {
+      final detail = normalized['error'] ?? normalized['reason'];
+      if (detail != null) {
+        _emitEvent(
+          ReaderEvent(
+            type: ReaderEventType.error,
+            payload: <String, dynamic>{
+              'phase': 'invokeReader',
+              'method': method,
+              'result': normalized,
+              if (_debug && payload != null) 'payload': payload,
+            },
+            message: 'window.reader.$method failed: $detail',
+          ),
+        );
+      }
     }
 
     return normalized;

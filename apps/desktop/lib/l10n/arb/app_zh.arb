@@ -357,5 +357,14 @@
   "cloudOnlyLabel": "仅云端",
   "releaseDone": "已释放本地空间",
   "backupDone": "备份完成",
-  "actionFailed": "操作失败"
+  "actionFailed": "操作失败",
+  "cloudDeleteFailed": "云端副本删除失败，可能在其他设备上仍然可见。",
+  "cloudDeleteFailedSome": "{count} 本云端副本删除失败，可能在其他设备上仍然可见。",
+  "@cloudDeleteFailedSome": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -864,7 +864,9 @@ func touchDeviceTx(tx *sql.Tx, userID int64, deviceID string, now int64) error {
 	return err
 }
 
-// applyItemTx 按内容变化写入当前状态和变更日志,不比较客户端时间。
+// applyItemTx 按 updated_at 做 LWW:内容变化且时间戳不旧于当前行才写入状态与
+// 变更日志。时间戳更旧的迟到写入被跳过,避免慢设备/断线重推回滚较新进度
+// (与 entity 同步的客户端 LWW 语义一致:严格新于才覆盖,等值保留现有行)。
 func (s *Store) applyItemTx(tx *sql.Tx, userID int64, item ProgressItem) (bool, error) {
 	hash, err := progressContentHash(item.Locator, item.Progression)
 	if err != nil {
@@ -872,12 +874,18 @@ func (s *Store) applyItemTx(tx *sql.Tx, userID int64, item ProgressItem) (bool, 
 	}
 
 	var currentHash string
+	var currentUpdatedAt int64
 	err = tx.QueryRow(
-		`SELECT content_hash FROM progress_sync WHERE user_id = ? AND book_uid = ?`,
+		`SELECT content_hash, updated_at FROM progress_sync WHERE user_id = ? AND book_uid = ?`,
 		userID, item.BookUID,
-	).Scan(&currentHash)
-	if err == nil && currentHash == hash {
-		return false, nil
+	).Scan(&currentHash, &currentUpdatedAt)
+	if err == nil {
+		if currentHash == hash {
+			return false, nil
+		}
+		if item.UpdatedAt <= currentUpdatedAt {
+			return false, nil
+		}
 	}
 	if err != nil && err != sql.ErrNoRows {
 		return false, err
@@ -953,6 +961,7 @@ func (s *Store) pullIncremental(userID int64, after int64) ([]ProgressItem, erro
 }
 
 // pullByCursor 在一个读事务内固定快照,保证返回的 cursor 不会跳过并发写入。
+// cursor 是"该用户"的 max seq(非全局),避免把其他用户的写入进度带进本用户游标。
 func (s *Store) pullByCursor(userID int64, after int64) ([]ProgressItem, int64, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -962,7 +971,8 @@ func (s *Store) pullByCursor(userID int64, after int64) ([]ProgressItem, int64, 
 
 	var cursor int64
 	if err := tx.QueryRow(
-		`SELECT COALESCE(MAX(seq), 0) FROM sync_changes`,
+		`SELECT COALESCE(MAX(seq), 0) FROM sync_changes WHERE user_id = ?`,
+		userID,
 	).Scan(&cursor); err != nil {
 		return nil, 0, err
 	}
@@ -985,10 +995,24 @@ func (s *Store) pullByCursor(userID int64, after int64) ([]ProgressItem, int64, 
 	return items, cursor, nil
 }
 
-func (s *Store) currentCursor() (int64, error) {
+// currentCursor 返回该用户的 max seq;seq 是全局单调递增,按 user 过滤避免把
+// 其他用户的写入进度暴露给本用户。
+func (s *Store) currentCursor(userID int64) (int64, error) {
 	var cursor int64
 	err := s.db.QueryRow(
-		`SELECT COALESCE(MAX(seq), 0) FROM sync_changes`,
+		`SELECT COALESCE(MAX(seq), 0) FROM sync_changes WHERE user_id = ?`,
+		userID,
+	).Scan(&cursor)
+	return cursor, err
+}
+
+// bookCursor 返回指定书在该用户的 max seq。bookUid 拉取模式下返回的游标仅对
+// 该书有效,不得用作全量增量拉取的起点。
+func (s *Store) bookCursor(userID int64, bookUID string) (int64, error) {
+	var cursor int64
+	err := s.db.QueryRow(
+		`SELECT COALESCE(MAX(seq), 0) FROM sync_changes WHERE user_id = ? AND book_uid = ?`,
+		userID, bookUID,
 	).Scan(&cursor)
 	return cursor, err
 }
@@ -1068,6 +1092,10 @@ type Server struct {
 
 	actMu    sync.Mutex
 	activity []ActivityEvent
+
+	// updateMu 串行化热更新与回滚:并发上传/回滚会交错写同一 .upload 临时路径
+	// 并可能并发 exec 替换进程。
+	updateMu sync.Mutex
 
 	// execHook 热更新时替换当前进程;测试可注入空实现。
 	execHook func(path string) error
@@ -1187,7 +1215,8 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request, user User) {
 	if bookUID := q.Get("bookUid"); bookUID != "" {
 		items, err = s.store.pullByBook(user.ID, bookUID)
 		if err == nil {
-			cursor, err = s.store.currentCursor()
+			// 注意:bookUid 模式返回的游标只对该书有效,不能作为全量增量拉取起点。
+			cursor, err = s.store.bookCursor(user.ID, bookUID)
 		}
 	} else {
 		if raw := q.Get("cursor"); raw != "" {
@@ -1208,7 +1237,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request, user User) {
 				after = t.UnixMilli()
 			}
 			items, err = s.store.pullIncremental(user.ID, after)
-			cursor, _ = s.store.currentCursor()
+			cursor, _ = s.store.currentCursor(user.ID)
 		}
 	}
 	if err != nil {
@@ -1306,6 +1335,13 @@ func main() {
 	srv, err := NewServer(cfg)
 	if err != nil {
 		log.Fatalf("db error: %v", err)
+	}
+
+	// 健康启动:若运行的是热更新二进制,清空崩溃计数(bootstrap 据此判定
+	// 更新版本是否反复崩溃并回退)。仅当 env 由 bootstrap 注入时清理,避免
+	// 测试/本地直接运行时误删。
+	if os.Getenv("SYNC_UPDATED_BIN") != "" {
+		clearCrashState(srv.cfg.UpdatePath)
 	}
 
 	// 启动时先清一次,再走每日定时。

@@ -150,10 +150,10 @@ class BookCloudManager {
     final tempFile = File(tempPath);
     try {
       await _filesBackend(config).downloadOriginal(
-            bookUid,
-            tempFile,
-            onProgress: onProgress,
-          );
+        bookUid,
+        tempFile,
+        onProgress: onProgress,
+      );
       await _files.restoreFromOriginal(
         bookUid: bookUid,
         originalPath: tempPath,
@@ -166,7 +166,8 @@ class BookCloudManager {
     }
   }
 
-  /// 删除云端副本(书架删除对话框"同时删除云端副本")。
+  /// 删除云端副本(书架删除对话框"同时删除云端副本")。失败时抛错,
+  /// 由调用方决定是否/如何提示(不再静默吞掉)。
   Future<void> deleteCloudBook(String bookUid) async {
     final config = _configStore.load();
     if (!config.isConfigured) return;
@@ -260,7 +261,8 @@ class BookCloudManager {
   Future<int> autoEvictOldBooks() async {
     final config = _configStore.load();
     if (!config.autoEvictEnabled) return 0;
-    final threshold = DateTime.now().subtract(Duration(days: config.autoEvictDays));
+    final threshold =
+        DateTime.now().subtract(Duration(days: config.autoEvictDays));
     final entries = await _library.listAllEntries();
     var evicted = 0;
     for (final entry in entries) {
@@ -292,10 +294,7 @@ class BookCloudManager {
     final original = await _files.originalFile(bookUid);
     if (original == null) return;
 
-    final ext = original.uri.pathSegments.last
-        .split('.')
-        .last
-        .toLowerCase();
+    final ext = original.uri.pathSegments.last.split('.').last.toLowerCase();
     await _filesBackend(config).uploadOriginal(bookUid, original, ext);
 
     final cover = await _files.coverFile(bookUid);
@@ -329,7 +328,8 @@ class BookCloudManager {
     return 'epub';
   }
 
-  Future<LibraryIndexEntry> _cloudOnlyEntry(CloudBookManifestEntry cloud) async {
+  Future<LibraryIndexEntry> _cloudOnlyEntry(
+      CloudBookManifestEntry cloud) async {
     final authors = cloud.authors;
     String? coverRelPath;
     if (cloud.coverExt.isNotEmpty) {

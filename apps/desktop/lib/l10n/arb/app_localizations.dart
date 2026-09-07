@@ -1496,6 +1496,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Action failed'**
   String get actionFailed;
+
+  /// No description provided for @cloudDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud copy could not be deleted and may remain on other devices.'**
+  String get cloudDeleteFailed;
+
+  /// No description provided for @cloudDeleteFailedSome.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} cloud copies could not be deleted and may remain on other devices.'**
+  String cloudDeleteFailedSome(int count);
 }
 
 class _AppLocalizationsDelegate

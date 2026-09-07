@@ -187,6 +187,101 @@ void main() {
     expect(source.progress['remote']!.progression, 0.7);
     expect(store.load().cursor, 6);
   });
+
+  test('pull发现远端更新时采用远端进度(LWW)', () async {
+    final source = _FakeSource()
+      ..books.add('b1')
+      ..progress['b1'] = _progress('b1', 1000, 0.4);
+    final server = await _FakeServer.start(
+      pullResponses: [
+        {
+          'items': [_progressJson(_progress('b1', 2000, 0.9))],
+          'cursor': 5,
+          'serverTime': 500,
+        },
+      ],
+    );
+    addTearDown(server.close);
+    final localHash = readingProgressContentHash(source.progress['b1']!);
+    final store = _FakeConfigStore(
+      _config(url: server.url, cursor: 1, hashes: {'b1': localHash}),
+    );
+    final service = ProgressSyncService(
+      api: SyncApiClient(),
+      source: source,
+      configStore: store,
+    );
+
+    final result = await service.syncAll();
+
+    expect(result.pulled, 1);
+    expect(source.progress['b1']!.updatedAt,
+        DateTime.fromMillisecondsSinceEpoch(2000));
+    expect(source.progress['b1']!.progression, 0.9);
+  });
+
+  test('本地进度比远端新时不会被回滚,并回推本地(LWW)', () async {
+    final source = _FakeSource()
+      ..books.add('b1')
+      ..progress['b1'] = _progress('b1', 3000, 0.8);
+    final server = await _FakeServer.start(
+      pullResponses: [
+        {
+          'items': [_progressJson(_progress('b1', 1000, 0.2))],
+          'cursor': 5,
+          'serverTime': 500,
+        },
+      ],
+    );
+    addTearDown(server.close);
+    final localHash = readingProgressContentHash(source.progress['b1']!);
+    final store = _FakeConfigStore(
+      _config(url: server.url, cursor: 1, hashes: {'b1': localHash}),
+    );
+    final service = ProgressSyncService(
+      api: SyncApiClient(),
+      source: source,
+      configStore: store,
+    );
+
+    final result = await service.syncAll();
+
+    expect(result.pulled, 0);
+    expect(source.progress['b1']!.progression, 0.8); // 本地未被覆盖
+    expect(server.pushRequests, 1); // 本地被回推,让服务端收敛
+    expect(store.load().syncedContentHashes['b1'], localHash);
+  });
+
+  test('pullBookOnOpen:远端更新时采用远端进度', () async {
+    final source = _FakeSource()
+      ..books.add('b1')
+      ..progress['b1'] = _progress('b1', 1000, 0.4);
+    final server = await _FakeServer.start(
+      pullResponses: [
+        {
+          'items': [_progressJson(_progress('b1', 2000, 0.95))],
+          'cursor': 5,
+          'serverTime': 500,
+        },
+      ],
+    );
+    addTearDown(server.close);
+    final localHash = readingProgressContentHash(source.progress['b1']!);
+    final store = _FakeConfigStore(
+      _config(url: server.url, cursor: 1, hashes: {'b1': localHash}),
+    );
+    final service = ProgressSyncService(
+      api: SyncApiClient(),
+      source: source,
+      configStore: store,
+    );
+
+    final remote = await service.pullBookOnOpen('b1');
+
+    expect(remote, isNotNull);
+    expect(remote!.progression, 0.95);
+    expect(source.progress['b1']!.progression, 0.95);
+  });
 }
 
 Map<String, dynamic> _progressJson(ReadingProgress progress) {

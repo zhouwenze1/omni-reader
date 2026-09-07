@@ -405,12 +405,18 @@ class LibraryPageActions {
     );
 
     if (confirm == true) {
+      var cloudFailed = false;
       try {
         await ref.read(bookCloudManagerProvider).deleteCloudBook(bookUid);
       } catch (_) {
-        // 云端删除失败不阻塞本地删除。
+        cloudFailed = true; // 云端删除失败不阻塞本地删除,但要向用户明示。
       }
       await controller.deleteBook(bookUid);
+      if (cloudFailed && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.cloudDeleteFailed)),
+        );
+      }
     }
   }
 
@@ -480,15 +486,23 @@ class LibraryPageActions {
     );
     if (confirm == true) {
       final manager = ref.read(bookCloudManagerProvider);
+      var cloudFailed = 0;
       for (final bookUid in state.selectedBookUids) {
         try {
           await manager.deleteCloudBook(bookUid);
         } catch (_) {
-          // 云端删除失败不阻塞本地删除。
+          cloudFailed++; // 云端删除失败不阻塞本地删除,但要向用户明示。
         }
       }
       await controller.deleteBooks(state.selectedBookUids);
       controller.exitSelectionMode();
+      if (cloudFailed > 0 && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.l10n.cloudDeleteFailedSome(cloudFailed)),
+          ),
+        );
+      }
     }
   }
 

@@ -117,6 +117,13 @@ class ProgressSyncService {
       final localHash =
           local == null ? null : readingProgressContentHash(local);
       if (localHash != remoteHash) {
+        // LWW by updatedAt:远端更新 → 用远端;本地更新 → 保留本地并立刻回推,
+        // 让服务端(同样按 updatedAt 收敛)最终一致,而不是无条件远端覆盖。
+        if (local != null && !remote.updatedAt.isAfter(local.updatedAt)) {
+          await _push(state, [local]);
+          await _saveHashes(<String, String>{bookUid: localHash!});
+          return local;
+        }
         await _source.saveProgress(remote);
         await _saveHashes(<String, String>{bookUid: remoteHash});
         return remote;
@@ -248,6 +255,13 @@ class ProgressSyncService {
           continue;
         }
 
+        // LWW by updatedAt:仅当远端确实更新才覆盖本地;本地更新则回推,避免
+        // 较新的本地阅读被陈旧的服务器状态回滚。
+        if (local != null && !remote.updatedAt.isAfter(local.updatedAt)) {
+          await _push(state, [local]);
+          hashes[remote.bookUid] = localHash!;
+          continue;
+        }
         await _source.saveProgress(remote);
         hashes[remote.bookUid] = remoteHash;
         pulled++;
@@ -263,7 +277,8 @@ class ProgressSyncService {
       return SyncResult(pushed: pushed, pulled: pulled);
     } catch (error) {
       // 失败必须可见:调用方(设置页)据此提示,而不是伪装成"已同步 0 条"。
-      return SyncResult(pushed: pushed, pulled: pulled, error: error.toString());
+      return SyncResult(
+          pushed: pushed, pulled: pulled, error: error.toString());
     }
   }
 
