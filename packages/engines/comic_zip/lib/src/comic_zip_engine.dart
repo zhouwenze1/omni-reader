@@ -283,6 +283,8 @@ class ComicZipReaderSession extends ReaderSession
       }
       await _source?.close();
       _source = source;
+      _imageCache.clear();
+      _imageCacheOrder.clear();
       _pages = pages;
       _pageCount = pages.length;
       _pageIndex = _restorePageIndex().clamp(0, _pageCount - 1);
@@ -337,14 +339,39 @@ class ComicZipReaderSession extends ReaderSession
     return 0;
   }
 
-  /// Reads raw bytes for one page entry (cached by the zip source).
+  /// Reads raw bytes for one page entry, kept in a small LRU so revisiting a
+  /// page (or re-building a viewport child) returns the same instance — the
+  /// image cache then hits on the already-decoded frame instead of re-decoding
+  /// (which is what made flipped-to pages flash black while decoding).
   Future<Uint8List?> readPageBytes(String path) {
+    final cached = _imageCache[path];
+    if (cached != null) {
+      _imageCacheOrder
+        ..remove(path)
+        ..add(path);
+      return Future<Uint8List?>.value(cached);
+    }
     final source = _source;
     if (source == null) {
       return Future<Uint8List?>.value(null);
     }
-    return source.readBytes(path);
+    return source.readBytes(path).then((Uint8List? bytes) {
+      if (bytes == null) {
+        return null;
+      }
+      _imageCache[path] = bytes;
+      _imageCacheOrder.add(path);
+      if (_imageCacheOrder.length > _maxCachedPages) {
+        final oldest = _imageCacheOrder.removeAt(0);
+        _imageCache.remove(oldest);
+      }
+      return bytes;
+    });
   }
+
+  static const int _maxCachedPages = 18;
+  final Map<String, Uint8List> _imageCache = <String, Uint8List>{};
+  final List<String> _imageCacheOrder = <String>[];
 
   @override
   Future<void> navigateNext() async {
@@ -505,6 +532,8 @@ class ComicZipReaderSession extends ReaderSession
     _disposed = true;
     await _source?.close();
     _source = null;
+    _imageCache.clear();
+    _imageCacheOrder.clear();
     _listeners.clear();
     await _events.close();
   }

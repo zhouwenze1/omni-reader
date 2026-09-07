@@ -161,6 +161,8 @@ class _ComicPagerState extends State<_ComicPager> {
   ScrollController? _scrollController;
   double _itemExtent = 0;
   bool _firstSyncPending = true;
+  double _wheelAccum = 0;
+  DateTime? _lastWheelTurnAt;
 
   @override
   void initState() {
@@ -226,7 +228,29 @@ class _ComicPagerState extends State<_ComicPager> {
 
   void _onPageSettled(int unit) {
     _firstSyncPending = false;
-    widget.session.setPageFromUnit(unit);
+    final session = widget.session;
+    // 落页后预热相邻页字节,让下一页翻动时已就绪(不黑屏等解码)。
+    // 视觉 unit → 该屏起始页(单页=unit;双页:封面屏=0,其余=pageForSpread)。
+    int firstPageOfUnit(int u) {
+      if (!session.isDoublePage) {
+        return u;
+      }
+      return u <= 0 ? 0 : pageForSpread(u);
+    }
+
+    final pageCount = session.pageCount;
+    final unitCount = session.isDoublePage ? spreadCount(pageCount) : pageCount;
+    if (unit > 0) {
+      unawaited(
+        session.readPageBytes(session.pages[firstPageOfUnit(unit - 1)]),
+      );
+    }
+    if (unit + 1 < unitCount) {
+      unawaited(
+        session.readPageBytes(session.pages[firstPageOfUnit(unit + 1)]),
+      );
+    }
+    session.setPageFromUnit(unit);
   }
 
   @override
@@ -258,8 +282,25 @@ class _ComicPagerState extends State<_ComicPager> {
       }
     }
 
+    // Mouse wheel pages, but throttled: a single wheel notch scrolls one page,
+    // and consecutive notches never tear the in-flight turn animation (which
+    // would make every intermediate page flash while its image decodes).
     void handleWheel(double scrollDy) {
-      unawaited(scrollDy > 0 ? session.navigateNext() : session.navigatePrev());
+      _wheelAccum += scrollDy;
+      const threshold = 40.0;
+      if (_wheelAccum.abs() < threshold) {
+        return;
+      }
+      final now = DateTime.now();
+      final last = _lastWheelTurnAt;
+      if (last != null &&
+          now.difference(last) < const Duration(milliseconds: 260)) {
+        return;
+      }
+      _lastWheelTurnAt = now;
+      _wheelAccum = 0;
+      final forward = scrollDy > 0;
+      unawaited(forward ? session.navigateNext() : session.navigatePrev());
     }
 
     return LayoutBuilder(
@@ -283,6 +324,8 @@ class _ComicPagerState extends State<_ComicPager> {
                 controller: _scrollController,
                 itemCount: session.pageCount,
                 itemExtent: viewportHeight,
+                // 预构建下方若干页,滚动到之前图已就绪。
+                cacheExtent: viewportHeight * 3,
                 itemBuilder: (context, index) {
                   return _ZoomablePage(
                     loadBytes: () =>
@@ -303,8 +346,8 @@ class _ComicPagerState extends State<_ComicPager> {
         final rtl = session.isRtl;
 
         // A spread occupies [first .. last] with the earlier page on the right
-        // for RTL. Reads the page decoded into [ImageProvider] (in memory) and
-        // hands out the visual cell rect used for width-partition tap zones.
+        // for RTL. The whole spread is one tap/wheel surface so zones span the
+        // full row (center = chrome) and the 4px gutter never swallows clicks.
         Widget spreadBody(int first, int last, double width) {
           var pages = List<Widget>.generate(last - first + 1, (i) {
             final index = first + i;
@@ -326,12 +369,21 @@ class _ComicPagerState extends State<_ComicPager> {
             }
             children.add(pages[i]);
           }
-          return Center(
-            child: Row(
-              children: children,
-              // 双页阅读:整幅(row)命中才按点区判定翻页/呼出;书缝(4px)不再拦截点击。
-              // RTL 时首幅在右,阅读序仍是"左=上一幅、右=下一幅",故仅反转子项。
-              textDirection: TextDirection.ltr,
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) => handleTapUp(details.localPosition.dx, width),
+            child: Listener(
+              onPointerSignal: (event) {
+                if (event is PointerScrollEvent) {
+                  handleWheel(event.scrollDelta.dy);
+                }
+              },
+              child: Center(
+                child: Row(
+                  children: children,
+                  textDirection: TextDirection.ltr,
+                ),
+              ),
             ),
           );
         }
@@ -340,6 +392,8 @@ class _ComicPagerState extends State<_ComicPager> {
           controller: _pageController,
           itemCount: unitCount,
           reverse: rtl,
+          // 预构建相邻页:翻页瞬间邻页已在读字节+解码,不会黑屏等图。
+          allowImplicitScrolling: true,
           onPageChanged: _onPageSettled,
           itemBuilder: (context, unit) {
             if (session.isDoublePage) {
@@ -417,8 +471,15 @@ class _ZoomablePageState extends State<_ZoomablePage> {
           builder: (context, snapshot) {
             final bytes = snapshot.data;
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              // 解码期间用浅色占位而不是黑底 —— 漫画书页不会一整帧黑。
+              return const ColoredBox(
+                color: Color(0xFF1E1E1E),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  ),
+                ),
               );
             }
             if (bytes == null || bytes.isEmpty) {

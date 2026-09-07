@@ -1591,16 +1591,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return KeyEventResult.ignored;
     }
     final session = _session;
-    if (session == null ||
-        !session.features.keyboardTurnAvailable ||
-        _modalOpen) {
+    if (session == null || !session.features.keyboardTurnAvailable) {
       return KeyEventResult.ignored;
     }
-    // 仅当焦点仍在阅读根节点自身(未落入面板/对话框/输入框/按钮)时才翻页,
-    // 避免空格/方向键"穿透"到后面正在阅读的书上。
-    final focus = FocusManager.instance.primaryFocus;
-    if (focus != null && focus != node) {
+    // 弹层 / 侧栏 / 选中菜单打开时不翻页,避免按键"穿透"到后面的书。
+    if (_modalOpen ||
+        _tocPanelOpen ||
+        _searchPanelOpen ||
+        _selectionMenuVisible) {
       return KeyEventResult.ignored;
+    }
+    // 文本输入聚焦时让按键正常输入(方向键移动光标、空格输入)。
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus?.context != null) {
+      final widget = focus!.context!.widget;
+      if (widget is TextField ||
+          widget is EditableText ||
+          widget is SelectableText) {
+        return KeyEventResult.ignored;
+      }
     }
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowRight:
