@@ -194,10 +194,14 @@ class _ComicPagerState extends State<_ComicPager> {
       }
       final targetOffset = target * _itemExtent;
       if ((controller.offset - targetOffset).abs() <= 1) {
+        // 控制器已停在与会话一致的位置(如打开时按进度恢复):初始同步完成,
+        // 之后用户的第一次翻页应带动画而非瞬跳。
+        _firstSyncPending = false;
         return;
       }
       if (_firstSyncPending) {
         controller.jumpTo(targetOffset);
+        _firstSyncPending = false;
       } else {
         controller.animateTo(
           targetOffset,
@@ -212,10 +216,15 @@ class _ComicPagerState extends State<_ComicPager> {
       }
       final current = controller.page?.round();
       if (current == null || current == target) {
+        if (current != null) {
+          // 已与目标一致:初始定位完成,后续翻页走动画。
+          _firstSyncPending = false;
+        }
         return;
       }
       if (_firstSyncPending) {
         controller.jumpToPage(target);
+        _firstSyncPending = false;
       } else {
         controller.animateToPage(
           target,

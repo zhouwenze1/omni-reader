@@ -552,18 +552,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     // 退出阅读:清除阅读态,应用顶部 WindowCaption 标题栏平滑滑入。
     _providerContainer?.read(readerActiveProvider.notifier).state = false;
     _readingRecorder?.dispose();
-    // 与移动端对齐:退出阅读后让“我的”页/统计相关 provider 立即重算。
-    final providerContainer = _providerContainer;
-    if (providerContainer != null) {
-      providerContainer.invalidate(meControllerProvider);
-      providerContainer.invalidate(weeklyReadingSummaryProvider);
-      providerContainer.invalidate(statsCenterProvider);
-    }
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_progressWriteQueue.close().then((_) {
-      // 进度 flush 后推送该书到同步服务器。
+      // 进度 flush 后推送该书到同步服务器,并让首页/书架/统计按新进度重算。
       final container = _providerContainer;
       if (container == null) return;
+      container.invalidate(libraryIndexProvider);
+      container.invalidate(meControllerProvider);
+      container.invalidate(weeklyReadingSummaryProvider);
+      container.invalidate(statsCenterProvider);
       final syncService = container.read(syncServiceProvider);
       unawaited(syncService.pushBookOnExit(widget.bookUid));
       // 标注/统计/设置的合书推送。
