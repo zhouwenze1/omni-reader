@@ -1,5 +1,5 @@
 name: reader_parser_mobi
-description: Mobi parser placeholder.
+description: Mobi/AZW3 parser — unpacks Kindle containers into EPUB-shaped output.
 publish_to: none
 version: 0.1.0
 resolution: workspace
@@ -8,5 +8,6 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
+  archive: ^4.0.7
   reader_parser_core: any
 
