@@ -61,6 +61,36 @@ class AnnotationsStore extends ChangeNotifier {
 
   String newHighlightId() => _newId(DateTime.now());
 
+  /// Adds a page-anchored annotation (bookmark / whole-page note) whose locator
+  /// carries the page (e.g. `href` = page path, `extras.pageIndex`).
+  Future<Annotation> addPageAnnotation({
+    required AnnotationType type,
+    required Locator locator,
+    String? note,
+    String? id,
+  }) async {
+    await _ensureLoaded();
+    final now = DateTime.now();
+    final annotation = Annotation(
+      id: id ?? _newId(now),
+      bookUid: _bookUid,
+      type: type,
+      locator: locator,
+      note: _cleanNote(note),
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _replace(<Annotation>[..._items, annotation]);
+    return annotation;
+  }
+
+  /// Page index stored in a page-anchored locator, or null.
+  static int? pageIndexOf(Locator locator) {
+    final extras = locator.extras;
+    final value = extras == null ? null : extras['pageIndex'];
+    return value is num ? value.toInt() : null;
+  }
+
   Future<void> changeColor(String id, String color) async {
     await _ensureLoaded();
     final index = _items.indexWhere((item) => item.id == id);

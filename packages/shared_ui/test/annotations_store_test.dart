@@ -52,4 +52,34 @@ void main() {
     expect(store.items, isEmpty);
     expect(repository.replaceCount, 4);
   });
+
+  test('addPageAnnotation stores bookmark and note with page locator', () async {
+    final repository = _MemoryAnnotationRepository();
+    final store = AnnotationsStore(
+      repository: repository,
+      bookUid: 'comic-1',
+    );
+    await store.load();
+
+    const locator = Locator(
+      href: 'page12.jpg',
+      locations: <String, dynamic>{'progression': 0.5},
+      extras: <String, dynamic>{'pageIndex': 12, 'pageCount': 24},
+    );
+    final bookmark = await store.addPageAnnotation(
+      type: AnnotationType.bookmark,
+      locator: locator,
+    );
+    final note = await store.addPageAnnotation(
+      type: AnnotationType.note,
+      locator: locator,
+      note: '伏笔',
+    );
+
+    expect(bookmark.type, AnnotationType.bookmark);
+    expect(AnnotationsStore.pageIndexOf(bookmark.locator), 12);
+    expect(store.find(note.id)?.note, '伏笔');
+    expect(store.readerHighlights, isEmpty,
+        reason: '页面书签/笔记不进入 readerHighlights(非文本高亮)');
+  });
 }

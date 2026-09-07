@@ -49,7 +49,8 @@ class ComicZipReaderEngine extends ReaderEngine {
   }
 }
 
-class ComicZipReaderSession extends ReaderSession {
+class ComicZipReaderSession extends ReaderSession
+    implements ReaderPageIndexSource, ReaderDirectionTogglable {
   ComicZipReaderSession({
     required Book book,
     this.initialProgress,
@@ -63,6 +64,10 @@ class ComicZipReaderSession extends ReaderSession {
     if (storedPage is num && storedPage > 0) {
       _pageIndex = storedPage.toInt();
     }
+    final storedDirection = stored == null ? null : stored['direction'];
+    if (storedDirection == ReaderDirection.rtl.name) {
+      _direction = ReaderDirection.rtl;
+    }
   }
 
   final Book _book;
@@ -73,6 +78,7 @@ class ComicZipReaderSession extends ReaderSession {
   final List<VoidCallback> _listeners = <VoidCallback>[];
   ReaderStyle _style;
   String _layoutMode;
+  ReaderDirection _direction = ReaderDirection.ltr;
   int _pageIndex = 0;
   int _pageCount = 0;
   int _generation = 0;
@@ -84,7 +90,10 @@ class ComicZipReaderSession extends ReaderSession {
 
   bool get loading => _loading;
   String? get errorMessage => _errorMessage;
+
+  @override
   int get pageCount => _pageCount;
+
   int get pageIndex => _pageIndex;
   List<String> get pages => _pages;
   String get layoutMode => _layoutMode;
@@ -92,6 +101,50 @@ class ComicZipReaderSession extends ReaderSession {
       _layoutMode == ReaderLayoutMode.scrollContinuous ||
       _layoutMode == ReaderLayoutMode.scrollBoundary;
   bool get isDoublePage => _layoutMode == ReaderLayoutMode.pagedSpread;
+
+  ReaderDirection get direction => _direction;
+
+  bool get isRtl => _direction == ReaderDirection.rtl;
+
+  /// Current reading position, usable for page-anchored annotations.
+  @override
+  Locator? get currentPosition {
+    if (_pageCount <= 0) {
+      return null;
+    }
+    final page = _pageIndex.clamp(0, _pageCount - 1);
+    return Locator(
+      href: _pages[page],
+      locations: <String, dynamic>{
+        'progression': progressionFromPage(
+          page,
+          _pageCount,
+          doublePage: isDoublePage,
+        ),
+      },
+      extras: <String, dynamic>{
+        'pageIndex': page,
+        'pageCount': _pageCount,
+        'direction': _direction.name,
+      },
+    );
+  }
+
+  @override
+  String pageTitle(int index) {
+    if (index < 0 || index >= _pages.length) {
+      return '${index + 1}';
+    }
+    return p.basenameWithoutExtension(_pages[index]);
+  }
+
+  @override
+  Future<Uint8List?> loadPageImage(int index) {
+    if (index < 0 || index >= _pages.length) {
+      return Future<Uint8List?>.value(null);
+    }
+    return readPageBytes(_pages[index]);
+  }
 
   /// Generation counter bumped on every (re)open, so the view can rebuild
   /// its scroll/pager controllers after a retry.
@@ -150,6 +203,20 @@ class ComicZipReaderSession extends ReaderSession {
 
   @override
   ReaderSettingsOptions get settingsOptions => ReaderSettingsOptions.comic;
+
+  @override
+  List<ReaderAuxAction> get auxActions => const <ReaderAuxAction>[
+        ReaderAuxAction(
+          id: 'bookmarkPage',
+          iconKey: 'bookmark',
+          labelKey: 'bookmarkPage',
+        ),
+        ReaderAuxAction(
+          id: 'notePage',
+          iconKey: 'note_add',
+          labelKey: 'notePage',
+        ),
+      ];
 
   @override
   ReaderStyle get style => _style;
@@ -357,6 +424,22 @@ class ComicZipReaderSession extends ReaderSession {
     );
   }
 
+  /// Flips reading direction (LTR <-> RTL). Persisted via the next relocated
+  /// event so reopening resumes with the same direction.
+  Future<void> setDirection(ReaderDirection direction) async {
+    if (_direction == direction) {
+      return;
+    }
+    _direction = direction;
+    _notify();
+    await _emitRelocated();
+  }
+
+  @override
+  Future<void> toggleDirection() async {
+    await setDirection(isRtl ? ReaderDirection.ltr : ReaderDirection.rtl);
+  }
+
   @override
   Future<void> setLayoutMode(String layoutMode) async {
     final normalized = _normalizeLayout(layoutMode);
@@ -417,6 +500,7 @@ class ComicZipReaderSession extends ReaderSession {
       extras: <String, dynamic>{
         'pageIndex': page,
         'pageCount': _pageCount,
+        'direction': _direction.name,
       },
     );
     _events.add(

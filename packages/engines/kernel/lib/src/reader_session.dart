@@ -26,6 +26,11 @@ abstract class ReaderSession {
   /// Auxiliary actions surfaced in the "more" menu / chrome.
   List<ReaderAuxAction> get auxActions => const <ReaderAuxAction>[];
 
+  /// The current reading position, when the session can describe it. Used by
+  /// page-anchored annotations (bookmarks/notes) that are not tied to a text
+  /// selection. Defaults to null for formats that do not expose a position.
+  Locator? get currentPosition => null;
+
   ReaderStyle get style;
 
   Future<void> open();

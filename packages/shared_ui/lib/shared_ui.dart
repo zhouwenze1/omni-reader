@@ -18,6 +18,7 @@ export 'src/widgets/dropdown_tile.dart';
 export 'src/widgets/empty_view.dart';
 export 'src/widgets/loading_view.dart';
 export 'src/widgets/progress_badge.dart';
+export 'src/widgets/reader_page_list_sheet.dart';
 export 'src/widgets/reader_toc_list.dart';
 export 'src/widgets/settings_tile.dart';
 export 'src/widgets/weekly_report_card_v2.dart';

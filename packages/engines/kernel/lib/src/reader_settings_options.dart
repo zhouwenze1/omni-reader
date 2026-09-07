@@ -37,7 +37,6 @@ class ReaderSettingsOptions {
   );
 
   static const ReaderSettingsOptions comic = ReaderSettingsOptions(
-    theme: true,
     layoutMode: true,
   );
 

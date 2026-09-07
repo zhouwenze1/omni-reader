@@ -889,6 +889,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     await _enterImmersiveMode();
   }
 
+  bool get _hasPageList => _session?.features.pageList ?? false;
+
+  /// Structured navigation entry: TOC for text formats, page list for
+  /// page-based formats (comic/PDF) — whichever the session declares.
+  Future<void> _openNavigation() async {
+    if (_hasCapability(ReaderCapability.toc)) {
+      await _openToc();
+      return;
+    }
+    if (_hasPageList) {
+      await _openPageList();
+    }
+  }
+
   Future<void> _openToc() async {
     final book = _book;
     if (book == null) {
@@ -898,6 +912,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (tocItem?.href != null) {
       await _session?.goTo(Locator(href: tocItem!.href));
     }
+    await _enterImmersiveMode();
+  }
+
+  Future<void> _openPageList() async {
+    final session = _session;
+    if (session is! ReaderPageIndexSource) {
+      return;
+    }
+    final pageSource = session as ReaderPageIndexSource;
+    final togglable = session is ReaderDirectionTogglable
+        ? session as ReaderDirectionTogglable
+        : null;
+    final headerActions = <Widget>[
+      if (togglable != null)
+        IconButton(
+          tooltip: '阅读方向',
+          onPressed: () => unawaited(togglable.toggleDirection()),
+          icon: const Icon(Icons.swap_horiz),
+        ),
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return ReaderPageListSheet(
+          source: pageSource,
+          headerActions: headerActions,
+          onSelectPage: (index) {
+            _session?.goTo(
+              Locator(extras: <String, dynamic>{'pageIndex': index}),
+            );
+          },
+        );
+      },
+    );
     await _enterImmersiveMode();
   }
 
@@ -1404,6 +1453,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         ),
       );
     }
+    final auxActions = _session?.auxActions ?? const <ReaderAuxAction>[];
+    for (final aux in auxActions) {
+      actions.add(
+        _ReaderSheetAction(
+          value: 'aux:${aux.id}',
+          icon: _auxIcon(aux.iconKey),
+          label: _auxLabel(aux.labelKey),
+        ),
+      );
+    }
 
     final selection = await showModalBottomSheet<String>(
       context: context,
@@ -1431,6 +1490,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Future<void> _openAuxPage(String value) async {
     final book = _book;
     if (book == null) {
+      return;
+    }
+    if (value.startsWith('aux:')) {
+      await _handleAuxAction(value.substring(4));
       return;
     }
     switch (value) {
@@ -1501,6 +1564,65 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   bool _hasCapability(ReaderCapability capability) {
     return _session?.capabilities.contains(capability) ?? false;
+  }
+
+  IconData _auxIcon(String iconKey) {
+    switch (iconKey) {
+      case 'bookmark':
+        return Icons.bookmark_add_outlined;
+      case 'note_add':
+        return Icons.note_add_outlined;
+      default:
+        return Icons.auto_awesome_outlined;
+    }
+  }
+
+  String _auxLabel(String labelKey) {
+    switch (labelKey) {
+      case 'bookmarkPage':
+        return '在此页加书签';
+      case 'notePage':
+        return '给此页加笔记';
+      default:
+        return labelKey;
+    }
+  }
+
+  Future<void> _handleAuxAction(String id) async {
+    final session = _session;
+    final store = _annotationsStore;
+    final position = session?.currentPosition;
+    if (session == null || store == null || position == null) {
+      return;
+    }
+    switch (id) {
+      case 'bookmarkPage':
+        await store.addPageAnnotation(
+          type: AnnotationType.bookmark,
+          locator: position,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已加书签')),
+          );
+        }
+        break;
+      case 'notePage':
+        final note = await _showNoteEditor(null);
+        if (note != null && note.trim().isNotEmpty) {
+          await store.addPageAnnotation(
+            type: AnnotationType.note,
+            locator: position,
+            note: note,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('已保存笔记')),
+            );
+          }
+        }
+        break;
+    }
   }
 
   Future<void> _openSelectionTools() async {
@@ -1731,8 +1853,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               onProgressChangeEnd: _handleProgressChangeEnd,
               onPrev: () => _session?.navigatePrev(),
               onNext: () => _session?.navigateNext(),
-              onOpenToc:
-                  _hasCapability(ReaderCapability.toc) ? _openToc : null,
+              onOpenToc: (_hasCapability(ReaderCapability.toc) ||
+                      _hasPageList)
+                  ? _openNavigation
+                  : null,
               onOpenAnnotations: _hasCapability(ReaderCapability.highlights)
                   ? _openAnnotationHub
                   : null,

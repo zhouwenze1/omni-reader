@@ -870,7 +870,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           _session!.buildView(),
           _buildTopToolbar(context),
           _buildBottomToolbar(context),
-          if (_tocPanelOpen && _hasCapability(ReaderCapability.toc))
+          if (_tocPanelOpen &&
+              (_hasCapability(ReaderCapability.toc) || _hasPageList))
             DesktopTocPanel(
               bookUid: widget.bookUid,
               onSelect: _onTocSelect,
@@ -930,6 +931,58 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       return;
     }
     _session!.goTo(Locator(href: href));
+  }
+
+  bool get _hasPageList => _session?.features.pageList ?? false;
+
+  void _openNavigation() {
+    if (_hasCapability(ReaderCapability.toc)) {
+      setState(() => _tocPanelOpen = true);
+      return;
+    }
+    if (_hasPageList) {
+      _openPageList();
+    }
+  }
+
+  void _openPageList() {
+    final session = _session;
+    if (session is! ReaderPageIndexSource) {
+      return;
+    }
+    final pageSource = session as ReaderPageIndexSource;
+    final togglable = session is ReaderDirectionTogglable
+        ? session as ReaderDirectionTogglable
+        : null;
+    final headerActions = <Widget>[
+      if (togglable != null)
+        IconButton(
+          tooltip: '阅读方向',
+          onPressed: () => unawaited(togglable.toggleDirection()),
+          icon: const Icon(Icons.swap_horiz),
+        ),
+    ];
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: SizedBox(
+            width: 480,
+            height: 420,
+            child: ReaderPageListSheet(
+              source: pageSource,
+              headerActions: headerActions,
+              onSelectPage: (index) {
+                _session?.goTo(
+                  Locator(extras: <String, dynamic>{'pageIndex': index}),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _onSearchSelect(SearchHit hit) {
@@ -1233,10 +1286,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                         color: Colors.white,
                       ),
                     ),
-                  if (_hasCapability(ReaderCapability.toc))
+                  if (_hasCapability(ReaderCapability.toc) || _hasPageList)
                     IconButton(
-                      tooltip: l10n.tocTitle,
-                      onPressed: () => setState(() => _tocPanelOpen = true),
+                      tooltip: _hasCapability(ReaderCapability.toc)
+                          ? l10n.tocTitle
+                          : '页列表',
+                      onPressed: _openNavigation,
                       icon: const Icon(Icons.menu_book, color: Colors.white),
                     ),
                   if (_hasCapability(ReaderCapability.highlights))
@@ -1402,6 +1457,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   ),
           ),
           actions: [
+            if (_session?.auxActions.any((a) => a.id == 'bookmarkPage') ??
+                false)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  unawaited(_addPageBookmark());
+                },
+                icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                label: const Text('在此页加书签'),
+              ),
+            if (_session?.auxActions.any((a) => a.id == 'notePage') ?? false)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  unawaited(_addPageNote());
+                },
+                icon: const Icon(Icons.note_add_outlined, size: 18),
+                label: const Text('给此页加笔记'),
+              ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text(l10n.close),
@@ -1414,6 +1488,44 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   bool _hasCapability(ReaderCapability capability) {
     return _session?.capabilities.contains(capability) ?? false;
+  }
+
+  Future<void> _addPageBookmark() async {
+    final store = _annotationsStore;
+    final position = _session?.currentPosition;
+    if (store == null || position == null) {
+      return;
+    }
+    await store.addPageAnnotation(
+      type: AnnotationType.bookmark,
+      locator: position,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已加书签')),
+      );
+    }
+  }
+
+  Future<void> _addPageNote() async {
+    final store = _annotationsStore;
+    final position = _session?.currentPosition;
+    if (store == null || position == null) {
+      return;
+    }
+    final note = await _showNoteEditor(null);
+    if (note != null && note.trim().isNotEmpty) {
+      await store.addPageAnnotation(
+        type: AnnotationType.note,
+        locator: position,
+        note: note,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已保存笔记')),
+        );
+      }
+    }
   }
 
   Future<void> _toggleTheme() async {

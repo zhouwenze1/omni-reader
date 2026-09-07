@@ -76,7 +76,8 @@ class _ComicPagerViewState extends State<ComicPagerView> {
     } else {
       body = _ComicPager(
         key: ValueKey<String>(
-          '${session.layoutMode}|${session.pageCount}|${session.generation}',
+          '${session.layoutMode}|${session.pageCount}|${session.generation}'
+          '|${session.isRtl}',
         ),
         session: session,
       );
@@ -223,15 +224,17 @@ class _ComicPagerState extends State<_ComicPager> {
         final unitCount = session.isDoublePage
             ? spreadCount(session.pageCount)
             : session.pageCount;
+        final rtl = session.isRtl;
         return PageView.builder(
           controller: _pageController,
           itemCount: unitCount,
+          reverse: rtl,
           onPageChanged: _onPageSettled,
           itemBuilder: (context, unit) {
             if (session.isDoublePage) {
               final first = pageForSpread(unit);
               final second = first + 1;
-              final pages = <Widget>[
+              var pair = <Widget>[
                 Expanded(
                   child: _ZoomablePage(
                     loadBytes: () =>
@@ -241,8 +244,8 @@ class _ComicPagerState extends State<_ComicPager> {
                 ),
               ];
               if (second < session.pageCount) {
-                pages.add(const SizedBox(width: 4));
-                pages.add(
+                pair.add(const SizedBox(width: 4));
+                pair.add(
                   Expanded(
                     child: _ZoomablePage(
                       loadBytes: () =>
@@ -252,7 +255,11 @@ class _ComicPagerState extends State<_ComicPager> {
                   ),
                 );
               }
-              return Center(child: Row(children: pages));
+              // RTL reads right-to-left: the earlier page sits on the right.
+              if (rtl) {
+                pair = pair.reversed.toList(growable: true);
+              }
+              return Center(child: Row(children: pair));
             }
             return _ZoomablePage(
               loadBytes: () => session.readPageBytes(session.pages[unit]),
