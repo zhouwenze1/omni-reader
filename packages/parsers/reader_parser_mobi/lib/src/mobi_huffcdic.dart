@@ -20,8 +20,8 @@ class MobiHuffCdic {
     this._maxCodeByLen,
     List<Uint8List> dict,
     List<bool> precoded,
-  )   : _dict = dict,
-        _precoded = precoded;
+  ) : _dict = dict,
+      _precoded = precoded;
 
   // 256 项快表:每项打包 codeLen(低5)|terminal(bit7)|maxCode(高24 提升到32位)。
   final List<int> _cache; // raw u32,低 5 位 codeLen、bit7 terminal
@@ -56,8 +56,16 @@ class MobiHuffCdic {
       final cdicBytes = container.loadSection(huffSection + i);
       _parseCdic(cdicBytes, dict, precoded);
     }
-    return MobiHuffCdic._(cache, cacheMax, minCode, maxCodeByLen, dict, precoded);
+    return MobiHuffCdic._(
+      cache,
+      cacheMax,
+      minCode,
+      maxCodeByLen,
+      dict,
+      precoded,
+    );
   }
+
   /// 解压一段正文记录。
   Uint8List decompress(Uint8List input) {
     final padded = Uint8List(input.length + 8);
@@ -97,7 +105,9 @@ class MobiHuffCdic {
           }
         }
       }
-      final maxCode = _terminal(_cache[idx]) ? _cacheMax[idx] : _maxCodeByLen[codeLen];
+      final maxCode = _terminal(_cache[idx])
+          ? _cacheMax[idx]
+          : _maxCodeByLen[codeLen];
 
       n -= codeLen;
       bitsLeft -= codeLen;

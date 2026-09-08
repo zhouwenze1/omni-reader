@@ -63,7 +63,9 @@ MobiBook readMobi(Uint8List bytes) {
   } else {
     for (var i = 1; i <= textRecords; i++) {
       final raw = container.loadSection(i);
-      body.add(decompressRecord(header.compression, _trimTrailingData(raw, header)));
+      body.add(
+        decompressRecord(header.compression, _trimTrailingData(raw, header)),
+      );
     }
   }
   final rawHtml = body.toBytes();
@@ -93,7 +95,12 @@ MobiBook readMobi(Uint8List bytes) {
     );
   }
 
-  return MobiBook(container: container, header: header, rawHtml: rawHtml, images: images);
+  return MobiBook(
+    container: container,
+    header: header,
+    rawHtml: rawHtml,
+    images: images,
+  );
 }
 
 /// 去掉 record 末尾的 trailing-entry 计数与 multibyte pad。
@@ -158,7 +165,10 @@ String? _sniffImageType(Uint8List data) {
   if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) {
     return 'image/jpeg';
   }
-  if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) {
+  if (data[0] == 0x89 &&
+      data[1] == 0x50 &&
+      data[2] == 0x4E &&
+      data[3] == 0x47) {
     return 'image/png';
   }
   if (data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46) {

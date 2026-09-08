@@ -4,13 +4,13 @@ import 'package:reader_parser_mobi/src/mobi_reader.dart';
 import 'package:test/test.dart';
 
 void main() {
-  final sample = r'C:\Users\Administrator\Desktop\Omni\.mobi-ref\samples\alice.mobi';
+  final sample =
+      r'C:\Users\Administrator\Desktop\Omni\.mobi-ref\samples\alice.mobi';
   if (!File(sample).existsSync()) {
     return; // 样本未下载时跳过,不阻塞 CI。
   }
 
-  test('PalmDOC decompression + header + image extraction on Alice sample',
-      () {
+  test('PalmDOC decompression + header + image extraction on Alice sample', () {
     final book = readMobi(File(sample).readAsBytesSync());
     expect(book.header.title, 'Alice\'s Adventures in Wonderland');
     expect(book.header.authors, <String>['Lewis Carroll']);

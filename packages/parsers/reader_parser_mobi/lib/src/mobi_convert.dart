@@ -35,10 +35,7 @@ class MobiConvertedBook {
 }
 
 class MobiChapter {
-  MobiChapter({
-    required this.href,
-    required this.xhtml,
-  });
+  MobiChapter({required this.href, required this.xhtml});
 
   final String href;
   final String xhtml;
@@ -70,7 +67,8 @@ MobiConvertedBook convertMobiBook(MobiBook book) {
       return null;
     }
     final img = images[rec - 1];
-    return 'Images/${_imageFileName(img.index, img.mediaType)}';
+    // 章节文件在 Text/ 下,图在 Images/ 下:src 必须 ../Images/… 才能解析。
+    return '../Images/${_imageFileName(img.index, img.mediaType)}';
   }
 
   final pieces = cleaner.cleanAndSplit(
@@ -100,10 +98,10 @@ MobiConvertedBook convertMobiBook(MobiBook book) {
     );
   }
 
-  // TOC:取每章第一个标题文本(若有);mobi 无结构化 NCX 时给每章一个条目。
+  // TOC:每章标题 = 页内标题文本;图片页取 <img alt>(漫画页码);都没有才占位。
   final toc = <BookTocItem>[];
   for (var i = 0; i < chapters.length; i++) {
-    final title = _firstHeading(pieces[i]) ?? 'Chapter ${i + 1}';
+    final title = _pieceTitle(pieces[i]) ?? 'Chapter ${i + 1}';
     toc.add(
       BookTocItem(
         id: 'toc-${i + 1}',
@@ -134,8 +132,11 @@ String _wrapChapter(String bodyHtml) {
   );
 }
 
-/// 取片段第一个标题文本(h1-h6 / 加粗段落启发),用作 TOC 标题。
-String? _firstHeading(String piece) {
+/// 取片段标题文本,用作 TOC 标题。
+///
+/// 顺序:页内 h1-h6 → 图片页的 <img alt>(漫画页码,如 "第 N 頁")→ 首个
+/// 短 <p> 文本 → null(调用方用 "Chapter N" 兜底)。
+String? _pieceTitle(String piece) {
   final m = RegExp(
     r'<h[1-6][^>]*>(.*?)</h[1-6]>',
     caseSensitive: false,
@@ -143,6 +144,17 @@ String? _firstHeading(String piece) {
   ).firstMatch(piece);
   if (m != null) {
     return _stripTags(m.group(1)!).trim();
+  }
+  // 整页是图(漫画):取 img 的 alt(通常是页码/页标题)。
+  final imgAlt = RegExp(
+    r'<img[^>]*\balt="([^"]*)"[^>]*>',
+    caseSensitive: false,
+  ).firstMatch(piece);
+  if (imgAlt != null) {
+    final alt = imgAlt.group(1)!.trim();
+    if (alt.isNotEmpty && alt.length < 80) {
+      return alt;
+    }
   }
   // mobipocket 常无 h 标签,标题是居中大字 <p>:取首个非空 <p> 文本。
   final p = RegExp(

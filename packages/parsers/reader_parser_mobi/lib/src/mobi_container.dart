@@ -27,9 +27,7 @@ class PalmContainer {
     final identBytes = bytes.sublist(0x3C, 0x3C + 8);
     final ident = latin1.decode(identBytes).trim();
     if (ident != 'BOOKMOBI' && ident != 'TEXtREAd') {
-      throw MobiFormatException(
-        'not a MOBI/Palm database (ident "$ident")',
-      );
+      throw MobiFormatException('not a MOBI/Palm database (ident "$ident")');
     }
     final count = _u16(bytes, 76);
     if (78 + count * 8 > bytes.length) {
@@ -153,8 +151,9 @@ class MobiHeader {
     // KF8(version>=8)才有 HUFF 偏移与 extra-data flags;老 mobi 缺失时给 0。
     final huffOffset = headerLength >= 0x74 ? _u32(section0, 0x70) : 0;
     final huffNum = headerLength >= 0x74 ? _u32(section0, 0x74) : 0;
-    final extraDataFlags =
-        headerLength >= 0xE4 && version >= 5 ? _u16(section0, 0xF2) : 0;
+    final extraDataFlags = headerLength >= 0xE4 && version >= 5
+        ? _u16(section0, 0xF2)
+        : 0;
 
     Map<int, List<int>> exth = const <int, List<int>>{};
     if (exthFlags & 0x40 != 0) {
@@ -193,9 +192,9 @@ Map<int, List<int>> _parseExth(Uint8List section0, int start) {
     if (length < 8 || cursor + (length - 8) > section0.length) {
       break;
     }
-    result.putIfAbsent(type, () => <int>[]).addAll(
-      section0.sublist(cursor, cursor + length - 8),
-    );
+    result
+        .putIfAbsent(type, () => <int>[])
+        .addAll(section0.sublist(cursor, cursor + length - 8));
     cursor += length - 8;
   }
   return result;

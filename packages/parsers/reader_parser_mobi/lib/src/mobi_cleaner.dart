@@ -34,7 +34,18 @@ class MobiCleaner {
         continue;
       }
       // 2. 每段独立清洗(包一层文档解析,容错乱标签)。
-      result.add(_cleanPiece(piece, imagePathOf));
+      final cleaned = _cleanPiece(piece, imagePathOf);
+      // 3. 清洗后可能变空(如纯 <mbp:pagebreak> 的壳段):丢弃。
+      //    "空"= 无文本且无可见元素(img/svg 等算可见)。
+      final textOnly = cleaned.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+      final hasMedia = RegExp(
+        r'<(img|svg|video|audio)\b',
+        caseSensitive: false,
+      ).hasMatch(cleaned);
+      if (textOnly.isEmpty && !hasMedia) {
+        continue;
+      }
+      result.add(cleaned);
     }
     return result;
   }
@@ -130,7 +141,8 @@ class MobiCleaner {
   }
 
   void _fixImage(dom.Element img, String? Function(int) imagePathOf) {
-    final raw = img.attributes['recindex'] ??
+    final raw =
+        img.attributes['recindex'] ??
         img.attributes['lowrecindex'] ??
         img.attributes['hirecindex'];
     final rec = raw == null ? null : int.tryParse(raw.trim());
@@ -162,9 +174,7 @@ class MobiCleaner {
     if (v == null) {
       return null;
     }
-    const table = <double>[
-      0.65, 0.8, 1.0, 1.2, 1.44, 1.73, 2.0,
-    ];
+    const table = <double>[0.65, 0.8, 1.0, 1.2, 1.44, 1.73, 2.0];
     if (v >= 1 && v <= 7) {
       return table[v - 1];
     }
