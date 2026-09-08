@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:path/path.dart' as p;
+import 'package:pdfrx/pdfrx.dart';
 import 'package:reader_parser_core/reader_parser_core.dart';
 import 'package:xml/xml.dart';
 
@@ -179,12 +181,75 @@ class CoverExtractionService {
     }
   }
 
+  /// Renders the first page of a PDF as the shelf cover.
+  ///
+  /// Uses pdfrx(PDFium) to rasterize page 1, encodes it to PNG and writes it
+  /// next to the staged book (tempBookDir/cover.png). Mirrors the reader's
+  /// first visible page so the cover matches what the reader opens to.
+  Future<String?> extractPdfCoverToLibraryTemp({
+    required String pdfFilePath,
+    required String tempBookDir,
+  }) async {
+    final pdfFile = File(pdfFilePath);
+    if (!await pdfFile.exists()) {
+      return null;
+    }
+    try {
+      pdfrxFlutterInitialize();
+      final document = await PdfDocument.openFile(pdfFilePath);
+      try {
+        if (document.pages.isEmpty) {
+          return null;
+        }
+        final page = document.pages.first;
+        await page.ensureLoaded();
+        // 封面宽度给 600px,兼顾清晰度与体积。
+        const coverWidth = 600.0;
+        final scale = coverWidth / page.width;
+        final image = await page.render(
+          width: (page.width * scale).round(),
+          height: (page.height * scale).round(),
+          backgroundColor: 0xFFFFFFFF,
+        );
+        if (image == null) {
+          return null;
+        }
+        final ui.Image uiImage = await image.createImage();
+        try {
+          final data = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+          if (data == null) {
+            return null;
+          }
+          return await _writePngCover(
+            tempBookDir: tempBookDir,
+            bytes: data.buffer.asUint8List(),
+          );
+        } finally {
+          uiImage.dispose();
+        }
+      } finally {
+        await document.dispose();
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> _writePngCover({
+    required String tempBookDir,
+    required Uint8List bytes,
+  }) async {
+    final targetPath = p.join(tempBookDir, 'cover.png');
+    await Directory(p.dirname(targetPath)).create(recursive: true);
+    await File(targetPath).writeAsBytes(bytes, flush: true);
+    return 'cover.png';
+  }
+
   Future<String?> _extractFromLegacyRaw({
     required String bookUid,
     required String opfPath,
     required String tempBookDir,
-  }) async {
-    final rawRoot = p.join(_storagePaths.booksRoot.path, bookUid, 'raw');
+  }) async {    final rawRoot = p.join(_storagePaths.booksRoot.path, bookUid, 'raw');
     final opfAbsPath = p.joinAll(<String>[rawRoot, ..._segments(opfPath)]);
     final opfFile = File(opfAbsPath);
     if (!await opfFile.exists()) {

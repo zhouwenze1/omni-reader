@@ -167,6 +167,13 @@ class ImportRepositoryImpl implements ImportRepository {
           archiveFilePath: originalTarget,
           tempBookDir: tmpDir,
         );
+      } else if (format == 'pdf') {
+        // PDF 无内嵌封面:渲染首页当书架封面。
+        coverRelPath =
+            await _coverExtractionService.extractPdfCoverToLibraryTemp(
+          pdfFilePath: originalTarget,
+          tempBookDir: tmpDir,
+        );
       }
 
       final book = Book(

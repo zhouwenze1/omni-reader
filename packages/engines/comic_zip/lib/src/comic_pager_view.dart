@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:kernel/kernel.dart';
 
 import 'comic_page_listing.dart';
 import 'comic_zip_engine.dart';
@@ -91,8 +92,9 @@ class _ComicPagerViewState extends State<ComicPagerView> {
         session: session,
       );
     }
+    final theme = session.style.theme;
     return ColoredBox(
-      color: Colors.black,
+      color: resolveReaderBackground(theme),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -113,13 +115,13 @@ class _ComicPagerViewState extends State<ComicPagerView> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black54,
+                      color: Colors.black45,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '${session.pageIndex + 1} / ${session.pageCount}',
                       style:
-                          const TextStyle(color: Colors.white70, fontSize: 12),
+                          const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
                 ),

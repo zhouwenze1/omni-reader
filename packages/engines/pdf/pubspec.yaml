@@ -1,5 +1,5 @@
 name: engine_pdf
-description: Stub PDF reader engine
+description: PDF reader engine backed by pdfrx(PDFium) — page-based reading like comics.
 publish_to: none
 
 resolution: workspace
@@ -15,6 +15,7 @@ dependencies:
     path: ../kernel
   foundation_domain:
     path: ../../foundation/domain
-
+  path: ^1.9.1
+  pdfrx: 2.2.24
 
 

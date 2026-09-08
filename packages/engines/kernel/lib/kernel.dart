@@ -1,6 +1,7 @@
 library;
 
 export 'src/reader_aux_action.dart';
+export 'src/reader_background.dart';
 export 'src/reader_capability.dart';
 export 'src/reader_direction_togglable.dart';
 export 'src/reader_engine.dart';
