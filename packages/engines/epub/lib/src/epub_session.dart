@@ -65,6 +65,10 @@ class EpubReaderSession extends ReaderSession {
   final Map<String, ReaderHighlight> _activeHighlights =
       <String, ReaderHighlight>{};
 
+  /// 最近一次已向渲染器重放过高亮的章节 href。跨章(章节 DOM 重建)后
+  /// 渲染器会丢掉旧 DOM 上的高亮,回来时需要按 href 重放一次。
+  String? _lastReplayedHighlightsHref;
+
   String _layoutMode;
   ReaderStyle _readerStyle;
 
@@ -543,7 +547,7 @@ class EpubReaderSession extends ReaderSession {
     if (cfi != null && cfi.isNotEmpty && href != null && href.isNotEmpty) {
       normalized['href'] = runtime.uriMapper.toPublicHref(href);
       final url = runtime.uriMapper.hrefToHttp(href: href);
-      await bridge.open(url: url, locator: normalized);
+      await _openUrl(runtime, url: url, locator: normalized);
       return;
     }
 
@@ -555,7 +559,7 @@ class EpubReaderSession extends ReaderSession {
     if (href != null && href.isNotEmpty) {
       normalized['href'] = runtime.uriMapper.toPublicHref(href);
       final url = runtime.uriMapper.hrefToHttp(href: href);
-      await bridge.open(url: url, locator: normalized);
+      await _openUrl(runtime, url: url, locator: normalized);
       return;
     }
 
@@ -579,7 +583,7 @@ class EpubReaderSession extends ReaderSession {
         final mappedHref = mappedLocatorPayload['href'] as String?;
         if (mappedHref != null && mappedHref.isNotEmpty) {
           final url = runtime.uriMapper.hrefToHttp(href: mappedHref);
-          await bridge.open(url: url, locator: mappedLocatorPayload);
+          await _openUrl(runtime, url: url, locator: mappedLocatorPayload);
           return;
         }
       }
@@ -602,7 +606,7 @@ class EpubReaderSession extends ReaderSession {
 
     normalized['href'] = runtime.uriMapper.toPublicHref(fallbackHref);
     final url = runtime.uriMapper.hrefToHttp(href: fallbackHref);
-    await bridge.open(url: url, locator: normalized);
+    await _openUrl(runtime, url: url, locator: normalized);
   }
 
   @override
@@ -709,6 +713,32 @@ class EpubReaderSession extends ReaderSession {
       return;
     }
     await bridge.navigate(payload);
+  }
+
+  /// 跨章节打开(章节切换会重建 DOM,渲染器会清空其高亮桶),必须带上当前
+  /// 全部高亮让渲染器在 open 后重放,否则翻页/跳章后再回来高亮会消失。
+  Future<void> _openUrl(
+    _SessionRuntime runtime, {
+    required String url,
+    required Map<String, dynamic> locator,
+  }) async {
+    final bridge = _bridge;
+    if (bridge == null) {
+      return;
+    }
+    final highlights = _activeHighlights.values
+        .map(
+          (highlight) => _rendererHighlightMapper.toPayload(
+            highlight,
+            uriMapper: runtime.uriMapper,
+          ),
+        )
+        .toList();
+    await bridge.open(
+      url: url,
+      locator: locator,
+      highlights: highlights.isEmpty ? null : highlights,
+    );
   }
 
   Future<void> _bootstrapAndOpenIfNeeded(_SessionRuntime runtime) async {
@@ -1024,6 +1054,7 @@ class EpubReaderSession extends ReaderSession {
     }
 
     _lastLocator = event.locator;
+    _scheduleHighlightsReplayForHref(runtime, event.locator!.href);
     final totalProgression = runtime.positionIndex
         ?.resolveTotalProgressionForLocator(event.locator!);
     if (totalProgression == null) {
@@ -1047,6 +1078,71 @@ class EpubReaderSession extends ReaderSession {
         message: event.message,
       ),
     );
+  }
+
+  /// 章节(重新)加载后,渲染器的该章 DOM 是全新的,旧 DOM 上 applied 的
+  /// 高亮已丢失。relocated 到某 href 时若它带着未下发的本地高亮,补一次
+  /// applyHighlights(渲染器按文本引用在新 DOM 上重画;已画过的会跳过)。
+  void _scheduleHighlightsReplayForHref(
+    _SessionRuntime runtime,
+    String? href,
+  ) {
+    if (href == null || href.isEmpty || _activeHighlights.isEmpty) {
+      _lastReplayedHighlightsHref = href;
+      return;
+    }
+    final publicHref = runtime.uriMapper.toPublicHref(href);
+    final chapterHighlights = _activeHighlights.values
+        .where(
+          (h) =>
+              runtime.uriMapper.toPublicHref(h.href) == publicHref,
+        )
+        .toList();
+    if (chapterHighlights.isEmpty) {
+      _lastReplayedHighlightsHref = href;
+      return;
+    }
+    // 章节未变不重复下发(避免每次 relocated 都刷屏);变了才重放一次。
+    if (_lastReplayedHighlightsHref == href) {
+      return;
+    }
+    _lastReplayedHighlightsHref = href;
+    final payloads = chapterHighlights
+        .map(
+          (h) => _rendererHighlightMapper.toPayload(
+            h,
+            uriMapper: runtime.uriMapper,
+          ),
+        )
+        .toList();
+    unawaited(_applyReplayedHighlights(runtime, publicHref, payloads));
+  }
+
+  Future<void> _applyReplayedHighlights(
+    _SessionRuntime runtime,
+    String href,
+    List<Map<String, dynamic>> payloads,
+  ) async {
+    try {
+      await _waitWebViewReady();
+      final bridge = _bridge;
+      if (bridge == null || _eventsController.isClosed) {
+        return;
+      }
+      // relocated 刚发出时新章 DOM 可能仍在排版;让出几帧再下发,
+      // 渲染器按文本引用在新 DOM 上重画。若仍失败,coordinator 会进
+      // pending,待下一次 relocated 触发 flush 时补上。
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (_eventsController.isClosed || bridge != _bridge) {
+        return;
+      }
+      await bridge.applyHighlights(<String, dynamic>{
+        'href': href,
+        'highlights': payloads,
+      });
+    } catch (_) {
+      // 重放失败静默;下次 relocated 换章会再触发。
+    }
   }
 
   static Future<_SessionRuntime> _prepareRuntime(String bookUid) async {
