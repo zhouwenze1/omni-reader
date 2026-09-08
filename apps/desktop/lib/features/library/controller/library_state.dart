@@ -28,7 +28,7 @@ class DesktopLibraryState {
         items = const <LibraryIndexEntry>[],
         filteredItems = const <LibraryIndexEntry>[],
         viewMode = LibraryViewMode.grid,
-        sortMode = LibrarySortMode.recentRead,
+        sortMode = LibrarySortMode.importedAt,
         filters = const LibraryFilters(),
         selectedBookUid = null,
         selectedCollectionId = null,

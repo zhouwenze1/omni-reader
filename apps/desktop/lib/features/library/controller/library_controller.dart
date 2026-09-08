@@ -11,6 +11,7 @@ final desktopLibraryControllerProvider =
   final controller = DesktopLibraryController(
     bookRepository: ref.watch(bookRepositoryProvider),
     collectionRepository: ref.watch(collectionRepositoryProvider),
+    settingsRepository: ref.watch(settingsRepositoryProvider),
   );
   unawaited(controller.load());
   return controller;
@@ -20,16 +21,25 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
   DesktopLibraryController({
     required BookRepository bookRepository,
     required CollectionRepository collectionRepository,
+    required SettingsRepository settingsRepository,
   })  : _bookRepository = bookRepository,
         _collectionRepository = collectionRepository,
+        _settingsRepository = settingsRepository,
         super(const DesktopLibraryState.initial());
 
   final BookRepository _bookRepository;
   final CollectionRepository _collectionRepository;
+  final SettingsRepository _settingsRepository;
 
   Future<void> load() async {
     state = state.copyWith(status: LibraryPageStatus.loading, clearError: true);
     try {
+      // 上次用户选的排序持久化在 AppSettings;先恢复再查。
+      final settings = await _settingsRepository.getAppSettings();
+      final persisted = _sortModeFromName(settings.librarySortMode);
+      if (persisted != state.sortMode) {
+        state = state.copyWith(sortMode: persisted);
+      }
       final snapshot = await _loadSnapshot();
       final next = _buildStateFromSnapshot(snapshot);
       state = next;
@@ -49,7 +59,25 @@ class DesktopLibraryController extends StateNotifier<DesktopLibraryState> {
 
   Future<void> setSortMode(LibrarySortMode mode) async {
     state = state.copyWith(sortMode: mode);
+    // 记住选择,下次打开书架仍是这个排序。
+    try {
+      final settings = await _settingsRepository.getAppSettings();
+      await _settingsRepository.saveAppSettings(
+        settings.copyWith(librarySortMode: mode.name),
+      );
+    } catch (_) {
+      // 持久化失败不阻塞排序切换。
+    }
     await _reloadByCurrentQuery();
+  }
+
+  static LibrarySortMode _sortModeFromName(String name) {
+    for (final mode in LibrarySortMode.values) {
+      if (mode.name == name) {
+        return mode;
+      }
+    }
+    return LibrarySortMode.importedAt;
   }
 
   Future<void> setFilterPanelVisible(bool visible) async {

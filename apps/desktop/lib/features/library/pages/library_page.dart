@@ -63,6 +63,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
 
     return Scaffold(
       appBar: AppBar(
+        // 书架顶栏颜色固定:不随下方列表滚动叠 surfaceTint 变深灰。
+        scrolledUnderElevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         title: Row(
           children: [
             Text(l10n.libraryTitle),

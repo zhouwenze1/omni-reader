@@ -9,6 +9,7 @@ class AppSettings {
     this.debugImport = false,
     this.autoCheckUpdate = true,
     this.sendAnonymousUsage = false,
+    this.librarySortMode = 'importedAt',
   });
 
   final String locale;
@@ -17,12 +18,16 @@ class AppSettings {
   final bool autoCheckUpdate;
   final bool sendAnonymousUsage;
 
+  /// 书架默认排序(持久化用户上次选择)。取值见 [LibrarySortMode]。
+  final String librarySortMode;
+
   AppSettings copyWith({
     String? locale,
     AppThemeMode? themeMode,
     bool? debugImport,
     bool? autoCheckUpdate,
     bool? sendAnonymousUsage,
+    String? librarySortMode,
   }) {
     return AppSettings(
       locale: locale ?? this.locale,
@@ -30,6 +35,7 @@ class AppSettings {
       debugImport: debugImport ?? this.debugImport,
       autoCheckUpdate: autoCheckUpdate ?? this.autoCheckUpdate,
       sendAnonymousUsage: sendAnonymousUsage ?? this.sendAnonymousUsage,
+      librarySortMode: librarySortMode ?? this.librarySortMode,
     );
   }
 
@@ -41,6 +47,7 @@ class AppSettings {
       debugImport: _asBool(json['debugImport']) ?? false,
       autoCheckUpdate: _asBool(json['autoCheckUpdate']) ?? true,
       sendAnonymousUsage: _asBool(json['sendAnonymousUsage']) ?? false,
+      librarySortMode: (json['librarySortMode'] as String?) ?? 'importedAt',
     );
   }
 
@@ -51,6 +58,7 @@ class AppSettings {
       'debugImport': debugImport,
       'autoCheckUpdate': autoCheckUpdate,
       'sendAnonymousUsage': sendAnonymousUsage,
+      'librarySortMode': librarySortMode,
     };
   }
 }
