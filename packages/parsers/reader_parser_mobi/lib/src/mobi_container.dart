@@ -67,7 +67,9 @@ class MobiHeader {
     required this.huffOffset,
     required this.huffNum,
     this.extraDataFlags = 0,
-  });
+    this.firstResource,
+    String? fullName,
+  }) : _fullName = fullName;
 
   /// 0=无压缩 2=PalmDOC 0x4448=Huffman(KF8/AZW3)。
   final int compression;
@@ -90,12 +92,19 @@ class MobiHeader {
   /// extra record data flags(0xF2),用于剥离正文 section 尾部计数。
   final int extraDataFlags;
 
+  /// 资源区起始 section(0x6C;缺失时为 null)。recindex 以此为 1-based 基准,
+  /// 与 KindleUnpack 的 rscnames 语义一致。
+  final int? firstResource;
+
+  final String? _fullName;
+
   bool get isHuffman => compression == 0x4448;
 
   /// EXTH 存在标志是 exth_flags 的 0x40 位(见 kindleunpack)。
   bool get hasExth => exthFlags & 0x40 != 0;
 
-  String? get title => _exthText(503) ?? _exthText(3) ?? _exthText(14);
+  String? get title =>
+      _exthText(503) ?? _exthText(3) ?? _exthText(14) ?? _cleanFullName;
   List<String> get authors {
     final raw = _exthText(100);
     if (raw == null || raw.isEmpty) {
@@ -112,12 +121,29 @@ class MobiHeader {
   String? get asin => _exthText(113) ?? _exthText(504);
   String? get description => _exthText(103);
 
+  /// EXTH 记录里的 u32 字段(大端);数据不足或缺失时返回 null。
+  int? exthUint32(int type) {
+    final d = exth[type];
+    if (d == null || d.length < 4) {
+      return null;
+    }
+    return (d[0] << 24) | (d[1] << 16) | (d[2] << 8) | d[3];
+  }
+
   String? _exthText(int type) {
     final data = exth[type];
     if (data == null) {
       return null;
     }
-    return _decodeText(data, codepage).trim();
+    return decodeMobiText(data, codepage).trim();
+  }
+
+  String? get _cleanFullName {
+    final raw = _fullName?.trim();
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    return raw;
   }
 
   /// 从 section 0 解析 MOBI 头;若为裸 PalmDOC(ident==TEXtREAd)则按纯文本处理。
@@ -145,6 +171,7 @@ class MobiHeader {
     }
     final headerLength = _u32(section0, 0x14);
     final version = _u32(section0, 0x24);
+    final codepage = _u32(section0, 0x1C);
     final firstNontext = _u32(section0, 0x50);
     final exthFlags = _u32(section0, 0x80);
 
@@ -155,6 +182,29 @@ class MobiHeader {
         ? _u16(section0, 0xF2)
         : 0;
 
+    // 资源区起始(0x6C);0xFFFFFFFF 或越界表示缺失,调用方回退 firstNonText。
+    int? firstResource;
+    if (headerLength >= 0x70) {
+      final raw = _u32(section0, 0x6C);
+      if (raw != 0xFFFFFFFF && raw < container.sectionCount) {
+        firstResource = raw;
+      }
+    }
+
+    // 书名全名:header 内嵌偏移 0x54 -> (offset, length),相对 section0。
+    String? fullName;
+    if (headerLength >= 0x5C) {
+      final toff = _u32(section0, 0x54);
+      final tlen = _u32(section0, 0x58);
+      if (tlen > 0 && toff >= 0 && toff + tlen <= section0.length) {
+        // 老 mobi 全名恒为 cp1252(EXTH 未覆盖时不能拿 codepage 猜)。
+        fullName = decodeMobiText(
+          section0.sublist(toff, toff + tlen),
+          version >= 5 ? codepage : 1252,
+        );
+      }
+    }
+
     Map<int, List<int>> exth = const <int, List<int>>{};
     if (exthFlags & 0x40 != 0) {
       // EXTH 紧跟 MOBI 头之后:起点 = 16(PalmDOC 头)+ headerLength。
@@ -163,7 +213,7 @@ class MobiHeader {
     return MobiHeader._(
       compression: _u16(section0, 0x00),
       textRecords: _u16(section0, 0x08),
-      codepage: _u32(section0, 0x1C),
+      codepage: codepage,
       version: version,
       headerLength: headerLength,
       firstNontext: firstNontext,
@@ -172,6 +222,8 @@ class MobiHeader {
       huffOffset: huffOffset,
       huffNum: huffNum,
       extraDataFlags: extraDataFlags,
+      firstResource: firstResource,
+      fullName: fullName,
     );
   }
 }
@@ -201,18 +253,63 @@ Map<int, List<int>> _parseExth(Uint8List section0, int start) {
 }
 
 /// 字符编码按 MOBI codepage 映射(Dart 仅有 latin1/utf8,其余按 latin1 近似)。
-String _decodeText(List<int> bytes, int codepage) {
+///
+/// cp1252 在 0x80..0x9F 与 latin1 不同(0xA0 起一致);老 mobi 多为 cp1252,
+/// 书名/作者里的弯引号等若按 latin1 会乱码,这里补一张精确映射表。
+String decodeMobiText(List<int> bytes, int codepage) {
   switch (codepage) {
     case 65001:
       return utf8.decode(bytes, allowMalformed: true);
     case 1252:
-      // windows-1252 在 0x80..0x9F 与 latin1 不同,但正文多为可打印字符,
-      // 先用 latin1 近似(老 mobi 多为 cp1252)。
-      return latin1.decode(bytes);
+      final sb = StringBuffer();
+      for (final b in bytes) {
+        if (b >= 0x80 && b <= 0x9F) {
+          sb.write(_cp1252High[b - 0x80] ?? '\uFFFD');
+        } else {
+          sb.writeCharCode(b);
+        }
+      }
+      return sb.toString();
     default:
       return latin1.decode(bytes);
   }
 }
+
+/// cp1252 高半区(0x80..0x9F);未指派位置为 null(按 U+FFFD)。
+const List<String?> _cp1252High = <String?>[
+  '\u20AC',
+  null,
+  '\u201A',
+  '\u0192',
+  '\u201E',
+  '\u2026',
+  '\u2020',
+  '\u2021',
+  '\u02C6',
+  '\u2030',
+  '\u0160',
+  '\u2039',
+  '\u0152',
+  null,
+  '\u017D',
+  null,
+  null,
+  '\u2018',
+  '\u2019',
+  '\u201C',
+  '\u201D',
+  '\u2022',
+  '\u2013',
+  '\u2014',
+  '\u02DC',
+  '\u2122',
+  '\u0161',
+  '\u203A',
+  '\u0153',
+  null,
+  '\u017E',
+  '\u0178',
+];
 
 /// 读取 [offset] 起 [length] 字节的 ASCII 文本。
 String _asciiAt(Uint8List data, int offset, int length) {

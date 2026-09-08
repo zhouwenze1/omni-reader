@@ -11,7 +11,8 @@ class MobiBook {
     required this.header,
     required this.rawHtml,
     this.images = const <MobiImage>[],
-  });
+    List<MobiImage?>? slotImages,
+  }) : _slotImages = slotImages ?? <MobiImage?>[];
 
   final PalmContainer container;
   final MobiHeader header;
@@ -19,8 +20,20 @@ class MobiBook {
   /// 解压后的 Mobipocket HTML(未清洗,含 <mbp:pagebreak/> 等专有标签)。
   final Uint8List rawHtml;
 
-  /// 正文 section 之后抽取到的图片(含封面,按出现顺序)。
+  /// 资源区图片(含封面,按 section 出现序)。
   final List<MobiImage> images;
+
+  /// 资源槽表:下标 = recindex - 1,值 = 该槽的图(槽可能被 FONT/索引占用)。
+  final List<MobiImage?> _slotImages;
+
+  /// 按 KindleUnpack 的 rscnames 语义把 recindex 映射为图片。
+  /// recindex 是 1-based 资源槽号,槽 0 = firstResource 起的第 1 个 section。
+  MobiImage? imageForRecindex(int rec) {
+    if (rec <= 0 || rec > _slotImages.length) {
+      return null;
+    }
+    return _slotImages[rec - 1];
+  }
 }
 
 class MobiImage {
@@ -31,11 +44,13 @@ class MobiImage {
     required this.isCover,
   });
 
-  /// 在资源区的 section 号,用作稳定命名。
+  /// 所在 section 号,用作稳定命名。
   final int index;
   final Uint8List data;
   final String mediaType;
-  final bool isCover;
+
+  /// 是否为封面(EXTH CoverOffset 指向;缺失时回退第一张图)。
+  bool isCover;
 }
 
 /// 读取 PalmDB + MOBI 头,解压正文 section 拼成 raw HTML。
@@ -70,37 +85,86 @@ MobiBook readMobi(Uint8List bytes) {
   }
   final rawHtml = body.toBytes();
 
-  // 抽取正文之后的资源区图片(JPEG/PNG/GIF/WebP,封面通常是第一张图)。
-  // 注意:kindleunpack 实测图片 section 是"裸图"(无 8 字节 record 头),
-  // 直接以图片 magic 开头;INDX/FLIS/FCIS 等非图 section 会被跳过。
-  final images = <MobiImage>[];
-  final startSection = header.firstNontext;
-  for (var i = startSection; i < container.sectionCount; i++) {
-    final section = container.loadSection(i);
-    if (section.length < 12) {
-      continue;
-    }
-    final mediaType = _sniffImageType(section);
-    if (mediaType == null) {
-      continue;
-    }
-    final isCover = images.isEmpty; // 第一张图(通常是封面)记为 cover。
-    images.add(
-      MobiImage(
-        index: i,
-        data: section,
-        mediaType: mediaType,
-        isCover: isCover,
-      ),
-    );
-  }
+  // 资源区图片收集 + recindex 槽表。
+  //
+  // recindex 是 **1-based 资源槽号**,以 firstResource(0x6C)为第 1 个槽;
+  // 槽内可能是 FONT/FLIS/FCIS 等非图(占位,无图)。KindleUnpack 遍历
+  // firstResource 起每个 section 生成 rscnames,HTML 的 recindex=N 取
+  // rscnames[N-1]——本实现按同一语义建立槽表,避免图与索引节交错时错位。
+  final imageScan = _collectImages(container, header);
 
   return MobiBook(
     container: container,
     header: header,
     rawHtml: rawHtml,
-    images: images,
+    images: imageScan.images,
+    slotImages: imageScan.slots,
   );
+}
+
+/// 资源收集结果:[slots] 与 [images] 共享同一 source,按 section 序。
+class _ImageScan {
+  _ImageScan(this.images, this.slots);
+
+  final List<MobiImage> images;
+  final List<MobiImage?> slots;
+}
+
+/// 扫 firstResource..(首个 BOUNDARY 或文件尾),返回槽表与图列表。
+_ImageScan _collectImages(PalmContainer container, MobiHeader header) {
+  final start = header.firstResource ?? header.firstNontext;
+  // 组合 mobi 以 "BOUNDARY" section 分隔 mobi7 与 KF8 两半:只取前半,
+  // 避免把 KF8 半(CRES/高清直存图等)混入正文章节用图。
+  var end = container.sectionCount;
+  for (var i = start; i < container.sectionCount; i++) {
+    if (_isBoundary(container.loadSection(i))) {
+      end = i;
+      break;
+    }
+  }
+
+  final images = <MobiImage>[];
+  final slots = <MobiImage?>[];
+  int? coverSection;
+  final coverOffset = header.exthUint32(201);
+  if (coverOffset != null && start + coverOffset < container.sectionCount) {
+    coverSection = start + coverOffset;
+  }
+
+  for (var i = start; i < end; i++) {
+    final section = container.loadSection(i);
+    final mediaType = section.length >= 12 ? _sniffImageType(section) : null;
+    MobiImage? image;
+    if (mediaType != null) {
+      image = MobiImage(
+        index: i,
+        data: section,
+        mediaType: mediaType,
+        isCover: i == coverSection,
+      );
+      images.add(image);
+    }
+    slots.add(image);
+  }
+  // 无 EXTH 封面偏移或指向非图时:回退第一张图(老书常见,如 alice)。
+  if (images.isNotEmpty && !images.any((im) => im.isCover)) {
+    images.first.isCover = true;
+  }
+  return _ImageScan(images, slots);
+}
+
+bool _isBoundary(Uint8List section) {
+  if (section.length < 8) {
+    return false;
+  }
+  return section[0] == 0x42 && // B
+      section[1] == 0x4F && // O
+      section[2] == 0x55 && // U
+      section[3] == 0x4E && // N
+      section[4] == 0x44 && // D
+      section[5] == 0x41 && // A
+      section[6] == 0x52 && // R
+      section[7] == 0x59; // Y
 }
 
 /// 去掉 record 末尾的 trailing-entry 计数与 multibyte pad。

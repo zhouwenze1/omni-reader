@@ -58,16 +58,13 @@ class MobiConvertedImage {
 /// 把 [MobiBook] 清洗分章成可落盘产物。
 MobiConvertedBook convertMobiBook(MobiBook book) {
   final cleaner = const MobiCleaner();
-  // recindex 是 1-based 资源序号 → 图(不含封面/缩略图等非正文资源时,
-  // 直接按 images 列表序对应;若有偏移需按 kindleunpack rscnames 校正)。
-  final images = book.images;
-
+  // recindex 是 1-based 资源槽号(以 firstResource 为槽 0),槽可能被非图
+  // 资源占用——交给 reader 按 KindleUnpack 的 rscnames 语义解析。
   String? imagePathOf(int rec) {
-    if (rec <= 0 || rec > images.length) {
+    final img = book.imageForRecindex(rec);
+    if (img == null) {
       return null;
     }
-    final img = images[rec - 1];
-    // 章节文件在 Text/ 下,图在 Images/ 下:src 必须 ../Images/… 才能解析。
     return '../Images/${_imageFileName(img.index, img.mediaType)}';
   }
 
@@ -87,7 +84,7 @@ MobiConvertedBook convertMobiBook(MobiBook book) {
 
   // 图片落盘清单(含封面/缩略图,按出现序)。
   final convertedImages = <MobiConvertedImage>[];
-  for (final img in images) {
+  for (final img in book.images) {
     convertedImages.add(
       MobiConvertedImage(
         href: 'Images/${_imageFileName(img.index, img.mediaType)}',
@@ -143,7 +140,7 @@ String? _pieceTitle(String piece) {
     dotAll: true,
   ).firstMatch(piece);
   if (m != null) {
-    return _stripTags(m.group(1)!).trim();
+    return _decodeEntities(_stripTags(m.group(1)!).trim());
   }
   // 整页是图(漫画):取 img 的 alt(通常是页码/页标题)。
   final imgAlt = RegExp(
@@ -151,7 +148,7 @@ String? _pieceTitle(String piece) {
     caseSensitive: false,
   ).firstMatch(piece);
   if (imgAlt != null) {
-    final alt = imgAlt.group(1)!.trim();
+    final alt = _decodeEntities(imgAlt.group(1)!.trim());
     if (alt.isNotEmpty && alt.length < 80) {
       return alt;
     }
@@ -172,6 +169,15 @@ String? _pieceTitle(String piece) {
 }
 
 String _stripTags(String html) => html.replaceAll(RegExp(r'<[^>]+>'), ' ');
+
+/// 属性值里的常见实体(alt 可能含 &amp; 等)。
+String _decodeEntities(String raw) => raw
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&nbsp;', '\u00A0');
 
 String _imageFileName(int sectionIndex, String mediaType) {
   final ext = switch (mediaType) {

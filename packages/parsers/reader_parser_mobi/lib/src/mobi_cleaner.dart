@@ -1,7 +1,7 @@
-import 'dart:convert';
-
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+
+import 'mobi_container.dart';
 
 /// 清洗 mobipocket HTML 并把整本按 `<mbp:pagebreak>` 切成章节。
 ///
@@ -24,7 +24,7 @@ class MobiCleaner {
     int codepage, {
     required String? Function(int recindex) imagePathOf,
   }) {
-    var html = _decode(rawHtmlBytes, codepage);
+    var html = decodeMobiText(rawHtmlBytes, codepage);
     // 1. 文本层按 pagebreak 切段(先换占位,避免标签形态差异)。
     final pieces = _splitOnPageBreaks(html);
     final result = <String>[];
@@ -179,14 +179,5 @@ class MobiCleaner {
       return table[v - 1];
     }
     return null;
-  }
-
-  static String _decode(List<int> bytes, int codepage) {
-    switch (codepage) {
-      case 65001:
-        return utf8.decode(bytes, allowMalformed: true);
-      default:
-        return latin1.decode(bytes);
-    }
   }
 }
