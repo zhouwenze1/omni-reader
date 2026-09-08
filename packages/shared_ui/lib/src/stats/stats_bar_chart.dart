@@ -38,6 +38,10 @@ class StatsBarChart extends StatelessWidget {
             touchTooltipData: BarTouchTooltipData(
               getTooltipColor: (_) => colorScheme.inverseSurface,
               tooltipRoundedRadius: 6,
+              // 最右/最左的 tooltip 默认贴柱上,会溢出图表被裁掉;
+              // 强制水平移进图表内,悬停文字完整可见。
+              fitInsideHorizontally: true,
+              tooltipMargin: 4,
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 final point = points[group.x];
                 if (point.tooltip.isEmpty) {

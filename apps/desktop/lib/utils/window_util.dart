@@ -38,7 +38,17 @@ class WindowUtil {
     }
   }
 
+  static bool _exitStarted = false;
+
+  /// 退出进程。视觉上先隐藏窗口(用户视角立即退出),随后销毁原生窗口;
+  /// 销毁完成后只调用一次 [exit],避免并发 exit 触发 C 运行时崩溃
+  /// ("Unknown hard error")。若销毁迟迟不结束(WebView2 慢),兜底超时后
+  /// 仍保证进程结束——但兜底与正常路径互斥,绝不同时 exit。
   static Future<void> forceExit() async {
+    if (_exitStarted) {
+      return;
+    }
+    _exitStarted = true;
     // 1) 视觉先行:立刻隐藏窗口,用户视角应用已退出。WebView2 环境清理
     //    (dispose,平台线程上耗时 1-2 秒)由此转入后台静默进行,不再卡界面。
     try {
@@ -46,20 +56,21 @@ class WindowUtil {
     } catch (_) {
       // 隐藏失败不阻塞退出流程。
     }
-    // 2) 后台收尾:等原生销毁完成(WebView2 慢时它自己也慢,但窗口已不可见),
-    //    正常完成后立即退出进程。进度为 280ms 防抖持续落盘、统计为 60s 心跳,
-    //    确认退出时均已持久(从阅读页内退出最多丢当前 1 分钟统计段)。
-    unawaited(
-      () async {
-        try {
-          await windowManager.destroy().timeout(const Duration(seconds: 1));
-        } catch (_) {}
-        exit(0);
-      }(),
-    );
-    // 3) 兜底:即使 destroy 卡死,进程也一定结束。窗口寿命必须压到秒级:
-    //    存活过久的隐藏窗口会被二次启动的单实例逻辑当目标激活,呈现白屏僵尸。
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
+
+    var destroyed = false;
+    try {
+      await windowManager.destroy().timeout(const Duration(seconds: 2));
+      destroyed = true;
+    } catch (_) {
+      destroyed = false;
+    }
+    if (!destroyed) {
+      // destroy 卡死/超时:强制结束,避免隐藏窗口变成二次启动的"白屏僵尸"。
+      exit(0);
+    }
+    // 干净销毁完成:让平台收尾走一帧再退出,避免在原生清理中途强杀导致
+    // "Unknown hard error"。只此一处调用 exit(不并发)。
+    await Future<void>.delayed(const Duration(milliseconds: 80));
     exit(0);
   }
 }
