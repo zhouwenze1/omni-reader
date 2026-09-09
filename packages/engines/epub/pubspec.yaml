@@ -32,7 +32,7 @@ dependencies:
 flutter:
   assets:
     - assets/renderer/assets/index-DNsThFnT.css
-    - assets/renderer/assets/index-WMxqiBTq.js
+    - assets/renderer/assets/index-DpvQw0BU.js
     - assets/renderer/favicon.ico
     - assets/renderer/index.html
     - assets/renderer/renderer-manifest.json
