@@ -107,6 +107,31 @@ class _DesktopReaderSettingsDialogState
                 ],
               ),
               const SizedBox(height: 4),
+              if (options.theme)
+                DropdownButtonFormField<String>(
+                  initialValue: _draft.rendererTheme,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: l10n.theme),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'day',
+                      child: Text(l10n.themeDay),
+                    ),
+                    DropdownMenuItem(
+                      value: 'night',
+                      child: Text(l10n.themeNight),
+                    ),
+                    DropdownMenuItem(
+                      value: 'sepia',
+                      child: Text(l10n.themeSepia),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    _updateDraft(_draft.copyWith(rendererTheme: value));
+                    _commitDraft();
+                  },
+                ),
               if (options.textTypography) ...[
                 _slider(
                   title: l10n.fontSize,

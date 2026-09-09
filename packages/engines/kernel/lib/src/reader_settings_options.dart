@@ -38,6 +38,8 @@ class ReaderSettingsOptions {
 
   static const ReaderSettingsOptions comic = ReaderSettingsOptions(
     layoutMode: true,
+    // 漫画/PDF 的背景(day/night/sepia)随阅读主题,设置面板需露出主题项。
+    theme: true,
   );
 
   static const ReaderSettingsOptions audio = ReaderSettingsOptions(
