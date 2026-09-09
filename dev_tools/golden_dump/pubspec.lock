@@ -94,6 +94,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  reader_parser_mobi:
+    dependency: "direct main"
+    description:
+      path: "../../packages/parsers/reader_parser_mobi"
+      relative: true
+    source: path
+    version: "0.1.0"
   source_span:
     dependency: transitive
     description:

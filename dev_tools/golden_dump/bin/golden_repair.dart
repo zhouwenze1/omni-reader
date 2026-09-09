@@ -115,9 +115,12 @@ Future<void> main(List<String> args) async {
 
     final root = Directory.systemTemp.createTempSync('golden_repair_');
     try {
+      final inputBytes = build();
       final input = p.join(root.path, 'input.epub');
       final output = p.join(root.path, 'output.epub');
-      File(input).writeAsBytesSync(build(), flush: true);
+      File(input).writeAsBytesSync(inputBytes, flush: true);
+      // 存输入样书(Rust compat 的输入)
+      File(p.join(caseDir, 'input.epub')).writeAsBytesSync(inputBytes, flush: true);
 
       final repairer = const EpubRepairer();
       final result = doStandardize

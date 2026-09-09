@@ -15,4 +15,12 @@ dependencies:
     path: ../../packages/parsers/reader_parser_core
   reader_parser_epub:
     path: ../../packages/parsers/reader_parser_epub
+  reader_parser_mobi:
+    path: ../../packages/parsers/reader_parser_mobi
   xml: ^6.5.0
+
+# reader_parser_mobi 是 monorepo workspace 成员(resolution: workspace),其
+# `reader_parser_core: any` 在独立解析时会指向 hosted;此处强指回本地 path。
+dependency_overrides:
+  reader_parser_core:
+    path: ../../packages/parsers/reader_parser_core
