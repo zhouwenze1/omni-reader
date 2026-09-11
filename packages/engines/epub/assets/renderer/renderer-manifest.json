@@ -1,15 +1,15 @@
 {
   "renderer": "vue-book-renderer",
-  "rendererCommit": "ca698ef6fe369ee48c4f9ba076404486db6eb7b2",
+  "rendererCommit": "ae057d83927b01c53d17e4041520fb96c14d05a4",
   "rendererDirty": false,
   "files": {
+    "assets/index-CxQZKR_Y.js": {
+      "bytes": 323204,
+      "sha256": "d7f6d11f9bb5868fadaf55955abbf532b0e36f2de0ff574a12ea766e822dd5df"
+    },
     "assets/index-DNsThFnT.css": {
       "bytes": 94,
       "sha256": "2c1610a87c380c54cef996ed4db1d0bad08844ce6664b502583561b47f56b9d7"
-    },
-    "assets/index-DpvQw0BU.js": {
-      "bytes": 322425,
-      "sha256": "07594cb1a73195d6a89506e8427ed03caee2cdec274b9fe1f223743e524525d0"
     },
     "favicon.ico": {
       "bytes": 4286,
@@ -17,7 +17,7 @@
     },
     "index.html": {
       "bytes": 441,
-      "sha256": "b26817673d78f5cc03c7abe15631f666ba0a7962f6a9538b166afbb715b278c5"
+      "sha256": "76f2492b82be9bb43b43c14b2e6cc55c35e3e3d36c44953cf60ee10bf5fb7f4a"
     }
   }
 }
